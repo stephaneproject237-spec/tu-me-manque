@@ -1,0 +1,52 @@
+name: Compiler l'application
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier la configuration Firebase
+        run: |
+          if [ ! -f app/google-services.json ]; then
+            echo "::error::Le fichier app/google-services.json est manquant. Ajoute-le au dépôt."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compiler l'APK
+        env:
+          APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/tu-me-manque.apk
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Préparer le fichier
+        run: cp app/build/outputs/apk/debug/app-debug.apk tu-me-manque.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tu-me-manque
+          path: tu-me-manque.apk
+
+      - name: Publier l'APK (lien de téléchargement)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Version ${{ github.run_number }}
+          files: tu-me-manque.apk
+          make_latest: true

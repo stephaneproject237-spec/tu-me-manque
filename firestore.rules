@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chaque personne ne lit que son propre profil. Toutes les écritures passent par les Cloud Functions.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    // Une demande est visible uniquement par celui qui l'envoie et celui qui la reçoit.
+    match /requests/{id} {
+      allow read: if request.auth != null
+        && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+      allow write: if false;
+    }
+    match /usernames/{name} {
+      allow read, write: if false;
+    }
+  }
+}
