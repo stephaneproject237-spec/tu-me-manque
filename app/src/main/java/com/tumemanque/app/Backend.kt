@@ -132,6 +132,8 @@ object Backend {
     suspend fun respondRequest(requestId: String, accept: Boolean): String =
         rpc("respond_request", JSONObject().put("p_request_id", requestId.toLong()).put("p_accept", accept))
 
+    suspend fun removePartner(): String = rpc("remove_partner")
+
     suspend fun sendMiss(reply: Boolean): String =
         rpc("send_miss", JSONObject().put("p_reply", reply))
 

@@ -245,6 +245,7 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 
 @Composable
 private fun HomeScreen(state: UiState, vm: AppViewModel) {
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
     Text("@${state.username}  💗  @${state.partnerName}", fontSize = 18.sp, color = Color.Gray)
     Spacer(Modifier.height(32.dp))
     Button(
@@ -279,5 +280,27 @@ private fun HomeScreen(state: UiState, vm: AppViewModel) {
                 }
             }
         }
+    }
+
+    Spacer(Modifier.height(32.dp))
+    TextButton(onClick = { confirmRemove = true }, enabled = !state.busy) {
+        Text("Retirer mon partenaire", color = Color.Gray)
+    }
+
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Retirer @${state.partnerName} ?") },
+            text = { Text("Vous ne serez plus liés. Vous pourrez chacun ajouter quelqu'un d'autre.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemove = false
+                    vm.removePartner()
+                }) { Text("Retirer") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = false }) { Text("Annuler") }
+            },
+        )
     }
 }

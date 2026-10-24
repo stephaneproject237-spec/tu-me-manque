@@ -169,6 +169,25 @@ begin
   return json_build_object('status', 'ok');
 end $$;
 
+create or replace function public.remove_partner()
+returns json language plpgsql security definer set search_path = public as $$
+declare me public.profiles;
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  select * into me from public.profiles where id = auth.uid();
+  if not found or me.partner_id is null then return json_build_object('status', 'no_partner'); end if;
+  update public.profiles
+    set partner_id = null, partner_name = null,
+        last_miss_from = null, last_miss_reply = null, last_miss_at = null
+    where id in (me.id, me.partner_id);
+  insert into public.notifications (to_id, title, body)
+    values (me.partner_id, 'Partenaire retiré', '@' || me.username || ' a mis fin au lien. Tu peux ajouter quelqu''un d''autre.');
+  return json_build_object('status', 'ok');
+end $$;
+
+revoke all on function public.remove_partner() from public, anon, authenticated;
+grant execute on function public.remove_partner() to authenticated;
+
 -- Seuls les utilisateurs connectés (même anonymes) peuvent appeler ces fonctions.
 revoke all on function public.save_token(text), public.claim_username(text), public.send_request(text),
   public.respond_request(bigint, boolean), public.send_miss(boolean), public._link(uuid, uuid)

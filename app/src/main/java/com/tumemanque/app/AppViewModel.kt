@@ -131,5 +131,12 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    fun removePartner() = act {
+        when (Backend.removePartner()) {
+            "ok" -> say("Partenaire retiré. Tu peux en ajouter un autre.")
+            else -> say("Impossible de retirer le partenaire pour le moment.")
+        }
+    }
+
     fun dismissInvite() = _state.update { it.copy(offerInvite = null) }
 }
