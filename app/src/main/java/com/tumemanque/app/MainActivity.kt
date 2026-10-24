@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -249,7 +251,20 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 @Composable
 private fun HomeScreen(state: UiState, vm: AppViewModel) {
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
-    Text("@${state.username}  💗  @${state.partnerName}", fontSize = 18.sp, color = Color.Gray)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("@${state.username}  💗  ", fontSize = 18.sp, color = Color.Gray)
+        Text(
+            "@${state.partnerName}",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier
+                .clickable(enabled = !state.busy) { confirmRemove = true }
+                .padding(8.dp),
+        )
+    }
+    Text("Touche son pseudo pour retirer ton partenaire", fontSize = 12.sp, color = Color.LightGray)
     Spacer(Modifier.height(32.dp))
     Button(
         onClick = { vm.sendMiss(false) },
@@ -283,11 +298,6 @@ private fun HomeScreen(state: UiState, vm: AppViewModel) {
                 }
             }
         }
-    }
-
-    Spacer(Modifier.height(32.dp))
-    TextButton(onClick = { confirmRemove = true }, enabled = !state.busy) {
-        Text("Retirer mon partenaire", color = Color.Gray)
     }
 
     if (confirmRemove) {
