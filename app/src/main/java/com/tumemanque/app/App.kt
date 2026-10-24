@@ -22,6 +22,7 @@ fun createNotificationChannel(context: Context) {
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        Backend.init(this)
         createNotificationChannel(this)
     }
 }

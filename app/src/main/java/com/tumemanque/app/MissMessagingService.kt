@@ -8,7 +8,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -18,7 +17,7 @@ import kotlinx.coroutines.launch
 class MissMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
-        if (FirebaseAuth.getInstance().currentUser == null) return
+        if (!Backend.hasSession()) return
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { Backend.saveToken(token) }
         }

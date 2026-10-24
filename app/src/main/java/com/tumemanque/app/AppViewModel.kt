@@ -38,34 +38,9 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val uid = Backend.ensureSignedIn()
+                Backend.ensureSession()
                 launch { runCatching { Backend.saveToken() } }
-                launch {
-                    Backend.userFlow(uid).collect { doc ->
-                        val miss = (doc?.get("lastMiss") as? Map<*, *>)?.let { m ->
-                            val from = m["from"] as? String
-                            if (from == null) null else Miss(from, (m["reply"] as? Boolean) ?: false)
-                        }
-                        _state.update {
-                            it.copy(
-                                loading = false,
-                                username = doc?.getString("username"),
-                                partnerName = doc?.getString("partnerName"),
-                                lastMiss = miss,
-                            )
-                        }
-                    }
-                }
-                launch {
-                    Backend.requestsFlow("toUid", uid).collect { docs ->
-                        _state.update { it.copy(incoming = docs.map { d -> toReq(d) }) }
-                    }
-                }
-                launch {
-                    Backend.requestsFlow("fromUid", uid).collect { docs ->
-                        _state.update { it.copy(outgoing = docs.map { d -> toReq(d) }) }
-                    }
-                }
+                applySnapshot(Backend.loadSnapshot())
             } catch (e: Exception) {
                 _state.update {
                     it.copy(loading = false, error = "Connexion impossible. Vérifie ta connexion internet puis réessaie.")
@@ -74,11 +49,31 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    private fun toReq(d: com.google.firebase.firestore.DocumentSnapshot) = Req(
-        id = d.id,
-        fromName = d.getString("fromName") ?: "",
-        toName = d.getString("toName") ?: "",
-    )
+    /** Appelé régulièrement tant que l'appli est ouverte. */
+    fun refresh() {
+        if (_state.value.loading || _state.value.error != null) return
+        viewModelScope.launch {
+            try {
+                applySnapshot(Backend.loadSnapshot())
+            } catch (e: Exception) {
+                // Pas de réseau pour l'instant : on garde l'écran actuel.
+            }
+        }
+    }
+
+    private fun applySnapshot(s: Snapshot) {
+        _state.update {
+            it.copy(
+                loading = false,
+                error = null,
+                username = s.username,
+                partnerName = s.partnerName,
+                lastMiss = s.miss,
+                incoming = s.incoming,
+                outgoing = s.outgoing,
+            )
+        }
+    }
 
     private fun clean(name: String) = name.trim().removePrefix("@").lowercase()
 
@@ -87,6 +82,7 @@ class AppViewModel : ViewModel() {
             _state.update { it.copy(busy = true, message = null) }
             try {
                 block()
+                applySnapshot(Backend.loadSnapshot())
             } catch (e: Exception) {
                 _state.update { it.copy(message = "Une erreur est survenue. Vérifie ta connexion et réessaie.") }
             }
