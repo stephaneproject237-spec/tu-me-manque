@@ -134,6 +134,9 @@ private fun Root(vm: AppViewModel) {
             state.partnerName == null -> PartnerScreen(state, vm) { shareApp(context, state.username) }
             else -> HomeScreen(state, vm)
         }
+
+        Spacer(Modifier.height(24.dp))
+        Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = Color.LightGray)
     }
 
     state.offerInvite?.let { name ->
