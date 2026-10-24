@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.tumemanque.app"
-        minSdk = 26
+        minSdk = 21
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

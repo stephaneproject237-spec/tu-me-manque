@@ -4,10 +4,12 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 
 const val CHANNEL_ID = "miss"
 
 fun createNotificationChannel(context: Context) {
+    if (Build.VERSION.SDK_INT < 26) return
     val manager = context.getSystemService(NotificationManager::class.java)
     val channel = NotificationChannel(
         CHANNEL_ID,
