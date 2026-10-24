@@ -64,7 +64,16 @@ Deno.serve(async (req) => {
         message: {
           token,
           notification: { title, body },
-          android: { priority: "HIGH", notification: { channel_id: "miss" } },
+          android: {
+            priority: "HIGH",
+            notification: {
+              channel_id: "miss_v2",
+              sound: "tu_me_manques",
+              default_sound: false,
+              vibrate_timings: ["0s", "0.3s", "0.12s", "0.3s", "0.12s", "0.6s"],
+              default_vibrate_timings: false,
+            },
+          },
         },
       }),
     });

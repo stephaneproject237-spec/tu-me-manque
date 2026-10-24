@@ -45,6 +45,8 @@ class MissMessagingService : FirebaseMessagingService() {
             .setContentText(notification.body)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSound(soundUri(this))
+            .setVibrate(VIBRATION_PATTERN)
             .setContentIntent(pending)
             .build()
 
