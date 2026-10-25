@@ -13,14 +13,44 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
 
 data class Snapshot(
     val username: String?,
     val partnerName: String?,
     val miss: Miss?,
+    val unread: Int,
     val incoming: List<Req>,
     val outgoing: List<Req>,
 )
+
+data class Gif(val id: String, val url: String, val preview: String, val w: Int, val h: Int)
+
+data class GifPage(val items: List<Gif>, val next: Int)
+
+/** Un message du chat. `kind` : text, gif, sticker, image ou voice. */
+data class ChatMsg(
+    val id: Long,
+    val tmp: Long = 0,
+    val mine: Boolean,
+    val kind: String,
+    val body: String?,
+    val media: String?,
+    val w: Int = 0,
+    val h: Int = 0,
+    val dur: Int = 0,
+    val createdAt: Long,
+    val read: Boolean = false,
+    val pending: Boolean = false,
+    val localBytes: ByteArray? = null,
+    val localFile: String? = null,
+) {
+    val key: String get() = if (pending) "t$tmp" else "m$id"
+}
 
 private fun JSONObject.str(key: String): String? = if (isNull(key)) null else optString(key)
 
@@ -142,7 +172,7 @@ object Backend {
         val profile = JSONArray(
             authed(
                 "GET",
-                "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply&id=eq.$uid"
+                "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply,last_miss_at&id=eq.$uid"
             )
         ).optJSONObject(0)
         val requests = JSONArray(
@@ -159,12 +189,136 @@ object Backend {
             if (o.str("from_id") == uid) outgoing.add(req) else incoming.add(req)
         }
         val missFrom = profile?.str("last_miss_from")
+        var unread = 0
+        if (profile?.str("partner_name") != null) {
+            // Le chat n'est peut-être pas encore installé côté serveur : on ignore l'erreur.
+            unread = runCatching {
+                JSONArray(
+                    authed("GET", "/rest/v1/messages?select=id&recipient_id=eq.$uid&read_at=is.null&limit=100")
+                ).length()
+            }.getOrDefault(0)
+        }
         return Snapshot(
             username = profile?.str("username"),
             partnerName = profile?.str("partner_name"),
-            miss = if (missFrom == null) null else Miss(missFrom, profile.optBoolean("last_miss_reply", false)),
+            miss = if (missFrom == null) null
+            else Miss(missFrom, profile.optBoolean("last_miss_reply", false), profile.str("last_miss_at") ?: ""),
+            unread = unread,
             incoming = incoming,
             outgoing = outgoing,
         )
+    }
+
+    // ====================== Chat ======================
+
+    private const val COLS = "id,sender_id,kind,body,media,meta,created_at,read_at"
+
+    fun mediaUrl(path: String): String = "${Config.SUPABASE_URL}/storage/v1/object/public/chat/$path"
+
+    private fun parseTime(s: String?): Long {
+        val now = System.currentTimeMillis()
+        if (s == null || s.length < 19) return now
+        return try {
+            val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            f.timeZone = TimeZone.getTimeZone("UTC")
+            f.parse(s.substring(0, 19))?.time ?: now
+        } catch (e: Exception) {
+            now
+        }
+    }
+
+    private fun parseMsg(o: JSONObject, uid: String): ChatMsg {
+        val meta = o.optJSONObject("meta")
+        return ChatMsg(
+            id = o.getLong("id"),
+            mine = o.str("sender_id") == uid,
+            kind = o.getString("kind"),
+            body = o.str("body"),
+            media = o.str("media"),
+            w = meta?.optInt("w", 0) ?: 0,
+            h = meta?.optInt("h", 0) ?: 0,
+            dur = meta?.optInt("d", 0) ?: 0,
+            createdAt = parseTime(o.str("created_at")),
+            read = o.str("read_at") != null,
+        )
+    }
+
+    private suspend fun messages(query: String): List<ChatMsg> {
+        val uid = ensureSession()
+        val arr = JSONArray(authed("GET", "/rest/v1/messages?select=$COLS&$query"))
+        return List(arr.length()) { parseMsg(arr.getJSONObject(it), uid) }
+    }
+
+    /** Les derniers messages, du plus ancien au plus récent. */
+    suspend fun latestMessages(): List<ChatMsg> = messages("order=id.desc&limit=40").reversed()
+
+    suspend fun olderMessages(beforeId: Long): List<ChatMsg> =
+        messages("id=lt.$beforeId&order=id.desc&limit=40").reversed()
+
+    suspend fun newMessages(afterId: Long): List<ChatMsg> = messages("id=gt.$afterId&order=id.asc&limit=100")
+
+    /** Parmi ces messages envoyés par moi, lesquels ont été lus ? */
+    suspend fun readAmong(ids: List<Long>): List<Long> {
+        if (ids.isEmpty()) return emptyList()
+        val arr = JSONArray(
+            authed("GET", "/rest/v1/messages?select=id&read_at=not.is.null&id=in.(${ids.joinToString(",")})")
+        )
+        return List(arr.length()) { arr.getJSONObject(it).getLong("id") }
+    }
+
+    data class SendResult(val status: String, val id: Long)
+
+    suspend fun sendMessage(kind: String, body: String?, media: String?, meta: JSONObject?): SendResult {
+        val args = JSONObject()
+            .put("p_kind", kind)
+            .put("p_body", body ?: JSONObject.NULL)
+            .put("p_media", media ?: JSONObject.NULL)
+            .put("p_meta", meta ?: JSONObject.NULL)
+        val j = JSONObject(authed("POST", "/rest/v1/rpc/send_message", args.toString()))
+        return SendResult(j.optString("status", "error"), j.optLong("id", 0))
+    }
+
+    suspend fun markRead() { rpc("mark_read") }
+
+    suspend fun clearMiss() { rpc("clear_miss") }
+
+    /** Envoie un fichier (photo ou vocal) dans le dossier de l'utilisateur et renvoie son chemin. */
+    suspend fun upload(bytes: ByteArray, ext: String, mime: String): String {
+        val uid = ensureSession()
+        val path = "$uid/${UUID.randomUUID().toString().replace("-", "")}.$ext"
+        suspend fun attempt(token: String): Int = withContext(Dispatchers.IO) {
+            val conn = URL("${Config.SUPABASE_URL}/storage/v1/object/chat/$path").openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 15000
+                conn.readTimeout = 60000
+                conn.doOutput = true
+                conn.setFixedLengthStreamingMode(bytes.size)
+                conn.setRequestProperty("apikey", Config.SUPABASE_ANON_KEY)
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", mime)
+                conn.setRequestProperty("x-upsert", "false")
+                conn.outputStream.use { it.write(bytes) }
+                conn.responseCode
+            } finally {
+                conn.disconnect()
+            }
+        }
+        var code = attempt(session().first)
+        if (code == 401) code = attempt(session(force = true).first)
+        if (code !in 200..299) throw IOException("Envoi du fichier refusé ($code)")
+        return path
+    }
+
+    suspend fun searchGifs(query: String, offset: Int): GifPage {
+        val text = authed("GET", "/functions/v1/gifs?q=${URLEncoder.encode(query, "UTF-8")}&offset=$offset")
+        val j = JSONObject(text)
+        val arr = j.optJSONArray("results") ?: JSONArray()
+        val items = List(arr.length()) {
+            val o = arr.getJSONObject(it)
+            Gif(o.optString("id"), o.getString("url"), o.optString("preview", o.getString("url")), o.optInt("w", 200), o.optInt("h", 200))
+        }
+        val next = if (j.has("next") && !j.isNull("next")) j.optInt("next", offset + items.size) else offset + items.size
+        return GifPage(items, next)
     }
 }

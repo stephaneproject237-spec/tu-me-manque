@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 
 data class Req(val id: String, val fromName: String, val toName: String)
 
-data class Miss(val from: String, val isReply: Boolean)
+data class Miss(val from: String, val isReply: Boolean, val at: String = "")
 
 data class UiState(
     val loading: Boolean = true,
@@ -20,6 +20,7 @@ data class UiState(
     val incoming: List<Req> = emptyList(),
     val outgoing: List<Req> = emptyList(),
     val lastMiss: Miss? = null,
+    val unread: Int = 0,
     val busy: Boolean = false,
     val message: String? = null,
     /** Identifiant introuvable : on propose d'envoyer l'appli. */
@@ -69,6 +70,7 @@ class AppViewModel : ViewModel() {
                 username = s.username,
                 partnerName = s.partnerName,
                 lastMiss = s.miss,
+                unread = s.unread,
                 incoming = s.incoming,
                 outgoing = s.outgoing,
             )
@@ -137,6 +139,14 @@ class AppViewModel : ViewModel() {
             else -> say("Impossible de retirer le partenaire pour le moment.")
         }
     }
+
+    /** Le chat vient de s'ouvrir après « Tu me manques aussi » : on efface la carte de l'écran d'accueil. */
+    fun clearMiss() {
+        _state.update { it.copy(lastMiss = null) }
+        viewModelScope.launch { runCatching { Backend.clearMiss() } }
+    }
+
+    fun setUnread(n: Int) = _state.update { it.copy(unread = n) }
 
     fun dismissInvite() = _state.update { it.copy(offerInvite = null) }
 }

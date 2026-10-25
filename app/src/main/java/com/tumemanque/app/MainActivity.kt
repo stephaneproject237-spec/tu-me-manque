@@ -55,6 +55,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -107,6 +108,26 @@ private fun Root(vm: AppViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val chatVm: ChatViewModel = viewModel()
+    var showChat by rememberSaveable { mutableStateOf(false) }
+    var autoOpened by rememberSaveable { mutableStateOf("") }
+
+    // Plus de partenaire : on ferme le chat et on oublie la conversation.
+    LaunchedEffect(state.partnerName, state.loading) {
+        if (!state.loading && state.partnerName == null) {
+            showChat = false
+            chatVm.reset()
+        }
+    }
+    // Après « Tu me manques » puis « Tu me manques aussi », le chat s'ouvre tout seul (une seule fois).
+    LaunchedEffect(state.lastMiss) {
+        val m = state.lastMiss
+        if (m != null && m.isReply && autoOpened != m.at && state.partnerName != null) {
+            autoOpened = m.at
+            showChat = true
+            vm.clearMiss()
+        }
+    }
 
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -117,7 +138,14 @@ private fun Root(vm: AppViewModel) {
         }
     }
 
-    Column(
+    if (showChat && state.partnerName != null) {
+        ChatScreen(
+            partner = state.partnerName!!,
+            vm = chatVm,
+            onBack = { showChat = false },
+            onRead = { vm.setUnread(0) },
+        )
+    } else Column(
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
@@ -135,7 +163,7 @@ private fun Root(vm: AppViewModel) {
             }
             state.username == null -> UsernameScreen(state, vm)
             state.partnerName == null -> PartnerScreen(state, vm) { shareApp(context, state.username) }
-            else -> HomeScreen(state, vm)
+            else -> HomeScreen(state, vm) { showChat = true }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -250,7 +278,7 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 }
 
 @Composable
-private fun HomeScreen(state: UiState, vm: AppViewModel) {
+private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit) {
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("@${state.username}  💗  ", fontSize = 18.sp, color = Color.Gray)
@@ -275,6 +303,10 @@ private fun HomeScreen(state: UiState, vm: AppViewModel) {
     ) {
         Text("Tu me manques 💗", fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
+    Spacer(Modifier.height(16.dp))
+    OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth()) {
+        Text(if (state.unread > 0) "💬 Chat  (${state.unread})" else "💬 Chat", fontSize = 16.sp)
+    }
     Message(state)
 
     state.lastMiss?.let { miss ->
@@ -293,7 +325,7 @@ private fun HomeScreen(state: UiState, vm: AppViewModel) {
                 )
                 if (!miss.isReply) {
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = { vm.sendMiss(true) }, enabled = !state.busy) {
+                    OutlinedButton(onClick = { vm.sendMiss(true); onOpenChat() }, enabled = !state.busy) {
                         Text("Tu me manques aussi")
                     }
                 }

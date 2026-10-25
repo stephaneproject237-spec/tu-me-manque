@@ -8,6 +8,10 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 
 /** Nouveau canal : la sonnerie et les vibrations d'un canal existant ne peuvent plus être modifiées. */
 const val CHANNEL_ID = "miss_v2"
@@ -40,7 +44,15 @@ fun createNotificationChannel(context: Context) {
     manager.createNotificationChannel(channel)
 }
 
-class App : Application() {
+class App : Application(), ImageLoaderFactory {
+    /** Coil sait aussi afficher les GIF animés. */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .components {
+            if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
+        }
+        .crossfade(true)
+        .build()
+
     override fun onCreate() {
         super.onCreate()
         Backend.init(this)

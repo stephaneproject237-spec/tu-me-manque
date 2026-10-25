@@ -18,7 +18,8 @@
     error: null,
     username: null,
     partnerName: null,
-    miss: null, // { from, isReply }
+    miss: null, // { from, isReply, at }
+    unread: 0,
     incoming: [],
     outgoing: [],
     busy: false,
@@ -105,7 +106,7 @@
     const uid = s.uid;
     const profiles = await authed(
       "GET",
-      "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply&id=eq." + uid
+      "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply,last_miss_at&id=eq." + uid
     );
     const requests = await authed(
       "GET",
@@ -118,10 +119,18 @@
       const req = { id: String(o.id), fromName: o.from_name || "", toName: o.to_name || "" };
       if (o.from_id === uid) outgoing.push(req); else incoming.push(req);
     });
+    let unread = 0;
+    if (p && p.partner_name) {
+      try {
+        const rows = await authed("GET", "/rest/v1/messages?select=id&recipient_id=eq." + uid + "&read_at=is.null&limit=100");
+        unread = (rows || []).length;
+      } catch (e) { /* le chat n'est peut-être pas encore installé côté serveur */ }
+    }
     return {
       username: p ? p.username || null : null,
       partnerName: p ? p.partner_name || null : null,
-      miss: p && p.last_miss_from ? { from: p.last_miss_from, isReply: !!p.last_miss_reply } : null,
+      miss: p && p.last_miss_from ? { from: p.last_miss_from, isReply: !!p.last_miss_reply, at: p.last_miss_at || "" } : null,
+      unread,
       incoming,
       outgoing,
     };
@@ -185,7 +194,34 @@
     const changed = key !== lastSnapshotKey || S.loading || S.error;
     lastSnapshotKey = key;
     Object.assign(S, snap, { loading: false, error: null });
+    afterSnapshot();
     return changed;
+  }
+
+  // ---------- Chat ----------
+  const chat = () => window.TMM_CHAT;
+  let autoOpenedFor = "";
+
+  function afterSnapshot() {
+    const c = chat();
+    if (!c) return;
+    if (!S.partnerName) { if (c.isOpen()) c.close(); return; }
+    // Après « Tu me manques » → « Tu me manques aussi », le chat s'ouvre tout seul (une seule fois).
+    if (S.miss && S.miss.isReply && !c.isOpen() && autoOpenedFor !== S.miss.at) {
+      autoOpenedFor = S.miss.at;
+      openChat(true);
+    }
+  }
+
+  function openChat(clearMiss) {
+    const c = chat();
+    if (!c || !S.partnerName) return;
+    c.open(S.partnerName);
+    if (clearMiss) {
+      S.miss = null;
+      rpc("clear_miss").catch(() => {});
+      render();
+    }
   }
 
   async function act(fn) {
@@ -200,6 +236,7 @@
     }
     S.busy = false;
     render();
+    if (S.openAfter) { S.openAfter = false; openChat(false); }
   }
 
   const say = (t) => { S.message = t; };
@@ -244,8 +281,10 @@
     }),
     reply: () => act(async () => {
       const st = await rpc("send_miss", { p_reply: true });
-      say(st === "ok" ? "Envoyé : Tu me manques aussi 💗" : "Impossible d'envoyer pour le moment.");
+      if (st === "ok") { say("Envoyé : Tu me manques aussi 💗"); S.miss = null; S.openAfter = true; }
+      else say("Impossible d'envoyer pour le moment.");
     }),
+    openChat: () => openChat(false),
     askRemove: () => { S.confirmRemove = true; render(); },
     cancelRemove: () => { S.confirmRemove = false; render(); },
     remove: () => {
@@ -353,6 +392,7 @@
       <div><span class="gris" style="font-size:18px">@${esc(S.username)} 💗 </span><span class="pseudo" data-action="askRemove">@${esc(S.partnerName)}</span></div>
       <p class="petit" style="margin-top:-8px">Touche son pseudo pour retirer ton partenaire</p>
       <button class="principal gros" data-action="miss" ${S.busy ? "disabled" : ""}>Tu me manques 💗</button>
+      <button class="secondaire chatbtn" data-action="openChat">💬 Chat${S.unread ? ' <span class="badge">' + (S.unread > 99 ? "99+" : S.unread) + "</span>" : ""}</button>
       ${messageBlock()}
       ${miss}
       ${pushBlock()}
@@ -420,6 +460,12 @@
     const btn = root.querySelector('[data-action="' + (el.dataset.field === "username" ? "claim" : "addPartner") + '"]');
     if (btn) btn.disabled = value.length < 3 || S.busy;
   });
+
+  window.TMM_API = {
+    CFG, session, authed, esc,
+    setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
+    reload() { return refresh(); },
+  };
 
   // ---------- Démarrage ----------
   async function start() {
