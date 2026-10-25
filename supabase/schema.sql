@@ -10,10 +10,13 @@ create table if not exists public.profiles (
   partner_id uuid references public.profiles(id) on delete set null,
   partner_name text,
   fcm_token text,
+  web_push jsonb,
   last_miss_from text,
   last_miss_reply boolean,
   last_miss_at timestamptz
 );
+
+alter table public.profiles add column if not exists web_push jsonb;
 
 create table if not exists public.requests (
   id bigint generated always as identity primary key,
@@ -51,6 +54,18 @@ revoke all on public.profiles, public.requests, public.notifications from anon, 
 grant select on public.profiles, public.requests to authenticated;
 
 -- ========== FONCTIONS ==========
+create or replace function public.save_web_push(p_sub jsonb)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  if p_sub is null or p_sub->>'endpoint' is null or p_sub->'keys'->>'p256dh' is null or p_sub->'keys'->>'auth' is null then
+    return json_build_object('status', 'invalid');
+  end if;
+  insert into public.profiles (id, web_push) values (auth.uid(), p_sub)
+    on conflict (id) do update set web_push = excluded.web_push, fcm_token = null;
+  return json_build_object('status', 'ok');
+end $$;
+
 create or replace function public.save_token(p_token text)
 returns json language plpgsql security definer set search_path = public as $$
 begin
@@ -189,24 +204,24 @@ revoke all on function public.remove_partner() from public, anon, authenticated;
 grant execute on function public.remove_partner() to authenticated;
 
 -- Seuls les utilisateurs connectés (même anonymes) peuvent appeler ces fonctions.
-revoke all on function public.save_token(text), public.claim_username(text), public.send_request(text),
+revoke all on function public.save_web_push(jsonb), public.save_token(text), public.claim_username(text), public.send_request(text),
   public.respond_request(bigint, boolean), public.send_miss(boolean), public._link(uuid, uuid)
   from public, anon, authenticated;
-grant execute on function public.save_token(text), public.claim_username(text), public.send_request(text),
+grant execute on function public.save_web_push(jsonb), public.save_token(text), public.claim_username(text), public.send_request(text),
   public.respond_request(bigint, boolean), public.send_miss(boolean) to authenticated;
 
 -- ========== ENVOI DES NOTIFICATIONS ==========
 -- À chaque nouvelle ligne dans « notifications », on appelle la fonction « notify » (voir supabase/notify/index.ts).
 create or replace function public.push_on_notification()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
-declare t text;
+declare t text; w jsonb;
 begin
-  select fcm_token into t from public.profiles where id = new.to_id;
-  if t is not null then
+  select fcm_token, web_push into t, w from public.profiles where id = new.to_id;
+  if t is not null or w is not null then
     perform net.http_post(
       url := 'https://PROJECT_REF.supabase.co/functions/v1/notify',
       headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', 'WEBHOOK_SECRET'),
-      body := jsonb_build_object('token', t, 'title', new.title, 'body', new.body)
+      body := jsonb_build_object('token', t, 'web_push', w, 'title', new.title, 'body', new.body)
     );
   end if;
   return new;

@@ -3,6 +3,10 @@ name: Compiler l'application
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'web/**'
+      - 'supabase/**'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:

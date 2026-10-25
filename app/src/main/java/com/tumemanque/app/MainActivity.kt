@@ -91,7 +91,8 @@ private fun shareApp(context: Context, username: String?) {
     val link = BuildConfig.APK_URL
     val text = buildString {
         append("Je t'invite sur « Tu me manques » 💗")
-        if (link.isNotEmpty()) append("\nTélécharge l'application : $link")
+        if (link.isNotEmpty()) append("\nAndroid : $link")
+        append("\niPhone : ${Config.WEB_URL} (à ouvrir dans Safari, puis « Sur l'écran d'accueil »)")
         if (!username.isNullOrEmpty()) append("\nMon identifiant : @$username")
     }
     val send = Intent(Intent.ACTION_SEND).apply {

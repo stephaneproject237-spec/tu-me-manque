@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tu me manques</title>
+  <meta name="theme-color" content="#E91E63">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Tu me manques">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <style>
+    :root { --rose: #E91E63; --rose-clair: #FFD9E4; --gris: #757575; --texte: #212121; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: #fff; color: var(--texte);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; gap: 12px;
+      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); }
+    .col { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    h1 { margin: 0; font-size: 28px; }
+    h2 { margin: 0; font-size: 24px; }
+    p { margin: 0; line-height: 1.4; }
+    .coeur { font-size: 56px; }
+    .gris { color: var(--gris); }
+    .petit { font-size: 12px; color: #BDBDBD; }
+    .msg { color: var(--rose); }
+    label { align-self: stretch; text-align: left; font-size: 13px; color: var(--gris); }
+    .champ { align-self: stretch; display: flex; align-items: center; border: 1.5px solid #BDBDBD; border-radius: 12px; padding: 0 12px; }
+    .champ:focus-within { border-color: var(--rose); }
+    .champ span { color: var(--gris); margin-right: 4px; }
+    .champ input { flex: 1; border: 0; outline: 0; font-size: 18px; padding: 14px 0; background: transparent; min-width: 0; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 24px; padding: 14px 22px; font-size: 16px; font-weight: 600; }
+    button:disabled { opacity: .45; cursor: default; }
+    .principal { background: var(--rose); color: #fff; align-self: stretch; }
+    .secondaire { background: #fff; color: var(--rose); border: 1.5px solid var(--rose); }
+    .lien { background: none; color: var(--gris); font-weight: 500; padding: 10px; }
+    .gros { width: 240px; height: 240px; border-radius: 50%; font-size: 24px; line-height: 1.2; margin: 18px 0; }
+    .carte { align-self: stretch; border: 1px solid #E0E0E0; border-radius: 16px; padding: 16px; background: #FAFAFA;
+      display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .rangee { display: flex; gap: 8px; justify-content: center; }
+    .pseudo { color: var(--rose); font-weight: 600; text-decoration: underline; cursor: pointer; padding: 8px; font-size: 18px; }
+    .etapes { text-align: left; margin: 0; padding-left: 20px; line-height: 1.6; }
+    .fond { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center;
+      justify-content: center; padding: 24px; z-index: 10; }
+    .boite { background: #fff; border-radius: 20px; padding: 22px; max-width: 360px; width: 100%; display: flex;
+      flex-direction: column; gap: 14px; text-align: left; }
+    .boite .rangee { justify-content: flex-end; }
+    .spin { width: 40px; height: 40px; border: 4px solid var(--rose-clair); border-top-color: var(--rose);
+      border-radius: 50%; animation: tourne 1s linear infinite; }
+    @keyframes tourne { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="app"><div class="spin"></div></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
