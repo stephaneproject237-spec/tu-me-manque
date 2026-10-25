@@ -26,7 +26,8 @@
     message: null,
     offerInvite: null,
     confirmRemove: false,
-    draft: { username: "", partner: "" },
+    draft: { partner: "" },
+    needAuth: false,
   };
   let lastSnapshotKey = "";
 
@@ -72,12 +73,9 @@
           const r = await http("POST", "/auth/v1/token?grant_type=refresh_token", { refresh_token: s.refresh });
           if (r.code >= 200 && r.code < 300) { saveSession(JSON.parse(r.text)); return store.get(); }
           if (r.code < 400 || r.code > 403) throw new Error("Renouvellement impossible (" + r.code + ")");
-          store.clear(); // session perdue : nouvelle identité
+          store.clear(); // session perdue : il faudra se reconnecter
         }
-        const r = await http("POST", "/auth/v1/signup", {});
-        if (r.code < 200 || r.code >= 300) throw new Error("Connexion impossible (" + r.code + ") " + r.text);
-        saveSession(JSON.parse(r.text));
-        return store.get();
+        throw new Error("NO_SESSION");
       } finally {
         pendingSession = null;
       }
@@ -184,9 +182,153 @@
     render();
   }
 
+  // ---------- Comptes (Google / Apple / SMS) ----------
+  const A0 = () => ({ screen: "welcome", mode: "create", pseudo: "", age: "", avail: null, phone: "+237", code: "", busy: false, msg: null });
+  S.auth = A0();
+  const PENDING = "tmm_pending";
+  const PKCE = "tmm_pkce";
+  const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignoré */ } };
+  const lsDel = (k) => { try { localStorage.removeItem(k); } catch (e) { /* ignoré */ } };
+  const ageOk = (v) => { const n = Number(v); return /^\d{1,3}$/.test(String(v)) && n >= 1 && n <= 120; };
+  const pseudoOk = (v) => /^[a-z][a-z0-9_]{2,19}$/.test(v);
+  const phoneDigits = (v) => String(v || "").replace(/\D/g, "");
+  const e164 = (v) => {
+    let d = phoneDigits(v);
+    if (/^\s*00/.test(String(v))) d = d.slice(2);
+    if (d.length === 9 && d[0] === "6") d = "237" + d;
+    return "+" + d;
+  };
+
+  const AVAIL_TXT = {
+    checking: "Vérification…",
+    available: "✓ Ce pseudo est disponible",
+    taken: "✗ Ce pseudo est déjà pris",
+    invalid: "3 à 20 caractères, commence par une lettre (a-z, 0-9 ou _)",
+    error: "Impossible de vérifier pour le moment",
+  };
+  const canContinue = () => S.auth.avail === "available" && ageOk(S.auth.age) && !S.auth.busy;
+
+  // Met à jour les textes et boutons sans redessiner l'écran (pour ne pas perdre le clavier).
+  function paintAuth() {
+    const a = document.getElementById("avail");
+    if (a) { a.textContent = AVAIL_TXT[S.auth.avail] || ""; a.className = "avail " + (S.auth.avail || ""); }
+    root.querySelectorAll("[data-needok]").forEach((b) => { b.disabled = !canContinue(); });
+    const sc = root.querySelector('[data-action="sendCode"]');
+    if (sc) sc.disabled = S.auth.busy || phoneDigits(S.auth.phone).length < 8;
+    const vc = root.querySelector('[data-action="verifyCode"]');
+    if (vc) vc.disabled = S.auth.busy || S.auth.code.length < 6;
+  }
+
+  let availTimer = null;
+  let availSeq = 0;
+  function checkPseudo() {
+    clearTimeout(availTimer);
+    const p = S.auth.pseudo;
+    const seq = ++availSeq;
+    if (!pseudoOk(p)) { S.auth.avail = p ? "invalid" : null; paintAuth(); return; }
+    S.auth.avail = "checking";
+    paintAuth();
+    availTimer = setTimeout(async () => {
+      let st = "error";
+      try {
+        const r = await http("POST", "/rest/v1/rpc/username_available", { p_username: p });
+        if (r.code === 200) st = JSON.parse(r.text).status || "error";
+      } catch (e) { /* hors-ligne */ }
+      if (seq !== availSeq) return;
+      S.auth.avail = st;
+      paintAuth();
+    }, 400);
+  }
+
+  function smsError(r) {
+    const t = String((r && r.text) || "").toLowerCase();
+    if (r && (r.code === 429 || /rate limit|too many|only request this after/.test(t))) return "Trop d'essais. Attends une minute puis réessaie.";
+    if (/provider|unsupported|sms_send_failed|not enabled|disabled|twilio/.test(t)) return "La connexion par SMS n'est pas encore activée. Utilise Google pour le moment.";
+    return "Impossible d'envoyer le SMS pour le moment.";
+  }
+
+  async function sendCode() {
+    S.auth.busy = true; S.auth.msg = null; render();
+    try {
+      const r = await http("POST", "/auth/v1/otp", { phone: e164(S.auth.phone), create_user: true });
+      if (r.code >= 200 && r.code < 300) S.auth.screen = "code"; else S.auth.msg = smsError(r);
+    } catch (e) { S.auth.msg = "Connexion impossible. Vérifie ta connexion internet."; }
+    S.auth.busy = false; render();
+  }
+
+  async function verifyCode() {
+    S.auth.busy = true; S.auth.msg = null; render();
+    try {
+      const r = await http("POST", "/auth/v1/verify", { type: "sms", phone: e164(S.auth.phone), token: S.auth.code });
+      if (r.code >= 200 && r.code < 300) {
+        saveSession(JSON.parse(r.text));
+        await finishAuth();
+      } else { S.auth.msg = "Code incorrect ou expiré."; }
+    } catch (e) { S.auth.msg = "Connexion impossible. Vérifie ta connexion internet."; }
+    S.auth.busy = false; render();
+  }
+
+  const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  async function startOAuth(provider) {
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+    const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+    lsSet(PKCE, verifier);
+    if (S.auth.mode === "create") lsSet(PENDING, { pseudo: S.auth.pseudo, age: Number(S.auth.age) }); else lsDel(PENDING);
+    location.href = CFG.SUPABASE_URL + "/auth/v1/authorize?provider=" + provider +
+      "&redirect_to=" + encodeURIComponent(CFG.WEB_URL) +
+      "&code_challenge=" + challenge + "&code_challenge_method=s256";
+  }
+
+  // Retour de Google / Apple : l'adresse contient « ?code=… ». Renvoie true si on a traité un retour.
+  async function handleOAuthReturn() {
+    const q = new URLSearchParams(location.search);
+    const code = q.get("code");
+    const err = q.get("error_description");
+    if (!code && !err) return false;
+    try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignoré */ }
+    if (err) { S.auth.msg = "Connexion refusée : " + err; return false; }
+    const verifier = lsGet(PKCE);
+    lsDel(PKCE);
+    if (!verifier) return false;
+    const r = await http("POST", "/auth/v1/token?grant_type=pkce", { auth_code: code, code_verifier: verifier });
+    if (r.code >= 200 && r.code < 300) { saveSession(JSON.parse(r.text)); return true; }
+    S.auth.msg = "Connexion impossible. Réessaie.";
+    return false;
+  }
+
+  // Après une connexion réussie : on retrouve le profil, ou on le crée (pseudo + âge).
+  async function finishAuth() {
+    S.needAuth = false;
+    const snap = await loadSnapshot();
+    if (!snap.username) {
+      const pend = lsGet(PENDING) || (S.auth.pseudo && ageOk(S.auth.age) ? { pseudo: S.auth.pseudo, age: Number(S.auth.age) } : null);
+      lsDel(PENDING);
+      let note = null;
+      if (pend) {
+        const j = await authed("POST", "/rest/v1/rpc/create_account", { p_username: pend.pseudo, p_age: pend.age });
+        if (j && j.status === "ok") { applySnapshot(await loadSnapshot()); afterLogin(); return; }
+        note = j && j.status === "taken" ? "Ce pseudo vient d'être pris. Choisis-en un autre." : "Impossible de créer le compte.";
+      }
+      S.auth = Object.assign(A0(), { mode: "create", msg: note, age: pend ? String(pend.age) : "", pseudo: note && note.startsWith("Ce pseudo") ? "" : (pend ? pend.pseudo : "") });
+      if (S.auth.pseudo) checkPseudo();
+    } else {
+      lsDel(PENDING);
+    }
+    applySnapshot(snap);
+    afterLogin();
+  }
+
+  function afterLogin() {
+    if (pushSupported && Notification.permission === "granted") subscribeAndSave().catch(() => {});
+    else registerWorker();
+  }
+
   // ---------- Actions ----------
   const clean = (v) => String(v || "").trim().replace(/^@/, "").toLowerCase();
   const filterName = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20);
+  const filterTarget = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9_+ ()-]/g, "").slice(0, 24);
   const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   function applySnapshot(snap) {
@@ -243,27 +385,35 @@
 
   const actions = {
     retry: () => start(),
-    claim: () => act(async () => {
-      const st = await rpc("claim_username", { p_username: clean(S.draft.username) });
-      if (st === "taken") say("Cet identifiant est déjà pris. Essaie-en un autre.");
-      else if (st === "invalid") say("3 à 20 caractères : lettres minuscules, chiffres ou _.");
-      else if (st !== "ok") say("Impossible de valider cet identifiant.");
-      else {
-        // Dès que l'identifiant est pris, on demande l'autorisation des notifications si possible.
-        S.draft.username = "";
-      }
+    goCreate: () => { S.auth = Object.assign(A0(), { screen: "create", mode: "create" }); render(); },
+    goLogin: () => { S.auth = Object.assign(A0(), { screen: "login", mode: "login" }); render(); },
+    goWelcome: () => { S.auth = A0(); render(); },
+    phoneStart: () => { S.auth.screen = "phone"; S.auth.msg = null; render(); },
+    phoneBack: () => { S.auth.screen = S.auth.mode === "create" ? "create" : "login"; S.auth.msg = null; render(); },
+    sendCode: () => sendCode(),
+    verifyCode: () => verifyCode(),
+    oauthGoogle: () => startOAuth("google"),
+    oauthApple: () => startOAuth("apple"),
+    createProfile: () => act(async () => {
+      const j = await authed("POST", "/rest/v1/rpc/create_account", { p_username: S.auth.pseudo, p_age: Number(S.auth.age) });
+      const st = (j && j.status) || "error";
+      if (st === "taken") { S.auth.avail = "taken"; say("Ce pseudo est déjà pris. Choisis-en un autre."); }
+      else if (st === "invalid" || st === "invalid_age") say("Vérifie ton pseudo et ton âge.");
+      else if (st === "anonymous") { store.clear(); S.needAuth = true; S.auth = A0(); }
+      else if (st !== "ok" && st !== "has_username") say("Impossible de créer le compte.");
     }),
     addPartner: () => act(async () => {
       const name = clean(S.draft.partner);
-      const st = await rpc("send_request", { p_username: name });
-      if (st === "sent") { say("Demande envoyée à @" + name + ". Il/elle va recevoir une notification."); S.draft.partner = ""; }
+      const j = await authed("POST", "/rest/v1/rpc/send_request", { p_username: name });
+      const st = (j && j.status) || "error";
+      if (st === "sent") { say("Demande envoyée à @" + (j.name || name) + ". Il/elle va recevoir une notification."); S.draft.partner = ""; }
       else if (st === "linked") S.draft.partner = "";
       else if (st === "not_found") S.offerInvite = name;
-      else if (st === "self") say("C'est ton propre identifiant !");
+      else if (st === "self") say("C'est toi !");
       else if (st === "already_has_partner") say("Tu as déjà un partenaire.");
       else if (st === "partner_busy") say("@" + name + " a déjà un partenaire.");
       else if (st === "already_sent") say("Tu as déjà envoyé une demande à @" + name + ".");
-      else if (st === "invalid") say("Identifiant invalide.");
+      else if (st === "invalid") say("Pseudo ou numéro invalide.");
       else say("Impossible d'envoyer la demande.");
     }),
     accept: (id) => act(async () => {
@@ -343,17 +493,68 @@
     </div>`;
   }
 
+  const methodButtons = (needOk) => {
+    const flag = needOk ? "data-needok" : "";
+    const dis = needOk && !canContinue() ? "disabled" : "";
+    return `<button class="principal" data-action="oauthGoogle" ${flag} ${dis}>Continuer avec Google</button>` +
+      (CFG.APPLE_LOGIN ? `<button class="sombre" data-action="oauthApple" ${flag} ${dis}>Continuer avec Apple</button>` : "") +
+      `<button class="secondaire" data-action="phoneStart" ${flag} ${dis}>Recevoir un code par SMS</button>`;
+  };
+
+  const pseudoAgeFields = () => `
+      <label for="f-pseudo">Ton pseudo</label>
+      <div class="champ"><input id="f-pseudo" data-afield="pseudo" value="${esc(S.auth.pseudo)}"
+        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20" placeholder="par exemple stephane"></div>
+      <p id="avail" class="avail ${esc(S.auth.avail || "")}">${esc(AVAIL_TXT[S.auth.avail] || "")}</p>
+      <label for="f-age">Ton âge</label>
+      <div class="champ"><input id="f-age" data-afield="age" value="${esc(S.auth.age)}" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="par exemple 25"></div>`;
+
+  function authScreen() {
+    const a = S.auth;
+    const msg = a.msg ? '<p class="msg">' + esc(a.msg) + "</p>" : "";
+    if (a.screen === "create") {
+      return `<div class="col"><div class="coeur">💗</div><h1>Créer mon compte</h1>
+        <p>Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.</p>
+        ${pseudoAgeFields()}
+        <p class="gris">Puis choisis comment te connecter :</p>
+        ${methodButtons(true)}${msg}
+        <button class="lien" data-action="goWelcome">Retour</button></div>`;
+    }
+    if (a.screen === "login") {
+      return `<div class="col"><div class="coeur">💗</div><h1>Me connecter</h1>
+        <p>Utilise la même méthode que lors de la création de ton compte pour retrouver ton pseudo et tes conversations.</p>
+        ${methodButtons(false)}${msg}
+        <button class="lien" data-action="goWelcome">Retour</button></div>`;
+    }
+    if (a.screen === "phone") {
+      return `<div class="col"><h1>Ton numéro</h1>
+        <p>Nous t'envoyons un code par SMS pour confirmer ton numéro.</p>
+        <label for="f-phone">Numéro de téléphone (avec l'indicatif)</label>
+        <div class="champ"><input id="f-phone" data-afield="phone" value="${esc(a.phone)}" inputmode="tel" autocomplete="tel" maxlength="20"></div>
+        <button class="principal" data-action="sendCode" ${a.busy || phoneDigits(a.phone).length < 8 ? "disabled" : ""}>Envoyer le code</button>
+        ${msg}<button class="lien" data-action="phoneBack">Retour</button></div>`;
+    }
+    if (a.screen === "code") {
+      return `<div class="col"><h1>Entre le code</h1>
+        <p>Code envoyé par SMS au ${esc(e164(a.phone))}.</p>
+        <div class="champ"><input id="f-code" data-afield="code" value="${esc(a.code)}" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456"></div>
+        <button class="principal" data-action="verifyCode" ${a.busy || a.code.length < 6 ? "disabled" : ""}>Valider</button>
+        ${msg}<button class="lien" data-action="sendCode">Renvoyer le code</button>
+        <button class="lien" data-action="phoneStart">Changer de numéro</button></div>`;
+    }
+    return `<div class="col"><div class="coeur">💗</div><h1>Tu me manques</h1>
+      <p>Un petit mot, un bouton, et la personne que tu aimes sait que tu penses à elle.</p>
+      <button class="principal" data-action="goCreate">Créer un compte</button>
+      <button class="secondaire" data-action="goLogin">J'ai déjà un compte</button>${msg}</div>`;
+  }
+
+  // Connecté mais sans pseudo : on demande le pseudo et l'âge.
   function usernameScreen() {
-    return `<div class="col">
-      <div class="coeur">💗</div>
-      <h1>Bienvenue</h1>
-      <p>Choisis ton identifiant. Ton partenaire s'en servira pour te retrouver.</p>
-      <label for="f-username">Ton identifiant</label>
-      <div class="champ"><span>@</span><input id="f-username" data-field="username" value="${esc(S.draft.username)}"
-        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20"></div>
-      <button class="principal" data-action="claim" ${S.draft.username.length >= 3 && !S.busy ? "" : "disabled"}>Valider</button>
-      ${messageBlock()}
-    </div>`;
+    return `<div class="col"><div class="coeur">💗</div><h1>Bienvenue</h1>
+      <p>Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.</p>
+      ${pseudoAgeFields()}
+      <button class="principal" data-action="createProfile" data-needok ${canContinue() && !S.busy ? "" : "disabled"}>Créer mon compte</button>
+      ${messageBlock()}${S.auth.msg ? '<p class="msg">' + esc(S.auth.msg) + "</p>" : ""}</div>`;
   }
 
   function partnerScreen() {
@@ -365,13 +566,13 @@
         </div></div>`).join("");
     const outgoing = S.outgoing.map((r) => `<p class="gris">En attente de @${esc(r.toName)}…</p>`).join("");
     return `<div class="col">
-      <h2>Salut @${esc(S.username)} 👋</h2>
-      <p>Ajoute ton partenaire avec son identifiant.</p>
+      <h2>Salut 👋</h2>
+      <p>Ajoute ton partenaire avec son pseudo ou son numéro de téléphone.</p>
       ${incoming}
-      <label for="f-partner">Identifiant de ton partenaire</label>
-      <div class="champ"><span>@</span><input id="f-partner" data-field="partner" value="${esc(S.draft.partner)}"
-        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20"></div>
-      <button class="principal" data-action="addPartner" ${S.draft.partner.length >= 3 && !S.busy ? "" : "disabled"}>Envoyer la demande</button>
+      <label for="f-partner">Pseudo ou numéro de ton partenaire</label>
+      <div class="champ"><input id="f-partner" data-field="partner" value="${esc(S.draft.partner)}"
+        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="24" placeholder="pseudo ou +237 6…"></div>
+      <button class="principal" data-action="addPartner" ${S.draft.partner.trim().length >= 3 && !S.busy ? "" : "disabled"}>Envoyer la demande</button>
       ${outgoing}
       ${messageBlock()}
       ${pushBlock()}
@@ -389,7 +590,7 @@
       </div>`;
     }
     return `<div class="col">
-      <div><span class="gris" style="font-size:18px">@${esc(S.username)} 💗 </span><span class="pseudo" data-action="askRemove">@${esc(S.partnerName)}</span></div>
+      <div><span class="gris" style="font-size:18px">moi 💗 </span><span class="pseudo" data-action="askRemove">@${esc(S.partnerName)}</span></div>
       <p class="petit" style="margin-top:-8px">Touche son pseudo pour retirer ton partenaire</p>
       <button class="principal gros" data-action="miss" ${S.busy ? "disabled" : ""}>Tu me manques 💗</button>
       <button class="secondaire chatbtn" data-action="openChat">💬 Chat${S.unread ? ' <span class="badge">' + (S.unread > 99 ? "99+" : S.unread) + "</span>" : ""}</button>
@@ -403,8 +604,8 @@
     let html = "";
     if (S.offerInvite) {
       html += `<div class="fond"><div class="boite">
-        <h2 style="font-size:20px">Identifiant introuvable</h2>
-        <p>@${esc(S.offerInvite)} n'existe pas encore. Cette personne n'a peut-être pas l'application. Veux-tu la lui envoyer ?</p>
+        <h2 style="font-size:20px">Compte introuvable</h2>
+        <p>${/[a-z_]/.test(S.offerInvite) ? "@" + esc(S.offerInvite) : esc(S.offerInvite)} n'a pas encore de compte. Cette personne n'a peut-être pas l'application. Veux-tu la lui envoyer ?</p>
         <div class="rangee"><button class="lien" data-action="closeInvite">Annuler</button>
         <button class="lien" style="color:var(--rose)" data-action="invite">Envoyer l'application</button></div></div></div>`;
     }
@@ -427,6 +628,7 @@
     if (isIOS && !isStandalone) html = installScreen();
     else if (S.loading) html = '<div class="spin"></div>';
     else if (S.error) html = `<div class="col"><p>${esc(S.error)}</p><button class="principal" data-action="retry">Réessayer</button></div>`;
+    else if (S.needAuth) html = authScreen();
     else if (!S.username) html = usernameScreen();
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
@@ -452,13 +654,25 @@
 
   root.addEventListener("input", (ev) => {
     const el = ev.target;
-    if (!el.dataset || !el.dataset.field) return;
-    const value = filterName(el.value);
+    if (!el.dataset) return;
+    if (el.dataset.afield) {
+      const f = el.dataset.afield;
+      let v = el.value;
+      if (f === "pseudo") v = filterName(v);
+      else if (f === "age") v = v.replace(/\D/g, "").slice(0, 3);
+      else if (f === "phone") v = v.replace(/[^0-9+ ()-]/g, "").slice(0, 20);
+      else if (f === "code") v = v.replace(/\D/g, "").slice(0, 8);
+      if (el.value !== v) el.value = v;
+      S.auth[f] = v;
+      if (f === "pseudo") checkPseudo(); else paintAuth();
+      return;
+    }
+    if (!el.dataset.field) return;
+    const value = filterTarget(el.value);
     if (el.value !== value) el.value = value;
     S.draft[el.dataset.field] = value;
-    // On met seulement à jour l'état du bouton, sans tout redessiner pendant la saisie.
-    const btn = root.querySelector('[data-action="' + (el.dataset.field === "username" ? "claim" : "addPartner") + '"]');
-    if (btn) btn.disabled = value.length < 3 || S.busy;
+    const btn = root.querySelector('[data-action="addPartner"]');
+    if (btn) btn.disabled = value.trim().length < 3 || S.busy;
   });
 
   window.TMM_API = {
@@ -473,23 +687,29 @@
     S.error = null;
     render();
     try {
+      const returned = await handleOAuthReturn();
+      if (!store.get()) {
+        S.loading = false;
+        S.needAuth = true;
+        render();
+        return;
+      }
       await session(false);
-      applySnapshot(await loadSnapshot());
-      // Si les notifications sont déjà autorisées, on s'assure que l'abonnement est enregistré.
-      if (pushSupported && Notification.permission === "granted") {
-        subscribeAndSave().catch(() => {});
-      } else {
-        registerWorker();
+      if (returned) await finishAuth();
+      else {
+        applySnapshot(await loadSnapshot());
+        afterLogin();
       }
     } catch (e) {
       S.loading = false;
-      S.error = "Connexion impossible. Vérifie ta connexion internet puis réessaie.";
+      if (e && e.message === "NO_SESSION") S.needAuth = true;
+      else S.error = "Connexion impossible. Vérifie ta connexion internet puis réessaie.";
     }
     render();
   }
 
   async function refresh() {
-    if (S.loading || S.error || S.busy || document.visibilityState !== "visible") return;
+    if (S.loading || S.error || S.busy || S.needAuth || !S.username || document.visibilityState !== "visible") return;
     try {
       if (applySnapshot(await loadSnapshot())) render();
     } catch (e) { /* pas de réseau : on garde l'écran */ }

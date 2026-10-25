@@ -5,5 +5,6 @@ window.TMM_CONFIG = {
   VAPID_PUBLIC_KEY: "BJYm-B3VHwMN3bk7nyuGr45COOmegYOIPOqy7FBP1MVuNNXDt9zaAgRR7cbCs6EGjbMJkou8QVUE285lSFaI4ws",
   APK_URL: "https://github.com/stephaneproject237-spec/tu-me-manque/releases/latest/download/tu-me-manque.apk",
   WEB_URL: "https://stephaneproject237-spec.github.io/tu-me-manque/",
-  VERSION: "web 2.0"
+  APPLE_LOGIN: false, // passe à true quand « Se connecter avec Apple » est configuré
+  VERSION: "web 3.0"
 };
