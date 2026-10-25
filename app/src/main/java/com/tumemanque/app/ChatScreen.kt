@@ -210,7 +210,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
                 ) { Text("💗", fontSize = 22.sp) }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("@$partner", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(partner, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Text("Ton partenaire", color = Color(0xCCFFFFFF), fontSize = 12.sp)
                 }
             }
@@ -244,7 +244,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
                             Button(onClick = { vm.retry() }) { Text("Réessayer") }
                         }
                         items.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                            Text("Dis quelque chose de gentil à @$partner 💗", textAlign = TextAlign.Center, color = Color.Gray)
+                            Text("Dis quelque chose de gentil à $partner 💗", textAlign = TextAlign.Center, color = Color.Gray)
                         }
                         else -> LazyColumn(
                             state = listState,

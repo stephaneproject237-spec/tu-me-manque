@@ -1,12 +1,15 @@
 package com.tumemanque.app
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class Req(val id: String, val fromName: String, val toName: String)
 
@@ -17,6 +20,11 @@ data class UiState(
     val error: String? = null,
     val username: String? = null,
     val partnerName: String? = null,
+    val partnerPhone: String? = null,
+    /** Contacts du téléphone : fin du numéro → nom enregistré (Android seulement). */
+    val contacts: Map<String, String> = emptyMap(),
+    /** Personne n'est connecté : on affiche la création de compte / connexion. */
+    val needAuth: Boolean = false,
     val incoming: List<Req> = emptyList(),
     val outgoing: List<Req> = emptyList(),
     val lastMiss: Miss? = null,
@@ -38,13 +46,21 @@ class AppViewModel : ViewModel() {
     fun start() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
+            if (!Backend.hasSession()) {
+                _state.update { it.copy(loading = false, needAuth = true) }
+                return@launch
+            }
             try {
                 Backend.ensureSession()
                 launch { runCatching { Backend.saveToken() } }
                 applySnapshot(Backend.loadSnapshot())
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(loading = false, error = "Connexion impossible. Vérifie ta connexion internet puis réessaie.")
+                if (e.message == Backend.NO_SESSION) {
+                    _state.update { it.copy(loading = false, needAuth = true) }
+                } else {
+                    _state.update {
+                        it.copy(loading = false, error = "Connexion impossible. Vérifie ta connexion internet puis réessaie.")
+                    }
                 }
             }
         }
@@ -52,7 +68,7 @@ class AppViewModel : ViewModel() {
 
     /** Appelé régulièrement tant que l'appli est ouverte. */
     fun refresh() {
-        if (_state.value.loading || _state.value.error != null) return
+        if (_state.value.loading || _state.value.error != null || _state.value.needAuth) return
         viewModelScope.launch {
             try {
                 applySnapshot(Backend.loadSnapshot())
@@ -69,6 +85,8 @@ class AppViewModel : ViewModel() {
                 error = null,
                 username = s.username,
                 partnerName = s.partnerName,
+                partnerPhone = s.partnerPhone,
+                needAuth = false,
                 lastMiss = s.miss,
                 unread = s.unread,
                 incoming = s.incoming,
@@ -94,26 +112,18 @@ class AppViewModel : ViewModel() {
 
     private fun say(text: String) = _state.update { it.copy(message = text) }
 
-    fun claimUsername(raw: String) = act {
-        when (Backend.claimUsername(clean(raw))) {
-            "ok" -> Unit
-            "taken" -> say("Cet identifiant est déjà pris. Essaie-en un autre.")
-            "invalid" -> say("3 à 20 caractères : lettres minuscules, chiffres ou _.")
-            else -> say("Impossible de valider cet identifiant.")
-        }
-    }
-
     fun addPartner(raw: String) = act {
         val name = clean(raw)
-        when (Backend.sendRequest(name)) {
-            "sent" -> say("Demande envoyée à @$name. Il/elle va recevoir une notification.")
+        val (status, found) = Backend.sendRequest(name)
+        when (status) {
+            "sent" -> say("Demande envoyée à @${found ?: name}. Il/elle va recevoir une notification.")
             "linked" -> Unit
             "not_found" -> _state.update { it.copy(offerInvite = name) }
-            "self" -> say("C'est ton propre identifiant !")
+            "self" -> say("C'est toi !")
             "already_has_partner" -> say("Tu as déjà un partenaire.")
             "partner_busy" -> say("@$name a déjà un partenaire.")
             "already_sent" -> say("Tu as déjà envoyé une demande à @$name.")
-            "invalid" -> say("Identifiant invalide.")
+            "invalid" -> say("Pseudo ou numéro invalide.")
             else -> say("Impossible d'envoyer la demande.")
         }
     }
@@ -147,6 +157,14 @@ class AppViewModel : ViewModel() {
     }
 
     fun setUnread(n: Int) = _state.update { it.copy(unread = n) }
+
+    /** Lit les contacts du téléphone (si l'autorisation est donnée) pour afficher les vrais noms. */
+    fun loadContacts(context: Context) {
+        viewModelScope.launch {
+            val map = withContext(Dispatchers.IO) { Contacts.load(context.applicationContext) }
+            _state.update { it.copy(contacts = map) }
+        }
+    }
 
     fun dismissInvite() = _state.update { it.copy(offerInvite = null) }
 }

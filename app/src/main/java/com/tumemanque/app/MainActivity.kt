@@ -3,6 +3,7 @@ package com.tumemanque.app
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -60,9 +61,25 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
+    private val authViewModel: AuthViewModel by viewModels()
+
+    /** Retour de « Continuer avec Google » : tumemanque://auth?code=… */
+    private fun handleLink(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "tumemanque") return
+        intent.data = null
+        authViewModel.handleLink(uri) { viewModel.start() }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLink(intent)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleLink(intent)
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -74,7 +91,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
                     NotificationPermission()
-                    Root(viewModel)
+                    Root(viewModel, authViewModel)
                 }
             }
         }
@@ -104,11 +121,27 @@ private fun shareApp(context: Context, username: String?) {
 }
 
 @Composable
-private fun Root(vm: AppViewModel) {
+private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatVm: ChatViewModel = viewModel()
+    val authState by authVm.state.collectAsStateWithLifecycle()
+    var askedContacts by rememberSaveable { mutableStateOf(false) }
+    val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) vm.loadContacts(context)
+    }
+
+    // Les noms de tes contacts remplacent les pseudos (Android seulement).
+    LaunchedEffect(state.partnerPhone) {
+        if (state.partnerPhone != null) {
+            if (Contacts.hasPermission(context)) vm.loadContacts(context)
+            else if (!askedContacts) {
+                askedContacts = true
+                contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+            }
+        }
+    }
     var showChat by rememberSaveable { mutableStateOf(false) }
     var autoOpened by rememberSaveable { mutableStateOf("") }
 
@@ -140,7 +173,7 @@ private fun Root(vm: AppViewModel) {
 
     if (showChat && state.partnerName != null) {
         ChatScreen(
-            partner = state.partnerName!!,
+            partner = partnerLabel(state),
             vm = chatVm,
             onBack = { showChat = false },
             onRead = { vm.setUnread(0) },
@@ -156,12 +189,13 @@ private fun Root(vm: AppViewModel) {
     ) {
         when {
             state.loading -> CircularProgressIndicator()
+            state.needAuth -> AuthScreen(authState, authVm) { vm.start() }
             state.error != null -> {
                 Text(state.error!!, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { vm.start() }) { Text("Réessayer") }
             }
-            state.username == null -> UsernameScreen(state, vm)
+            state.username == null -> ProfileScreen(authState, authVm) { vm.start() }
             state.partnerName == null -> PartnerScreen(state, vm) { shareApp(context, state.username) }
             else -> HomeScreen(state, vm) { showChat = true }
         }
@@ -173,9 +207,10 @@ private fun Root(vm: AppViewModel) {
     state.offerInvite?.let { name ->
         AlertDialog(
             onDismissRequest = { vm.dismissInvite() },
-            title = { Text("Identifiant introuvable") },
+            title = { Text("Compte introuvable") },
             text = {
-                Text("@$name n'existe pas encore. Cette personne n'a peut-être pas l'application. Veux-tu la lui envoyer ?")
+                val shown = if (name.any { it.isLetter() || it == '_' }) "@$name" else name
+                Text("$shown n'a pas encore de compte. Cette personne n'a peut-être pas l'application. Veux-tu la lui envoyer ?")
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -190,8 +225,8 @@ private fun Root(vm: AppViewModel) {
     }
 }
 
-private fun filterName(input: String): String =
-    input.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(20)
+private fun filterTarget(input: String): String =
+    input.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it in "_+ ()-" }.take(24)
 
 @Composable
 private fun Message(state: UiState) {
@@ -202,40 +237,11 @@ private fun Message(state: UiState) {
 }
 
 @Composable
-private fun UsernameScreen(state: UiState, vm: AppViewModel) {
-    var name by rememberSaveable { mutableStateOf("") }
-    Text("💗", fontSize = 56.sp)
-    Spacer(Modifier.height(8.dp))
-    Text("Bienvenue", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "Choisis ton identifiant. Ton partenaire s'en servira pour te retrouver.",
-        textAlign = TextAlign.Center,
-    )
-    Spacer(Modifier.height(24.dp))
-    OutlinedTextField(
-        value = name,
-        onValueChange = { name = filterName(it) },
-        label = { Text("Ton identifiant") },
-        prefix = { Text("@") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(16.dp))
-    Button(
-        onClick = { vm.claimUsername(name) },
-        enabled = name.length >= 3 && !state.busy,
-        modifier = Modifier.fillMaxWidth(),
-    ) { Text("Valider") }
-    Message(state)
-}
-
-@Composable
 private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit) {
     var partner by rememberSaveable { mutableStateOf("") }
-    Text("Salut @${state.username} 👋", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text("Salut 👋", fontSize = 24.sp, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(8.dp))
-    Text("Ajoute ton partenaire avec son identifiant.", textAlign = TextAlign.Center)
+    Text("Ajoute ton partenaire avec son pseudo ou son numéro de téléphone.", textAlign = TextAlign.Center)
 
     state.incoming.forEach { req ->
         Spacer(Modifier.height(16.dp))
@@ -254,16 +260,15 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
     Spacer(Modifier.height(24.dp))
     OutlinedTextField(
         value = partner,
-        onValueChange = { partner = filterName(it) },
-        label = { Text("Identifiant de ton partenaire") },
-        prefix = { Text("@") },
+        onValueChange = { partner = filterTarget(it) },
+        label = { Text("Pseudo ou numéro de ton partenaire") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(16.dp))
     Button(
         onClick = { vm.addPartner(partner) },
-        enabled = partner.length >= 3 && !state.busy,
+        enabled = partner.trim().length >= 3 && !state.busy,
         modifier = Modifier.fillMaxWidth(),
     ) { Text("Envoyer la demande") }
 
@@ -281,9 +286,9 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit) {
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("@${state.username}  💗  ", fontSize = 18.sp, color = Color.Gray)
+        Text("moi  💗  ", fontSize = 18.sp, color = Color.Gray)
         Text(
-            "@${state.partnerName}",
+            partnerLabel(state),
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
@@ -336,7 +341,7 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit)
     if (confirmRemove) {
         AlertDialog(
             onDismissRequest = { confirmRemove = false },
-            title = { Text("Retirer @${state.partnerName} ?") },
+            title = { Text("Retirer ${partnerLabel(state)} ?") },
             text = { Text("Vous ne serez plus liés. Vous pourrez chacun ajouter quelqu'un d'autre.") },
             confirmButton = {
                 TextButton(onClick = {

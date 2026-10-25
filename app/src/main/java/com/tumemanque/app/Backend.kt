@@ -2,6 +2,8 @@ package com.tumemanque.app
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import android.util.Base64
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +16,8 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -22,6 +26,7 @@ import java.util.UUID
 data class Snapshot(
     val username: String?,
     val partnerName: String?,
+    val partnerPhone: String?,
     val miss: Miss?,
     val unread: Int,
     val incoming: List<Req>,
@@ -57,13 +62,17 @@ private fun JSONObject.str(key: String): String? = if (isNull(key)) null else op
 /** Tout ce qui parle à Supabase (identité anonyme, base de données, fonctions) et à Firebase (jeton de notification). */
 object Backend {
     private var prefs: SharedPreferences? = null
+    private var pending: SharedPreferences? = null
     private val mutex = Mutex()
 
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences("session", Context.MODE_PRIVATE)
+        pending = context.applicationContext.getSharedPreferences("pending", Context.MODE_PRIVATE)
     }
 
     private fun store(): SharedPreferences = prefs ?: error("Backend non initialisé")
+
+    const val NO_SESSION = "NO_SESSION"
 
     fun hasSession(): Boolean = store().getString("refresh", null) != null
 
@@ -123,12 +132,9 @@ object Backend {
                 return@withLock store().getString("access", "")!! to store().getString("uid", "")!!
             }
             if (code !in 400..403) throw IOException("Renouvellement impossible ($code)")
-            p.edit().clear().apply() // session perdue : on repart avec une nouvelle identité
+            p.edit().clear().apply() // session perdue : il faudra se reconnecter
         }
-        val (code, text) = http("POST", "/auth/v1/signup", "{}", null)
-        if (code !in 200..299) throw IOException("Connexion impossible ($code) : $text")
-        saveSession(JSONObject(text))
-        store().getString("access", "")!! to store().getString("uid", "")!!
+        throw IOException(NO_SESSION)
     }
 
     suspend fun ensureSession(): String = session().second
@@ -153,11 +159,12 @@ object Backend {
         rpc("save_token", JSONObject().put("p_token", token))
     }
 
-    suspend fun claimUsername(username: String): String =
-        rpc("claim_username", JSONObject().put("p_username", username))
-
-    suspend fun sendRequest(username: String): String =
-        rpc("send_request", JSONObject().put("p_username", username))
+    /** Renvoie (état, pseudo trouvé). On peut ajouter par pseudo ou par numéro de téléphone. */
+    suspend fun sendRequest(query: String): Pair<String, String?> {
+        val text = authed("POST", "/rest/v1/rpc/send_request", JSONObject().put("p_username", query).toString())
+        val j = runCatching { JSONObject(text) }.getOrNull()
+        return (j?.optString("status", "error") ?: "error") to j?.str("name")
+    }
 
     suspend fun respondRequest(requestId: String, accept: Boolean): String =
         rpc("respond_request", JSONObject().put("p_request_id", requestId.toLong()).put("p_accept", accept))
@@ -172,7 +179,7 @@ object Backend {
         val profile = JSONArray(
             authed(
                 "GET",
-                "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply,last_miss_at&id=eq.$uid"
+                "/rest/v1/profiles?select=username,partner_name,partner_phone,last_miss_from,last_miss_reply,last_miss_at&id=eq.$uid"
             )
         ).optJSONObject(0)
         val requests = JSONArray(
@@ -201,12 +208,112 @@ object Backend {
         return Snapshot(
             username = profile?.str("username"),
             partnerName = profile?.str("partner_name"),
+            partnerPhone = profile?.str("partner_phone"),
             miss = if (missFrom == null) null
             else Miss(missFrom, profile.optBoolean("last_miss_reply", false), profile.str("last_miss_at") ?: ""),
             unread = unread,
             incoming = incoming,
             outgoing = outgoing,
         )
+    }
+
+
+    // ====================== Comptes (Google / Apple / SMS) ======================
+
+    private fun pend(): SharedPreferences = pending ?: error("Backend non initialisé")
+
+    fun e164(input: String): String {
+        var d = input.filter { it.isDigit() }
+        if (input.trim().startsWith("00")) d = d.drop(2)
+        if (d.length == 9 && d[0] == '6') d = "237$d"
+        return "+$d"
+    }
+
+    suspend fun usernameAvailable(username: String): String {
+        val (code, text) = http("POST", "/rest/v1/rpc/username_available", JSONObject().put("p_username", username).toString(), null)
+        if (code !in 200..299) return "error"
+        return runCatching { JSONObject(text).optString("status", "error") }.getOrDefault("error")
+    }
+
+    /** « ok », « disabled » (SMS pas encore branché), « rate » (trop d'essais) ou « error ». */
+    suspend fun sendOtp(phone: String): String {
+        val (code, text) = http("POST", "/auth/v1/otp", JSONObject().put("phone", phone).put("create_user", true).toString(), null)
+        if (code in 200..299) return "ok"
+        val t = text.lowercase()
+        return when {
+            code == 429 || "rate limit" in t || "too many" in t || "only request this after" in t -> "rate"
+            Regex("provider|unsupported|sms_send_failed|not enabled|disabled|twilio").containsMatchIn(t) -> "disabled"
+            else -> "error"
+        }
+    }
+
+    suspend fun verifyOtp(phone: String, token: String): Boolean {
+        val body = JSONObject().put("type", "sms").put("phone", phone).put("token", token).toString()
+        val (code, text) = http("POST", "/auth/v1/verify", body, null)
+        if (code !in 200..299) return false
+        saveSession(JSONObject(text))
+        return true
+    }
+
+    private fun b64url(bytes: ByteArray): String =
+        Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+
+    /** Adresse à ouvrir dans le navigateur pour « Continuer avec Google / Apple » (PKCE). */
+    fun oauthUri(provider: String, pseudo: String?, age: Int?): Uri {
+        val raw = ByteArray(48).also { SecureRandom().nextBytes(it) }
+        val verifier = b64url(raw)
+        val challenge = b64url(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
+        val editor = pend().edit()
+        editor.clear()
+        editor.putString("verifier", verifier)
+        if (!pseudo.isNullOrEmpty() && age != null) {
+            editor.putString("pseudo", pseudo)
+            editor.putInt("age", age)
+        }
+        editor.apply()
+        val redirect = URLEncoder.encode("tumemanque://auth", "UTF-8")
+        return Uri.parse(
+            "${Config.SUPABASE_URL}/auth/v1/authorize?provider=$provider&redirect_to=$redirect" +
+                "&code_challenge=$challenge&code_challenge_method=s256"
+        )
+    }
+
+    /** Termine la connexion Google / Apple avec le code reçu au retour dans l'appli. */
+    suspend fun exchangeCode(authCode: String): Boolean {
+        val verifier = pend().getString("verifier", null) ?: return false
+        pend().edit().remove("verifier").apply()
+        val body = JSONObject().put("auth_code", authCode).put("code_verifier", verifier).toString()
+        val (code, text) = http("POST", "/auth/v1/token?grant_type=pkce", body, null)
+        if (code !in 200..299) return false
+        saveSession(JSONObject(text))
+        return true
+    }
+
+    suspend fun createAccount(username: String, age: Int): String =
+        rpc("create_account", JSONObject().put("p_username", username).put("p_age", age))
+
+    /**
+     * Après une connexion réussie. Renvoie null si le compte est prêt, sinon un message
+     * (éventuellement vide) : on demandera alors le pseudo et l'âge.
+     */
+    suspend fun finishAuth(fallbackPseudo: String?, fallbackAge: Int?): String? {
+        val snap = loadSnapshot()
+        val p = pend()
+        if (snap.username != null) {
+            p.edit().clear().apply()
+            return null
+        }
+        val pseudo = p.getString("pseudo", null) ?: fallbackPseudo
+        val age = if (p.contains("age")) p.getInt("age", 0) else (fallbackAge ?: 0)
+        p.edit().clear().apply()
+        if (!pseudo.isNullOrEmpty() && age > 0) {
+            return when (createAccount(pseudo, age)) {
+                "ok", "has_username" -> null
+                "taken" -> "Ce pseudo vient d'être pris. Choisis-en un autre."
+                else -> "Impossible de créer le compte."
+            }
+        }
+        return ""
     }
 
     // ====================== Chat ======================
