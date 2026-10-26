@@ -488,6 +488,10 @@
 
   const actions = {
     retry: () => start(),
+    openSettings: () => { S.settings = true; S.webCheck = { st: "idle" }; render(); checkWeb(); },
+    closeSettings: () => { S.settings = false; render(); },
+    checkWeb: () => checkWeb(),
+    reloadApp: () => { location.href = location.pathname + "?v=" + Date.now(); },
     goCreate: () => { S.auth = Object.assign(A0(), { screen: "create", mode: "create" }); render(); },
     goLogin: () => { S.auth = Object.assign(A0(), { screen: "login", mode: "login" }); render(); },
     goWelcome: () => { S.auth = A0(); render(); },
@@ -712,8 +716,45 @@
     </div>`;
   }
 
+  // ---------- Réglages : version de la version web ----------
+  async function checkWeb() {
+    S.webCheck = { st: "checking" };
+    render();
+    try {
+      const r = await fetch("config.js?t=" + Date.now(), { cache: "no-store" });
+      const t = await r.text();
+      const m = t.match(/VERSION:\s*"([^"]+)"/);
+      const latest = m ? m[1] : null;
+      S.webCheck = latest && latest !== CFG.VERSION ? { st: "new", latest } : { st: "ok" };
+    } catch (e) {
+      S.webCheck = { st: "error" };
+    }
+    render();
+  }
+  function settingsBtn() {
+    if (S.settings || S.loading || S.error || S.needAuth || !S.username) return "";
+    return '<button class="gear" data-action="openSettings" aria-label="Réglages"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94 0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6 3.6,1.62 3.6,3.6 -1.62,3.6 -3.6,3.6z"/></svg></button>';
+  }
+  function settingsDialog() {
+    if (!S.settings) return "";
+    const w = S.webCheck || { st: "idle" };
+    let state;
+    if (w.st === "checking") state = '<p class="gris">Vérification en cours…</p>';
+    else if (w.st === "new") state = `<p style="color:var(--rose);font-weight:700">🎉 La version ${esc(w.latest)} est disponible !</p><button class="principal" data-action="reloadApp">Mettre à jour maintenant</button>`;
+    else if (w.st === "error") state = '<p style="color:#C62828">Impossible de vérifier. Vérifie ta connexion.</p>';
+    else if (w.st === "ok") state = '<p style="color:#2E7D32">✓ Tu as la dernière version.</p><button class="secondaire" data-action="reloadApp">Recharger l\'application</button>';
+    else state = "";
+    return `<div class="fond"><div class="boite">
+      <h2 style="font-size:22px">Réglages</h2>
+      <div class="carte" style="align-items:stretch;text-align:left">
+        <b>Version de l'application</b><span class="gris">Version ${esc(CFG.VERSION)}</span>${state}
+        <button class="lien" data-action="checkWeb">Vérifier les mises à jour</button>
+      </div>
+      <div class="rangee"><button class="lien" data-action="closeSettings">Fermer</button></div></div></div>`;
+  }
+
   function dialogs() {
-    let html = "";
+    let html = settingsDialog();
     if (S.offerInvite) {
       html += `<div class="fond"><div class="boite">
         <h2 style="font-size:20px">Compte introuvable</h2>
@@ -745,7 +786,7 @@
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
 
-    root.innerHTML = html + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
+    root.innerHTML = html + settingsBtn() + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
 
     if (activeId) {
       const el = document.getElementById(activeId);
