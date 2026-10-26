@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#E91E63">
+  <meta name="theme-color" content="#160A12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Admin">
@@ -65,11 +65,34 @@
     .spin { width: 34px; height: 34px; border: 4px solid #FFD9E4; border-top-color: var(--rose); border-radius: 50%; animation: t 1s linear infinite; }
     @keyframes t { to { transform: rotate(360deg); } }
     .err { color: #C62828; }
+    /* Thème sombre */
+    :root { --gris: #B89AAA; --texte: #F4E8EF; --rose: #FF6A9C; }
+    html { background: #160A12; }
+    body::before { background: radial-gradient(circle, rgba(233,30,99,.22), transparent 68%); }
+    body::after { background: radial-gradient(circle, rgba(120,80,200,.18), transparent 68%); }
+    .glass { background: #2A1622; border: 1px solid #4A2A3C; box-shadow: 0 6px 20px rgba(0,0,0,.35); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    nav { background: rgba(28,14,22,.92); border-top: 1px solid #4A2A3C; }
+    nav button.on { background: rgba(255,106,156,.16); }
+    header { background: linear-gradient(135deg, #3A1424, #5A1B38); box-shadow: 0 4px 18px rgba(0,0,0,.4); }
+    .s { background: #3A2230; color: #FF8FB4; border: 1px solid #4A2A3C; }
+    .d { background: #2A1622; color: #FF8A80; border: 1px solid #6A2A32; }
+    input.q, textarea, .mi { background: #2A1622; border: 1px solid #4A2A3C; color: #F4E8EF; }
+    input.q::placeholder, textarea::placeholder, .mi::placeholder { color: #8A6E7E; }
+    input.q:focus, textarea:focus, .mi:focus { box-shadow: 0 0 0 3px rgba(255,106,156,.25); }
+    .chip { background: rgba(255,106,156,.18); }
+    .fond { background: rgba(0,0,0,.65); }
+    .box { background: #2A1622; border: 1px solid #4A2A3C; }
+    .thread { background: #160A12; }
+    .b { background: #2E1A26; box-shadow: none; color: #F4E8EF; }
+    .me { background: linear-gradient(135deg, #FF6A9C, #E91E63); color: #fff; }
+    .bar { background: #1E0F18; border-top: 1px solid #4A2A3C; }
+    .spin { border-color: #4A2A3C; border-top-color: var(--rose); }
+    .err { color: #FF8A80; }
   </style>
 </head>
 <body>
   <div id="app"><div class="center"><div class="spin"></div></div></div>
   <script src="../config.js"></script>
-  <script src="admin.js?v=3"></script>
+  <script src="admin.js?v=4"></script>
 </body>
 </html>
