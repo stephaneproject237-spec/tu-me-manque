@@ -1,6 +1,6 @@
 {
-  "versionCode": 32,
-  "versionName": "1.32",
-  "notes": "Réglages avec mises à jour intégrées.",
-  "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/build-32/tu-me-manque.apk"
+  "versionCode": 34,
+  "versionName": "1.34",
+  "notes": "Messages en plein écran : ils passent sous l'en-tête et sous la barre de saisie (effet verre liquide).",
+  "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/build-34/tu-me-manque.apk"
 }
