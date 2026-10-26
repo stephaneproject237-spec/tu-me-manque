@@ -291,7 +291,7 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
                 androidx.compose.animation.core.infiniteRepeatable(tween(3600, easing = androidx.compose.animation.core.LinearEasing)),
                 label = "cycle",
             )
-            val wob = if (open || cycle > 0.28f) 0f else (kotlin.math.sin(cycle / 0.28f * Math.PI * 5).toFloat() * 11f * (1f - cycle / 0.28f))
+            val wob: Float = if (open || cycle > 0.28f) 0f else kotlin.math.sin(cycle / 0.28f * 15.707964f) * 11f * (1f - cycle / 0.28f)
             fun flash(c: Float, from: Float): Float {
                 val x = (c - from) / 0.2f
                 return if (open || x < 0f || x > 1f) 0f else (if (x < 0.2f) x / 0.2f else if (x < 0.45f) 0.25f else if (x < 0.6f) 1f else 1f - (x - 0.6f) / 0.4f)
