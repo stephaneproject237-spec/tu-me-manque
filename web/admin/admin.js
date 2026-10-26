@@ -266,6 +266,21 @@
         <div class="k">${esc(fdate(t.last_at))}</div></div>`).join("") || '<p class="muted">Aucun message pour le moment.</p>');
   }
 
+  // Clavier : le chat suit la zone réellement visible (sinon le clavier cache ce qu'on écrit).
+  function fitThread() {
+    const t = document.querySelector(".thread"), vv = window.visualViewport;
+    if (!t || !vv) return;
+    t.style.height = vv.height + "px";
+    t.style.bottom = "auto";
+    t.style.top = vv.offsetTop + "px";
+    const l = document.getElementById("t-list");
+    if (l && document.activeElement && document.activeElement.id === "t-in") l.scrollTop = 1e9;
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", fitThread);
+    window.visualViewport.addEventListener("scroll", fitThread);
+  }
+
   function renderThread(scroll) {
     const el = document.getElementById("thread");
     if (!el) return;
@@ -282,6 +297,7 @@
         <div class="tl" id="t-list">${body}</div>
         <div class="bar"><textarea id="t-in" rows="1" placeholder="Écrire en tant que @admin…" maxlength="2000"></textarea><button class="p" data-a="tsend">➤</button></div></div>`;
       document.getElementById("t-list").scrollTop = 1e9;
+      fitThread();
     } else {
       document.getElementById("t-list").innerHTML = body;
       if (scroll || nearBottom) document.getElementById("t-list").scrollTop = 1e9;

@@ -22,8 +22,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         web = WebView(this)
-        setContentView(web)
-        ViewCompat.setOnApplyWindowInsetsListener(web) { v, insets ->
+        // Le conteneur prend la place du clavier : la page est réellement raccourcie, donc le champ de saisie reste visible.
+        val frame = android.widget.FrameLayout(this)
+        frame.addView(web, android.widget.FrameLayout.LayoutParams(-1, -1))
+        setContentView(frame)
+        ViewCompat.setOnApplyWindowInsetsListener(frame) { v, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
             v.setPadding(b.left, b.top, b.right, b.bottom)
             insets
