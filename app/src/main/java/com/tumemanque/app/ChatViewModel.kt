@@ -111,27 +111,12 @@ class ChatViewModel : ViewModel() {
         _state.value = ChatState()
     }
 
-    private var lastSms = -1
-
-    /** SMS reçus pendant que ton partenaire n'avait pas internet (remplacés par le vrai message à son arrivée). */
-    private fun smsMessages(): List<ChatMsg> {
-        val c = try { Outbox.context() } catch (e: Exception) { return emptyList() }
-        val l = SmsInbox.all(c)
-        lastSms = l.size
-        return l.map {
-            ChatMsg(id = 0, tmp = 1_000_000_000L + (it.id.hashCode().toLong() and 0xFFFFFFL), mine = false, kind = "text",
-                body = "📱 " + it.text, media = null, createdAt = it.ts, pending = true)
-        }
-    }
-
     private fun publish() {
-        val tail = (pendings + smsMessages()).sortedBy { it.createdAt }
-        _state.update { it.copy(messages = confirmed.toList() + tail, loading = false, error = false) }
+        _state.update { it.copy(messages = confirmed.toList() + pendings.toList(), loading = false, error = false) }
     }
 
     private fun addConfirmed(m: ChatMsg): Boolean {
         if (!ids.add(m.id)) return false
-        if (!m.mine) m.meta?.optString("sms")?.takeIf { it.isNotEmpty() }?.let { runCatching { SmsInbox.remove(Outbox.context(), it) } }
         confirmed.add(m)
         if (m.mine && !m.read) unreadOwn.add(m.id)
         return true
@@ -182,8 +167,6 @@ class ChatViewModel : ViewModel() {
                 }
             }
             if (syncDeleted()) changed = true
-            val smsNow = try { SmsInbox.all(Outbox.context()).size } catch (e: Exception) { lastSms }
-            if (smsNow != lastSms) { changed = true; if (smsNow > lastSms && lastSms >= 0) Sounds.receive() }
             if (changed) publish()
             if (unreadOwn.isNotEmpty()) {
                 val read = Backend.readAmong(unreadOwn.toList().take(100))
@@ -359,15 +342,9 @@ class ChatViewModel : ViewModel() {
                 removePending(p); showToast("Message non envoyé."); return
             }
             val reply = p.reply?.let { JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text).toString() }
-            val smsId = java.util.UUID.randomUUID().toString().replace("-", "").take(8)
-            val viaSms = p.kind == "text" && !p.body.isNullOrEmpty() && SmsFallback.trySend(smsId, p.body)
-            Outbox.add(OutMsg(java.util.UUID.randomUUID().toString(), p.kind, p.body, media, file, ext, mime, p.w, p.h, p.dur, reply, p.createdAt, if (viaSms) smsId else null))
+            Outbox.add(OutMsg(java.util.UUID.randomUUID().toString(), p.kind, p.body, media, file, ext, mime, p.w, p.h, p.dur, reply, p.createdAt))
             Outbox.schedule()
-            if (viaSms) {
-                val i = pendings.indexOfFirst { it.tmp == p.tmp }
-                if (i >= 0) { pendings[i] = pendings[i].copy(meta = JSONObject().put("sms", smsId)); publish() }
-                showToast("Pas d'internet : message envoyé par SMS 📱")
-            } else showToast("Pas de réseau : ton message partira dès que la connexion reviendra. 🕓")
+            showToast("Pas de réseau : ton message partira dès que la connexion reviendra. 🕓")
         } catch (e: Exception) {
             removePending(p)
             showToast("Message non envoyé. Vérifie ta connexion.")
@@ -385,7 +362,6 @@ class ChatViewModel : ViewModel() {
                     id = 0, tmp = ++tmpCounter, mine = true, kind = o.kind, body = o.body, media = if (o.kind == "gif") o.media else null,
                     w = o.w, h = o.h, dur = o.dur, createdAt = o.createdAt, pending = true,
                     localBytes = bytes, localFile = if (o.kind == "voice" || o.kind == "video") o.file else null, reply = reply,
-                    meta = o.sms?.let { JSONObject().put("sms", it) },
                 ))
             }
         } catch (e: Exception) { /* ignoré */ }

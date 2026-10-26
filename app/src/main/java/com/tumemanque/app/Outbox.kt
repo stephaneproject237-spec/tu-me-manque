@@ -29,7 +29,6 @@ data class OutMsg(
     val dur: Int,
     val reply: String?,      // JSON de la réponse citée
     val createdAt: Long,
-    val sms: String? = null, // identifiant du SMS de secours déjà envoyé
 )
 
 object Outbox {
@@ -38,7 +37,6 @@ object Outbox {
 
     fun init(context: Context) { ctx = context.applicationContext }
     private fun c(): Context = ctx ?: error("Outbox non initialisée")
-    fun context(): Context = c()
     private fun listFile() = File(c().filesDir, "outbox.json")
     private fun dir() = File(c().filesDir, "outbox").apply { mkdirs() }
 
@@ -58,7 +56,6 @@ object Outbox {
                     o.optInt("w"), o.optInt("h"), o.optInt("dur"),
                     if (o.isNull("reply")) null else o.getString("reply"),
                     o.optLong("createdAt"),
-                    if (o.isNull("sms") || !o.has("sms")) null else o.getString("sms"),
                 )
             }
         } catch (e: Exception) { mutableListOf() }
@@ -70,7 +67,7 @@ object Outbox {
             JSONObject().put("id", m.id).put("kind", m.kind).put("body", m.body ?: JSONObject.NULL)
                 .put("media", m.media ?: JSONObject.NULL).put("file", m.file ?: JSONObject.NULL)
                 .put("ext", m.ext).put("mime", m.mime).put("w", m.w).put("h", m.h).put("dur", m.dur)
-                .put("reply", m.reply ?: JSONObject.NULL).put("createdAt", m.createdAt).put("sms", m.sms ?: JSONObject.NULL)
+                .put("reply", m.reply ?: JSONObject.NULL).put("createdAt", m.createdAt)
         )
         listFile().writeText(a.toString())
     }
@@ -141,7 +138,6 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             if (m.h > 0) meta.put("h", m.h)
             if (m.dur > 0) meta.put("d", m.dur)
             m.reply?.let { runCatching { meta.put("reply", JSONObject(it)) } }
-            m.sms?.let { meta.put("sms", it) }
             val r = Backend.sendMessage(m.kind, m.body, media, if (meta.length() == 0) null else meta)
             if (r.status == "ok") R.OK else R.DROP
         } catch (e: Exception) {
