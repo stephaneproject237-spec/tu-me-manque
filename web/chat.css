@@ -146,3 +146,14 @@ body.chat-open { overflow: hidden; }
 .ch-bubble { touch-action: pan-y; }
 .ch-row.flash .ch-bubble { animation: flashb 1.2s; } @keyframes flashb { 30% { box-shadow: 0 0 0 4px rgba(233,30,99,.45); } }
 .fx img { position: absolute; bottom: -100px; opacity: 0; animation: vole linear forwards; filter: drop-shadow(0 3px 6px rgba(233,30,99,.25)); }
+
+/* ===== Icônes vectorielles ===== */
+.ic { display: block; flex: none; }
+.ch-icon, .ch-plus, .ch-cam, .ch-send, .ch-pvx { display: inline-flex; align-items: center; justify-content: center; }
+.ch-cam { color: #E91E63; padding: 0 6px; }
+.ch-pill .ch-send { color: #E91E63; } .ch-pill .ch-send.on { color: #fff; }
+.ch-plus .ic { transition: transform .25s; } .ch-plus.open .ic { transform: rotate(45deg); }
+.ch-opt { display: flex; align-items: center; gap: 12px; justify-content: flex-start; padding: 14px 16px; font-weight: 600; }
+.ch-video { background: #000; max-height: 60vh; }
+.ch-rec .ch-icon { color: #E53935; }
+.ch-send.on .ic { margin-left: 1px; }

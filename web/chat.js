@@ -149,18 +149,21 @@
     }
   }
 
+  const ICONS = {"camera": ["M12,8.8a3.2,3.2 0 1,0 0.001,0z", "M9,2L7.17,4H4c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V6c0,-1.1 -0.9,-2 -2,-2h-3.17L15,2H9zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5 -2.24,5 -5,5z"], "mic": ["M12,14c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v6c0,1.66 1.34,3 3,3zM17.3,11c0,3 -2.54,5.1 -5.3,5.1S6.7,14 6.7,11H5c0,3.41 2.72,6.23 6,6.72V21h2v-3.28c3.28,-0.48 6,-3.3 6,-6.72h-1.7z"], "send": ["M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z"], "settings": ["M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94 0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6 3.6,1.62 3.6,3.6 -1.62,3.6 -3.6,3.6z"], "add": ["M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"], "close": ["M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z"], "trash": ["M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6v12zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z"], "play": ["M8,5v14l11,-7z"], "videocam": ["M17,10.5V7c0,-0.55 -0.45,-1 -1,-1H4c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12c0.55,0 1,-0.45 1,-1v-3.5l4,4v-11l-4,4z"], "image": ["M21,19V5c0,-1.1 -0.9,-2 -2,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2zM8.5,13.5l2.5,3.01L14.5,12l4.5,6H5l3.5,-4.5z"], "chevron": ["M15.41,7.41L14,6l-6,6 6,6 1.41,-1.41L10.83,12z"]};
+  const ic = (n, s) => '<svg class="ic" viewBox="0 0 24 24" width="' + (s || 22) + '" height="' + (s || 22) + '" fill="currentColor" aria-hidden="true">' + ICONS[n].map((d) => '<path d="' + d + '"/>').join("") + "</svg>";
+
   // ---------- Construction de l'écran ----------
   function build() {
     if (built) return;
     built = true;
     host.innerHTML = `
       <div class="ch-head">
-        <button class="ch-icon ch-back" data-c="back" aria-label="Retour">‹</button>
+        <button class="ch-icon ch-back" data-c="back" aria-label="Retour">${ic("chevron", 30)}</button>
         <div class="ch-who">
           <div class="ch-avatar">💗</div>
           <div class="ch-title"><b id="ch-name"></b><small id="ch-sub">Ton partenaire ›</small></div>
         </div>
-        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Fond d'écran">🎨</button>
+        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Réglages">${ic("settings", 22)}</button>
       </div>
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
@@ -168,33 +171,44 @@
       <div class="ch-typing" id="ch-typing" hidden><span><i></i><i></i><i></i></span></div>
       <div class="ch-replybar" id="ch-replybar" hidden>
         <div class="ch-rbody"><b id="ch-rname"></b><span id="ch-rtext"></span></div>
-        <button class="ch-icon" data-c="replyCancel" aria-label="Annuler la réponse">✕</button>
+        <button class="ch-icon" data-c="replyCancel" aria-label="Annuler la réponse">${ic("close", 20)}</button>
       </div>
       <div class="ch-panel" id="ch-panel" hidden></div>
       <div class="ch-bar" id="ch-bar">
-        <button class="ch-plus" data-c="emoji" id="ch-emojibtn" aria-label="Stickers et GIF">+</button>
+        <button class="ch-plus" data-c="emoji" id="ch-emojibtn" aria-label="Stickers et GIF">${ic("add", 28)}</button>
         <div class="ch-pill">
           <textarea id="ch-input" rows="1" placeholder="Message" autocomplete="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send"></textarea>
-          <button class="ch-cam" data-c="attach" aria-label="Photo">📷</button>
-          <button class="ch-send" data-c="send" id="ch-send" aria-label="Envoyer">🎤</button>
+          <button class="ch-cam" data-c="attach" aria-label="Appareil photo">${ic("camera", 24)}</button>
+          <button class="ch-send" data-c="send" id="ch-send" aria-label="Envoyer">${ic("mic", 22)}</button>
         </div>
       </div>
       <div class="ch-rec" id="ch-rec" hidden>
-        <button class="ch-icon" data-c="recCancel" aria-label="Annuler">🗑</button>
+        <button class="ch-icon" data-c="recCancel" aria-label="Annuler">${ic("trash", 24)}</button>
         <span class="ch-dot"></span><span id="ch-rect">0:00</span>
         <span class="ch-recgrow">Enregistrement…</span>
-        <button class="ch-send on" data-c="recSend" aria-label="Envoyer le vocal">➤</button>
+        <button class="ch-send on" data-c="recSend" aria-label="Envoyer le vocal">${ic("send", 22)}</button>
       </div>
       <div class="ch-pv" id="ch-pv" hidden>
         <img id="ch-pvimg" alt="">
         <div class="ch-pvbar">
           <input id="ch-pvcap" placeholder="Ajouter une légende…" maxlength="300">
-          <button class="ch-send on" data-c="pvSend" aria-label="Envoyer la photo">➤</button>
+          <button class="ch-send on" data-c="pvSend" aria-label="Envoyer la photo">${ic("send", 22)}</button>
         </div>
-        <button class="ch-pvx" data-c="pvCancel" aria-label="Fermer">✕</button>
+        <button class="ch-pvx" data-c="pvCancel" aria-label="Fermer">${ic("close", 22)}</button>
       </div>
       <div class="ch-view" id="ch-view" hidden data-c="viewClose"><img id="ch-viewimg" alt=""></div>
-      <input type="file" id="ch-file" accept="image/*" hidden>
+      <input type="file" id="ch-file" accept="image/*,video/*" hidden>
+      <input type="file" id="ch-filep" accept="image/*" capture="environment" hidden>
+      <input type="file" id="ch-filev" accept="video/*" capture="environment" hidden>
+      <div class="ch-wp" id="ch-cam" hidden data-c="camClose">
+        <div class="ch-wpbox">
+          <b>Appareil photo</b>
+          <button class="ch-wpbtn ch-opt" data-c="camPhoto">${ic("camera", 22)} Prendre une photo</button>
+          <button class="ch-wpbtn ch-opt" data-c="camVideo">${ic("videocam", 22)} Filmer une vidéo</button>
+          <button class="ch-wpbtn ch-opt" data-c="camGallery">${ic("image", 22)} Choisir dans la galerie</button>
+          <button class="ch-wpbtn ch-wpclose" data-c="camClose">Annuler</button>
+        </div>
+      </div>
       <input type="file" id="ch-wpfile" accept="image/*" hidden>
       <div class="ch-wp" id="ch-wp" hidden data-c="wpClose">
         <div class="ch-wpbox">
@@ -216,6 +230,8 @@
     });
     $("ch-input").addEventListener("focus", () => { if (panelTab) closePanel(); setTimeout(() => scrollBottom(true), 250); });
     $("ch-file").addEventListener("change", onFile);
+    $("ch-filep").addEventListener("change", onFile);
+    $("ch-filev").addEventListener("change", onFile);
     wireSwipe($("ch-list"));
     ["touchstart", "click"].forEach((ev) => document.addEventListener(ev, unlockAudio, { once: true, passive: true }));
     $("ch-list").addEventListener("scroll", onScroll, { passive: true });
@@ -480,6 +496,14 @@
             (m.body ? '<div class="ch-text cap">' + linkify(m.body) + "</div>" : "") + t,
         };
       }
+      case "video": {
+        const w = (m.meta && m.meta.w) || 16, h = (m.meta && m.meta.h) || 9;
+        const src = m.localUrl || mediaUrl(m.media);
+        return {
+          cls: "media",
+          html: '<video class="ch-photo ch-video" style="aspect-ratio:' + w + "/" + h + '" src="' + esc(src) + '#t=0.1" controls playsinline preload="metadata"></video>' + t,
+        };
+      }
       case "voice": {
         const src = m.localUrl || mediaUrl(m.media);
         const d = (m.meta && m.meta.d) || 0;
@@ -690,6 +714,7 @@
       case "gif": return "🎞️ GIF";
       case "image": return "📷 " + (m.body ? m.body.slice(0, 60) : "Photo");
       case "voice": return "🎤 Message vocal";
+      case "video": return "🎥 Vidéo";
       default: return "";
     }
   }
@@ -796,6 +821,38 @@
     }
   }
 
+  const MAX_VIDEO = 50 * 1024 * 1024;
+  function videoMeta(file) {
+    return new Promise((res) => {
+      const v = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      const done = (o) => { URL.revokeObjectURL(url); res(o); };
+      const t = setTimeout(() => done({ w: 0, h: 0, d: 0 }), 4000);
+      v.preload = "metadata"; v.muted = true; v.playsInline = true;
+      v.onloadedmetadata = () => { clearTimeout(t); done({ w: v.videoWidth || 0, h: v.videoHeight || 0, d: Math.round(v.duration) || 0 }); };
+      v.onerror = () => { clearTimeout(t); done({ w: 0, h: 0, d: 0 }); };
+      v.src = url;
+    });
+  }
+  async function sendVideo(file) {
+    if (file.size > MAX_VIDEO) { toast("Vidéo trop lourde (50 Mo maximum)."); return; }
+    const type = /quicktime/.test(file.type) ? "video/quicktime" : /webm/.test(file.type) ? "video/webm" : /3gpp/.test(file.type) ? "video/3gpp" : "video/mp4";
+    const ext = type === "video/quicktime" ? "mov" : type === "video/webm" ? "webm" : type === "video/3gpp" ? "3gp" : "mp4";
+    const m = await videoMeta(file);
+    const meta = {};
+    if (m.w && m.h) { meta.w = m.w; meta.h = m.h; }
+    if (m.d) meta.d = m.d;
+    const local = URL.createObjectURL(file);
+    const p = addPending({ kind: "video", meta, localUrl: local });
+    try {
+      const path = await uploadFile(file, ext, type);
+      await deliver(p, { p_kind: "video", p_body: null, p_media: path, p_meta: Object.keys(meta).length ? meta : null });
+    } catch (e) {
+      removePending(p);
+      toast("Vidéo non envoyée. Vérifie ta connexion.");
+    }
+  }
+
   async function sendVoice(blob, mime, seconds) {
     const ext = /mp4|m4a|aac/.test(mime) ? "m4a" : /ogg/.test(mime) ? "ogg" : "webm";
     const type = ext === "m4a" ? "audio/mp4" : ext === "ogg" ? "audio/ogg" : "audio/webm";
@@ -817,7 +874,7 @@
     inp.style.height = Math.min(120, inp.scrollHeight) + "px";
     const has = inp.value.trim().length > 0;
     const btn = $("ch-send");
-    btn.textContent = has ? "➤" : "🎤";
+    btn.innerHTML = has ? ic("send", 20) : ic("mic", 22);
     btn.classList.toggle("on", has);
     btn.dataset.c = has ? "send" : "mic";
     if (has) sendTyping();
@@ -829,6 +886,7 @@
     const f = ev.target.files && ev.target.files[0];
     ev.target.value = "";
     if (!f) return;
+    if ((f.type || "").startsWith("video/")) { sendVideo(f); return; }
     try {
       pendingPhoto = await resizeImage(f);
       $("ch-pvimg").src = URL.createObjectURL(pendingPhoto.blob);
@@ -926,7 +984,7 @@
     const p = $("ch-panel");
     p.hidden = false;
     $("ch-input").blur();
-    $("ch-emojibtn").textContent = "⌨";
+    $("ch-emojibtn").classList.add("open");
     p.innerHTML = '<div class="ch-pbody" id="ch-pbody"></div><div class="ch-ptabs">' +
       [["sticker", "💗 Stickers"], ["gif", "GIF"]].map(([k, l]) =>
         '<button data-c="tab" data-t="' + k + '" class="' + (k === tab ? "on" : "") + '">' + l + "</button>").join("") + "</div>";
@@ -939,7 +997,7 @@
     if (!panelTab && $("ch-panel").hidden) return;
     panelTab = null;
     $("ch-panel").hidden = true;
-    $("ch-emojibtn").textContent = "+";
+    $("ch-emojibtn").classList.remove("open");
   }
 
   function fillEmoji(catIndex) {
@@ -1051,7 +1109,11 @@
       case "mic": startRec(); break;
       case "recCancel": stopRec(false); break;
       case "recSend": stopRec(true); break;
-      case "attach": $("ch-file").click(); break;
+      case "attach": $("ch-cam").hidden = false; break;
+      case "camClose": if (ev.target === t || t.classList.contains("ch-wpclose")) $("ch-cam").hidden = true; break;
+      case "camPhoto": $("ch-cam").hidden = true; $("ch-filep").click(); ev.stopPropagation(); break;
+      case "camVideo": $("ch-cam").hidden = true; $("ch-filev").click(); ev.stopPropagation(); break;
+      case "camGallery": $("ch-cam").hidden = true; $("ch-file").click(); ev.stopPropagation(); break;
       case "wpOpen": $("ch-wp").hidden = false; break;
       case "wpClose": if (ev.target === t || t.classList.contains("ch-wpclose")) $("ch-wp").hidden = true; break;
       case "wpPreset": chooseWall("preset:" + Number(t.dataset.i)); ev.stopPropagation(); break;
