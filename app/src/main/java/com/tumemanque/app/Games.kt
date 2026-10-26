@@ -285,52 +285,29 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         if (!(gameActive && remActive)) {
             val scale by androidx.compose.animation.core.animateFloatAsState(if (open) 1.12f else 1f, spring(0.45f, 500f), label = "bolt")
-            // Au repos, l'éclair vibre de temps en temps et de petits éclairs le frappent.
-            val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "boltIdle")
-            val wiggle by inf.animateFloat(
-                0f, 0f,
-                androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.keyframes {
-                        durationMillis = 4200
-                        0f at 0; 0f at 2600; -14f at 2700; 12f at 2820; -9f at 2940; 7f at 3060; -3f at 3180; 0f at 3300; 0f at 4200
-                    },
-                ),
-                label = "wiggle",
+            // Petite vie : l'éclair s'agite et de mini éclairs le frappent de temps en temps.
+            val cycle by androidx.compose.animation.core.rememberInfiniteTransition(label = "boltIdle").animateFloat(
+                0f, 1f,
+                androidx.compose.animation.core.infiniteRepeatable(tween(3600, easing = androidx.compose.animation.core.LinearEasing)),
+                label = "cycle",
             )
-            val sparkA by inf.animateFloat(
-                0f, 0f,
-                androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.keyframes {
-                        durationMillis = 4200
-                        0f at 0; 0f at 2600; 1f at 2700; 0.9f at 2950; 0f at 3300; 0f at 4200
-                    },
-                ),
-                label = "sparkA",
-            )
-            val sparkB by inf.animateFloat(
-                0f, 0f,
-                androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.keyframes {
-                        durationMillis = 4200
-                        0f at 0; 0f at 600; 1f at 700; 0.9f at 950; 0f at 1300; 0f at 4200
-                    },
-                ),
-                label = "sparkB",
-            )
-            val idle = !open
-            Box(Modifier.size(38.dp).clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { open = !open; if (open) Sounds.menu() }) {
+            val wob = if (open || cycle > 0.28f) 0f else (kotlin.math.sin(cycle / 0.28f * Math.PI * 5).toFloat() * 11f * (1f - cycle / 0.28f))
+            fun flash(c: Float, from: Float): Float {
+                val x = (c - from) / 0.2f
+                return if (open || x < 0f || x > 1f) 0f else (if (x < 0.2f) x / 0.2f else if (x < 0.45f) 0.25f else if (x < 0.6f) 1f else 1f - (x - 0.6f) / 0.4f)
+            }
+            val f1 = flash(cycle, 0.02f)
+            val f2 = flash(cycle, 0.50f)
+            Box(Modifier.size(38.dp)) {
                 Box(
-                    Modifier.fillMaxSize()
-                        .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = if (idle) wiggle else 0f }
-                        .clip(CircleShape)
+                    Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = wob }.clip(CircleShape)
                         .background(if (open) Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))) else Brush.linearGradient(listOf(Color(0xB3281C24), Color(0xB3281C24))))
-                        .border(1.dp, if (idle && sparkA > 0.3f) Color(0xCCFFD54F) else Color(0x1FFFFFFF), CircleShape),
+                        .border(1.dp, Color(0x1FFFFFFF), CircleShape)
+                        .clickable { open = !open; if (open) Sounds.menu() },
                     contentAlignment = Alignment.Center,
                 ) { Text("⚡", fontSize = 17.sp) }
-                if (idle) {
-                    Text("⚡", fontSize = 10.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-7).dp).graphicsLayer { alpha = sparkA; scaleX = 0.5f + sparkA; scaleY = 0.5f + sparkA })
-                    Text("⚡", fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomStart).offset(x = (-6).dp, y = 7.dp).graphicsLayer { alpha = sparkB; scaleX = 0.5f + sparkB; scaleY = 0.5f + sparkB })
-                }
+                Text("⚡", fontSize = 11.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-6).dp).graphicsLayer { alpha = f1; scaleX = 0.5f + f1 * 0.8f; scaleY = 0.5f + f1 * 0.8f; rotationZ = -14f * f1 })
+                Text("⚡", fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart).offset(x = (-6).dp, y = 6.dp).graphicsLayer { alpha = f2; scaleX = 0.5f + f2 * 0.8f; scaleY = 0.5f + f2 * 0.8f; rotationZ = 12f * f2 })
             }
             Spacer(Modifier.width(8.dp))
         }

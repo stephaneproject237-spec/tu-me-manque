@@ -405,3 +405,13 @@ body.chat-open { overflow: hidden; }
   0%, 60%, 100% { opacity: 0; transform: scale(.4) rotate(0); }
   63% { opacity: 1; transform: scale(1.3) rotate(-15deg); } 70% { opacity: .9; transform: scale(1) rotate(10deg); } 78% { opacity: 0; transform: scale(.6) rotate(0); }
 }
+
+/* Éclair vivant : il s'agite un peu et de petits éclairs le frappent de temps en temps */
+.gm-bolt { position: relative; overflow: visible; animation: gmwobble 3.6s ease-in-out infinite; }
+.gm-bolt.open { animation: none; }
+.gm-bolt::before, .gm-bolt::after { content: "⚡"; position: absolute; font-size: 10px; opacity: 0; pointer-events: none; filter: drop-shadow(0 0 4px #FFD54F); }
+.gm-bolt::before { top: -7px; right: -5px; animation: gmspark 3.6s ease-out infinite; }
+.gm-bolt::after { bottom: -6px; left: -6px; font-size: 9px; animation: gmspark 3.6s ease-out 1.7s infinite; }
+.gm-bolt.open::before, .gm-bolt.open::after { display: none; }
+@keyframes gmwobble { 0%, 28%, 100% { transform: rotate(0); } 3% { transform: rotate(-12deg); } 7% { transform: rotate(10deg); } 11% { transform: rotate(-8deg); } 15% { transform: rotate(6deg); } 19% { transform: rotate(-3deg); } 23% { transform: rotate(1deg); } }
+@keyframes gmspark { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 4% { opacity: 1; transform: scale(1.3) rotate(-14deg); } 9% { opacity: .2; transform: scale(.9) rotate(8deg); } 13% { opacity: 1; transform: scale(1.1) rotate(-6deg); } 24% { opacity: 0; transform: scale(.5) rotate(0); } }
