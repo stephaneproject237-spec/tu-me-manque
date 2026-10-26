@@ -157,3 +157,10 @@ body.chat-open { overflow: hidden; }
 .ch-video { background: #000; max-height: 60vh; }
 .ch-rec .ch-icon { color: #E53935; }
 .ch-send.on .ic { margin-left: 1px; }
+
+/* ===== Messages supprimés, menu d'un message ===== */
+.ch-bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.ch-bubble.deleted { background: rgba(255,255,255,.35) !important; color: #8a6d7a !important; border-style: dashed; box-shadow: none; }
+.mine .ch-bubble.deleted { background: rgba(233,30,99,.12) !important; }
+.ch-del { font-style: italic; font-size: 15px !important; }
+.ch-danger { color: #D32F2F !important; }

@@ -69,15 +69,22 @@
 
   const COLS = "id,sender_id,kind,body,media,meta,created_at,read_at";
 
-  async function fetchLatest() {
-    return (await sb("GET", "/rest/v1/messages?select=" + COLS + "&order=id.desc&limit=" + PAGE)) || [];
+  // La colonne deleted_at n'existe qu'après supprimer.sql : sans elle, on lit les messages comme avant.
+  let colsFull = true;
+  async function qm(rest) {
+    try {
+      return (await sb("GET", "/rest/v1/messages?select=" + COLS + (colsFull ? ",deleted_at" : "") + rest)) || [];
+    } catch (e) {
+      if (colsFull && /HTTP 400/.test(String(e && e.message))) {
+        colsFull = false;
+        return (await sb("GET", "/rest/v1/messages?select=" + COLS + rest)) || [];
+      }
+      throw e;
+    }
   }
-  async function fetchOlder(beforeId) {
-    return (await sb("GET", "/rest/v1/messages?select=" + COLS + "&id=lt." + beforeId + "&order=id.desc&limit=" + PAGE)) || [];
-  }
-  async function fetchNew(afterId) {
-    return (await sb("GET", "/rest/v1/messages?select=" + COLS + "&id=gt." + afterId + "&order=id.asc&limit=100")) || [];
-  }
+  const fetchLatest = () => qm("&order=id.desc&limit=" + PAGE);
+  const fetchOlder = (beforeId) => qm("&id=lt." + beforeId + "&order=id.desc&limit=" + PAGE);
+  const fetchNew = (afterId) => qm("&id=gt." + afterId + "&order=id.asc&limit=100");
 
   async function uploadFile(blob, ext, mime) {
     const name = (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : String(Date.now()) + Math.random().toString(36).slice(2)) + "." + ext;
@@ -200,6 +207,9 @@
       <input type="file" id="ch-file" accept="image/*,video/*" hidden>
       <input type="file" id="ch-filep" accept="image/*" capture="environment" hidden>
       <input type="file" id="ch-filev" accept="video/*" capture="environment" hidden>
+      <div class="ch-wp" id="ch-mm" hidden data-c="mClose">
+        <div class="ch-wpbox" id="ch-mmbox"></div>
+      </div>
       <div class="ch-wp" id="ch-cam" hidden data-c="camClose">
         <div class="ch-wpbox">
           <b>Appareil photo</b>
@@ -233,6 +243,7 @@
     $("ch-filep").addEventListener("change", onFile);
     $("ch-filev").addEventListener("change", onFile);
     wireSwipe($("ch-list"));
+    wireMenu($("ch-list"));
     ["touchstart", "click"].forEach((ev) => document.addEventListener(ev, unlockAudio, { once: true, passive: true }));
     $("ch-list").addEventListener("scroll", onScroll, { passive: true });
     const vv = window.visualViewport;
@@ -334,6 +345,7 @@
         }
       });
       if (added.length) appendMessages(added, incoming);
+      await syncDeleted();
       if (unreadOwn.size) await refreshReadStatus();
       if (incoming || hasUnreadIncoming()) markRead();
     } catch (e) { /* hors-ligne : on réessaie au prochain tour */ }
@@ -470,6 +482,7 @@
 
   function bubbleInner(m) {
     const t = '<span class="ch-meta">' + hhmm(m.created_at) + tickHtml(m) + "</span>";
+    if (m.deleted_at) return { cls: "deleted", html: '<div class="ch-text ch-del">🚫 Message supprimé</div>' + t };
     switch (m.kind) {
       case "text": {
         if (isBigEmoji(m.body)) return { cls: "big", html: '<div class="ch-bigemoji">' + esc(m.body) + "</div>" + t };
@@ -543,7 +556,7 @@
     row.className = "ch-row " + (mine ? "mine" : "theirs") + (m.pending ? " pending" : "");
     row.dataset.day = dayKey(m.created_at);
     if (m.pending) row.dataset.tmp = m.tmp; else row.dataset.id = m.id;
-    row.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + quoteHtml(m) + b.html + "</div>";
+    row.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + (m.deleted_at ? "" : quoteHtml(m)) + b.html + "</div>";
     wireAudio(row);
     row.querySelectorAll("img").forEach((img) => img.addEventListener("load", () => { if (nearBottomFlag) scrollBottom(true); }));
     return row;
@@ -778,6 +791,82 @@
       if (r) setReply(byId.get(Number(r.dataset.id)));
     });
   }
+  // ---------- Menu d'un message : répondre, copier, supprimer ----------
+  let menuId = null;
+  function openMsgMenu(id) {
+    const m = byId.get(id);
+    if (!m) return;
+    menuId = id;
+    const mine = m.sender_id === me, gone = !!m.deleted_at;
+    let h = "";
+    if (!gone) h += '<button class="ch-wpbtn ch-opt" data-c="mReply">↩ Répondre</button>';
+    if (!gone && m.kind === "text" && m.body) h += '<button class="ch-wpbtn ch-opt" data-c="mCopy">⧉ Copier</button>';
+    h += '<button class="ch-wpbtn ch-opt" data-c="mDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
+    if (mine && !gone) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="mDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
+    h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>';
+    $("ch-mmbox").innerHTML = h;
+    $("ch-mm").hidden = false;
+  }
+  function closeMsgMenu() { $("ch-mm").hidden = true; menuId = null; }
+  function applyDeleted(m) {
+    m.deleted_at = m.deleted_at || new Date().toISOString();
+    m.body = null; m.media = null; m.meta = null; m.localUrl = null;
+    unreadOwn.delete(m.id);
+    const el = host.querySelector('.ch-row[data-id="' + m.id + '"]');
+    if (el) el.replaceWith(rowEl(m));
+  }
+  async function deleteMsg(id, all) {
+    const m = byId.get(id);
+    if (!m) return;
+    try {
+      const r = await A().authed("POST", "/rest/v1/rpc/delete_message", { p_id: id, p_all: !!all });
+      if (!r || r.status !== "ok") throw new Error(r && r.status);
+      if (all) applyDeleted(m);
+      else {
+        msgs = msgs.filter((x) => x.id !== id);
+        unreadOwn.delete(id);
+        const el = host.querySelector('.ch-row[data-id="' + id + '"]');
+        if (el) el.remove();
+        if (!msgs.length && !pendings.length) renderAll();
+      }
+    } catch (e) {
+      toast("Impossible de supprimer. Vérifie ta connexion.");
+    }
+  }
+  // La personne a supprimé un message « pour tout le monde » : on le voit disparaître ici aussi.
+  async function syncDeleted() {
+    if (!colsFull || !msgs.length) return;
+    try {
+      const rows = await sb("GET", "/rest/v1/messages?select=id&deleted_at=not.is.null&id=gte." + msgs[0].id);
+      (rows || []).forEach((r) => { const m = byId.get(r.id); if (m && !m.deleted_at) applyDeleted(m); });
+    } catch (e) { /* ignoré */ }
+  }
+  // Appui long (téléphone) ou clic droit (ordinateur) sur un message.
+  function wireMenu(l) {
+    let timer = null, sx = 0, sy = 0, fired = false;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    l.addEventListener("touchstart", (e) => {
+      const row = e.target.closest(".ch-row[data-id]");
+      fired = false;
+      if (!row) return;
+      const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+      cancel();
+      timer = setTimeout(() => { fired = true; try { navigator.vibrate && navigator.vibrate(15); } catch (x) { /* ignoré */ } openMsgMenu(Number(row.dataset.id)); }, 450);
+    }, { passive: true });
+    l.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - sx) > 8 || Math.abs(t.clientY - sy) > 8) cancel();
+    }, { passive: true });
+    l.addEventListener("touchend", (e) => { cancel(); if (fired) { e.preventDefault(); fired = false; } });
+    l.addEventListener("touchcancel", cancel);
+    l.addEventListener("contextmenu", (e) => {
+      const row = e.target.closest(".ch-row[data-id]");
+      if (!row) return;
+      e.preventDefault();
+      openMsgMenu(Number(row.dataset.id));
+    });
+  }
+
   function burst(id) { try { window.TMM_API && window.TMM_API.burst && window.TMM_API.burst(id); } catch (e) { /* ignoré */ } }
 
   const LOVE_RE = /\bje\s*t['’ ]?\s*aime\b|\bjtm\b/i;
@@ -1131,6 +1220,15 @@
       case "view": $("ch-viewimg").src = t.src; $("ch-view").hidden = false; break;
       case "viewClose": $("ch-view").hidden = true; break;
       case "quote": jumpTo(t.dataset.id); break;
+      case "mClose": if (ev.target === t || t.classList.contains("ch-wpclose")) closeMsgMenu(); break;
+      case "mReply": { const m = byId.get(menuId); closeMsgMenu(); if (m) setReply(m); ev.stopPropagation(); break; }
+      case "mCopy": {
+        const m = byId.get(menuId); closeMsgMenu();
+        if (m && m.body) { try { navigator.clipboard.writeText(m.body); toast("Copié."); } catch (e) { toast("Copie impossible."); } }
+        ev.stopPropagation(); break;
+      }
+      case "mDelMe": { const id = menuId; closeMsgMenu(); deleteMsg(id, false); ev.stopPropagation(); break; }
+      case "mDelAll": { const id = menuId; closeMsgMenu(); deleteMsg(id, true); ev.stopPropagation(); break; }
       case "replyCancel": clearReply(); break;
       case "play": if (row) togglePlay(row); break;
       case "seek": if (row) seek(row, ev); break;
