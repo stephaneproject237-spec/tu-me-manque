@@ -175,6 +175,7 @@
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
       <div class="ch-toast" id="ch-toast" hidden></div>
+      <div class="ch-bottom" id="ch-bottom">
       <div class="ch-typing" id="ch-typing" hidden><span><i></i><i></i><i></i></span></div>
       <div class="ch-replybar" id="ch-replybar" hidden>
         <div class="ch-rbody"><b id="ch-rname"></b><span id="ch-rtext"></span></div>
@@ -194,6 +195,7 @@
         <span class="ch-dot"></span><span id="ch-rect">0:00</span>
         <span class="ch-recgrow">Enregistrement…</span>
         <button class="ch-send on" data-c="recSend" aria-label="Envoyer le vocal">${ic("send", 22)}</button>
+      </div>
       </div>
       <div class="ch-pv" id="ch-pv" hidden>
         <img id="ch-pvimg" alt="">
@@ -242,6 +244,15 @@
     $("ch-file").addEventListener("change", onFile);
     $("ch-filep").addEventListener("change", onFile);
     $("ch-filev").addEventListener("change", onFile);
+    // La liste de messages occupe tout l'écran : en haut et en bas, elle passe sous l'en-tête et sous la barre de saisie.
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => {
+        const h = $("ch-bottom").offsetHeight;
+        const near = nearBottomFlag;
+        host.style.setProperty("--bot", h + "px");
+        if (near && opened) scrollBottom(true);
+      }).observe($("ch-bottom"));
+    }
     wireSwipe($("ch-list"));
     wireMenu($("ch-list"));
     ["touchstart", "click"].forEach((ev) => document.addEventListener(ev, unlockAudio, { once: true, passive: true }));

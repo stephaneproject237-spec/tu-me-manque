@@ -164,3 +164,17 @@ body.chat-open { overflow: hidden; }
 .mine .ch-bubble.deleted { background: rgba(233,30,99,.12) !important; }
 .ch-del { font-style: italic; font-size: 15px !important; }
 .ch-danger { color: #D32F2F !important; }
+
+/* ===== Liste plein écran (verre liquide) : les messages passent sous l'en-tête et sous la saisie ===== */
+.ch-list { position: absolute; inset: 0; z-index: 1; padding-bottom: calc(var(--bot, 70px) + 10px); }
+.ch-bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; flex-direction: column; }
+.ch-bottom .ch-panel { margin: 0 8px calc(6px + env(safe-area-inset-bottom)); border-radius: 26px; border: 1px solid rgba(255,255,255,.7); height: 280px; overflow: hidden; }
+.ch-bottom .ch-ptabs { padding-bottom: 0; }
+.ch-bottom .ch-bar { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+.ch-bottom .ch-panel:not([hidden]) ~ .ch-bar { padding-bottom: 8px; }
+.ch-down { bottom: calc(var(--bot, 70px) + 12px); z-index: 4; }
+.ch-toast { bottom: calc(var(--bot, 70px) + 16px); }
+.ch-rec { margin: 0 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 26px; background: rgba(255,255,255,.62); -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8); border: 1px solid rgba(255,255,255,.7); }
+/* Éléments en verre : flou plus fort pour que les messages se devinent en dessous */
+.ch-head .ch-icon, .ch-title, .ch-plus, .ch-pill, .ch-replybar, .ch-typing span { -webkit-backdrop-filter: blur(24px) saturate(1.8); backdrop-filter: blur(24px) saturate(1.8); }
+.ch-panel { background: rgba(255,255,255,.7); -webkit-backdrop-filter: blur(28px) saturate(1.8); backdrop-filter: blur(28px) saturate(1.8); }
