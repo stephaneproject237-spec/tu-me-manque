@@ -747,6 +747,10 @@
     return `<div class="fond"><div class="boite">
       <h2 style="font-size:22px">Réglages</h2>
       <div class="carte" style="align-items:stretch;text-align:left">
+        <b>Mon pseudo</b><span style="color:var(--rose);font-weight:800;font-size:18px">${S.username ? "@" + esc(S.username) : "—"}</span>
+        ${S.partnerName ? `<span class="gris">Mon partenaire : @${esc(S.partnerName)}</span>` : ""}
+      </div>
+      <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
         <b>Version de l'application</b><span class="gris">Version ${esc(CFG.VERSION)}</span>${state}
         <button class="lien" data-action="checkWeb">Vérifier les mises à jour</button>
       </div>

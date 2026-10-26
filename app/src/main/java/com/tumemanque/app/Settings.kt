@@ -52,7 +52,7 @@ fun SettingsGear(hasUpdate: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
+fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, onBack: () -> Unit) {
     val s by upd.state.collectAsState()
     val context = LocalContext.current
     BackHandler { onBack() }
@@ -70,6 +70,16 @@ fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
             Text("Réglages", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF5EEF2))
         }
         Spacer(Modifier.height(20.dp))
+
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("Mon pseudo", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(if (username.isNullOrEmpty()) "—" else "@$username", color = SetPink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            if (!partner.isNullOrEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Mon partenaire : @$partner", color = Color(0xFFB7A3AE), fontSize = 14.sp)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
 
         GlassCard(Modifier.fillMaxWidth()) {
             Row(
