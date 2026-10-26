@@ -385,3 +385,23 @@ body.chat-open { overflow: hidden; }
 .gm-bolt.open { transform: scale(1.12); background: linear-gradient(135deg, rgba(255,72,134,.85), rgba(214,24,92,.85)); }
 .gm-pop { animation: gmpop .5s cubic-bezier(.34,1.56,.64,1) both; transform-origin: left center; }
 @keyframes gmpop { 0% { opacity: 0; transform: translateX(-18px) scale(.4); } 100% { opacity: 1; transform: none; } }
+
+/* L'éclair vibre de temps en temps et de petits éclairs le frappent */
+.gm-bolt { position: relative; overflow: visible; animation: gmjit 4.2s ease-in-out infinite; }
+.gm-bolt.open { animation: none; }
+.gm-bolt::before, .gm-bolt::after { content: "⚡"; position: absolute; font-size: 10px; opacity: 0; pointer-events: none; filter: drop-shadow(0 0 4px #FFD54F); }
+.gm-bolt::before { top: -8px; right: -5px; animation: gmspark 4.2s ease-out infinite; }
+.gm-bolt::after { bottom: -7px; left: -6px; font-size: 9px; animation: gmspark 4.2s ease-out 1.9s infinite; }
+.gm-bolt:not(.open) { animation-name: gmjit, gmglow; animation-duration: 4.2s, 4.2s; animation-iteration-count: infinite, infinite; }
+@keyframes gmjit {
+  0%, 62%, 100% { transform: none; }
+  64% { transform: rotate(-14deg) scale(1.08); } 67% { transform: rotate(12deg) scale(1.08); } 70% { transform: rotate(-9deg); }
+  73% { transform: rotate(7deg); } 76% { transform: rotate(-3deg); } 80% { transform: none; }
+}
+@keyframes gmglow {
+  0%, 62%, 100% { box-shadow: none; } 64% { box-shadow: 0 0 14px 3px rgba(255,213,79,.75); } 72% { box-shadow: 0 0 6px 1px rgba(255,213,79,.35); } 80% { box-shadow: none; }
+}
+@keyframes gmspark {
+  0%, 60%, 100% { opacity: 0; transform: scale(.4) rotate(0); }
+  63% { opacity: 1; transform: scale(1.3) rotate(-15deg); } 70% { opacity: .9; transform: scale(1) rotate(10deg); } 78% { opacity: 0; transform: scale(.6) rotate(0); }
+}
