@@ -167,6 +167,10 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     // Les noms de tes contacts remplacent les pseudos (Android seulement).
+    val smsCtx = LocalContext.current
+    LaunchedEffect(state.username, state.partnerName, state.partnerPhone) {
+        if (state.username != null && state.partnerPhone != null) SmsFallback.remember(smsCtx, state.username, state.partnerName, state.partnerPhone)
+    }
     LaunchedEffect(state.partnerPhone) {
         if (state.partnerPhone != null) {
             if (Contacts.hasPermission(context)) vm.loadContacts(context)

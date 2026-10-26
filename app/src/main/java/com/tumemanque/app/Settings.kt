@@ -80,6 +80,7 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
             }
         }
         Spacer(Modifier.height(14.dp))
+        SmsCard(partner)
 
         GlassCard(Modifier.fillMaxWidth()) {
             Row(
@@ -136,5 +137,44 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
             Spacer(Modifier.height(10.dp))
             GlassButton(if (supportUnread > 0) "🛟 Contacter le SAV ($supportUnread)" else "🛟 Contacter le SAV", Modifier.fillMaxWidth()) { onSupport() }
         }
+    }
+}
+
+
+/** Réglage « SMS de secours » : sans internet, les messages texte partent par SMS. */
+@Composable
+private fun SmsCard(partner: String?) {
+    val context = LocalContext.current
+    var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(SmsFallback.enabled(context)) }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        on = SmsFallback.hasPerms(context)
+        SmsFallback.setWanted(context, on)
+    }
+    GlassCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("📱 SMS de secours", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text(
+                    "Sans internet, tes messages texte partent par SMS vers ${if (partner.isNullOrEmpty()) "ton partenaire" else "@$partner"}. Un SMS est facturé par ton opérateur.",
+                    color = Color(0xFFB7A3AE), fontSize = 13.sp,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            androidx.compose.material3.Switch(
+                checked = on,
+                onCheckedChange = { want ->
+                    if (!want) { on = false; SmsFallback.setWanted(context, false) }
+                    else if (SmsFallback.hasPerms(context)) { on = true; SmsFallback.setWanted(context, true) }
+                    else launcher.launch(arrayOf(android.Manifest.permission.SEND_SMS, android.Manifest.permission.RECEIVE_SMS))
+                },
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "À activer sur les deux téléphones : l'un pour envoyer, l'autre pour recevoir.",
+            color = Color(0xFF8F7A86), fontSize = 12.sp,
+        )
     }
 }

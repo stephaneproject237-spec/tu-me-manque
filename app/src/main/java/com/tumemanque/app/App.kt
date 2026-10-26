@@ -57,6 +57,7 @@ class App : Application(), ImageLoaderFactory {
         super.onCreate()
         Backend.init(this)
         Outbox.init(this)
+        SmsFallback.init(this)
         createNotificationChannel(this)
         CrashLog.install(this)
     }

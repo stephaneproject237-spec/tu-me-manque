@@ -386,7 +386,7 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
     val readNow = m.mine && m.read && !m.pending
     val tick = when {
         !m.mine -> ""
-        m.pending -> "  🕓"
+        m.pending -> if (m.meta?.has("sms") == true) "  📱✓" else "  🕓"
         m.read -> "  ✓✓"
         else -> "  ✓"
     }
