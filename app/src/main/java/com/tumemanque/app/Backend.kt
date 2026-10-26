@@ -479,6 +479,18 @@ object Backend {
     suspend fun deleteMessage(id: Long, all: Boolean): Boolean =
         rpc("delete_message", JSONObject().put("p_id", id).put("p_all", all)) == "ok"
 
+    /** Modifie le texte d'un de mes messages déjà envoyés. */
+    suspend fun editMessage(id: Long, body: String): Boolean =
+        rpc("edit_message", JSONObject().put("p_id", id).put("p_body", body)) == "ok"
+
+    /** Messages modifiés (à partir de [minId]) : identifiant et nouveau texte. */
+    suspend fun editedSince(minId: Long): List<Pair<Long, String>> = try {
+        val arr = JSONArray(authed("GET", "/rest/v1/messages?select=id,body&meta->>edited=eq.true&id=gte.$minId"))
+        List(arr.length()) { arr.getJSONObject(it).getLong("id") to arr.getJSONObject(it).optString("body", "") }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
     /** Parmi les messages chargés (à partir de [minId]), lesquels l'autre personne a-t-elle supprimés pour tous ? */
     suspend fun deletedSince(minId: Long): List<Long> {
         if (!colsFull) return emptyList()

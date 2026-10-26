@@ -373,6 +373,7 @@
       });
       if (added.length) { appendMessages(added, incoming); if (window.TMM_GAMES) window.TMM_GAMES.onMessages(added); }
       await syncDeleted();
+      await syncEdited();
       if (unreadOwn.size) await refreshReadStatus();
       if (incoming || hasUnreadIncoming()) markRead();
     } catch (e) { /* hors-ligne : on réessaie au prochain tour */ }
@@ -508,7 +509,7 @@
   }
 
   function bubbleInner(m) {
-    const t = '<span class="ch-meta">' + hhmm(m.created_at) + tickHtml(m) + "</span>";
+    const t = '<span class="ch-meta">' + (m.kind === "text" && m.meta && m.meta.edited && !m.deleted_at ? '<i class="ch-edited">modifié</i> · ' : "") + hhmm(m.created_at) + tickHtml(m) + "</span>";
     if (m.deleted_at) return { cls: "deleted", html: '<div class="ch-text ch-del">🚫 Message supprimé</div>' + t };
     switch (m.kind) {
       case "text": {
@@ -817,8 +818,63 @@
       default: return "";
     }
   }
+  // ---------- Modifier un message envoyé ----------
+  let editingId = null;
+  function startEdit(m) {
+    if (!m || !m.id || m.kind !== "text") return;
+    clearReply();
+    editingId = m.id;
+    $("ch-rname").textContent = "✏️ Modifier le message";
+    $("ch-rtext").textContent = snippet(m);
+    $("ch-replybar").hidden = false;
+    const inp = $("ch-input");
+    inp.value = m.body || "";
+    onInput();
+    inp.focus();
+  }
+  function cancelEdit() {
+    if (editingId === null) return;
+    editingId = null;
+    const inp = $("ch-input");
+    inp.value = "";
+    onInput();
+    $("ch-replybar").hidden = true;
+  }
+  function applyEdit(m, body) {
+    m.body = body;
+    m.meta = Object.assign({}, m.meta || {}, { edited: true });
+    const el = host.querySelector('.ch-row[data-id="' + m.id + '"]');
+    if (el) el.replaceWith(rowEl(m));
+  }
+  async function submitEdit() {
+    const inp = $("ch-input");
+    const text = inp.value.trim();
+    const m = byId.get(editingId);
+    if (!m || !text) return;
+    if (text === (m.body || "")) { cancelEdit(); return; }
+    try {
+      const r = await A().authed("POST", "/rest/v1/rpc/edit_message", { p_id: m.id, p_body: text });
+      if (!r || r.status !== "ok") throw new Error(r && r.status);
+      cancelEdit();
+      applyEdit(m, text);
+    } catch (e) {
+      toast("Impossible de modifier. Vérifie ta connexion.");
+    }
+  }
+  // La personne a modifié un message : on voit le nouveau texte ici aussi.
+  async function syncEdited() {
+    if (!msgs.length) return;
+    try {
+      const rows = await sb("GET", "/rest/v1/messages?select=id,body,meta&meta->>edited=eq.true&id=gte." + msgs[0].id);
+      (rows || []).forEach((r) => {
+        const m = byId.get(r.id);
+        if (m && !m.deleted_at && (m.body !== r.body || !(m.meta && m.meta.edited))) applyEdit(m, r.body);
+      });
+    } catch (e) { /* ignoré */ }
+  }
   function setReply(m) {
     if (!m || !m.id) return;
+    if (editingId !== null) cancelEdit();
     replyTo = { id: m.id, by_me: m.sender_id === me, kind: m.kind, text: snippet(m) };
     $("ch-rname").textContent = replyTo.by_me ? "Toi" : "@" + partner;
     $("ch-rtext").textContent = replyTo.text;
@@ -888,6 +944,7 @@
     if (!gone) h += '<button class="ch-wpbtn ch-opt" data-c="mReply">↩ Répondre</button>';
     if (m.kind === "game") { h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>'; $("ch-mmbox").innerHTML = h; $("ch-mm").hidden = false; return; }
     if (!gone && m.kind === "text" && m.body) h += '<button class="ch-wpbtn ch-opt" data-c="mCopy">⧉ Copier</button>';
+    if (mine && !gone && m.kind === "text" && !m.pending) h += '<button class="ch-wpbtn ch-opt" data-c="mEdit">✏️ Modifier</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mSel">☑ Sélectionner</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
     if (mine && !gone) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="mDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
@@ -991,6 +1048,7 @@
   function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
 
   async function sendText() {
+    if (editingId !== null) { submitEdit(); return; }
     const inp = $("ch-input");
     const text = inp.value.trim();
     if (!text) return;
@@ -1361,7 +1419,8 @@
       }
       case "mDelMe": { const id = menuId; closeMsgMenu(); deleteMsg(id, false); ev.stopPropagation(); break; }
       case "mDelAll": { const id = menuId; closeMsgMenu(); deleteMsg(id, true); ev.stopPropagation(); break; }
-      case "replyCancel": clearReply(); break;
+      case "mEdit": { const m = byId.get(menuId); closeMsgMenu(); if (m) startEdit(m); ev.stopPropagation(); break; }
+      case "replyCancel": if (editingId) cancelEdit(); else clearReply(); break;
       case "play": if (row) togglePlay(row); break;
       case "seek": if (row) seek(row, ev); break;
       default: break;

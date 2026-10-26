@@ -219,6 +219,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     }
     var showCam by remember { mutableStateOf(false) }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
+    var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
     var confirmDel by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
@@ -271,7 +272,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         ) {
             if (!recording) GameChip(game, partner, remVm)
             if (state.typing && !recording) TypingBubble()
-            state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
+            editing?.let { em -> ReplyBar(Reply(em.id, true, "text", em.body ?: ""), partner, "✏️  Modifier le message") { editing = null; text = "" } }
+            if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
             InputBar(
                 recording = recording, recSecs = recSecs, panel = panel, text = text,
@@ -289,7 +291,11 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                     } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
                 onPhoto = { showCam = true },
-                onSend = { vm.sendText(text); text = "" },
+                onSend = {
+                    val em = editing
+                    if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
+                    else { vm.sendText(text); text = "" }
+                },
             )
 
             if (panel != 0 && !recording) {
@@ -305,7 +311,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         MessageMenu(
             m = mm,
             onDismiss = { menuMsg = null },
-            onReply = { menuMsg = null; vm.setReply(mm) },
+            onReply = { menuMsg = null; editing = null; vm.setReply(mm) },
+            onEdit = { menuMsg = null; vm.clearReply(); editing = mm; text = mm.body ?: "" },
             onCopy = { menuMsg = null; clipboard.setText(androidx.compose.ui.text.AnnotatedString(mm.body ?: "")); vm.showToast("Copié.") },
             onSelect = { menuMsg = null; if (mm.id != 0L) selected = setOf(mm.id) },
             onDelMe = { menuMsg = null; vm.deleteMessage(mm, false) },
@@ -391,6 +398,7 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
         else -> "  ✓"
     }
     val label = androidx.compose.ui.text.buildAnnotatedString {
+        if (m.kind == "text" && !m.deleted && m.meta?.optBoolean("edited") == true) withStyle(androidx.compose.ui.text.SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append("modifié") }.also { append(" · ") }
         append(hhmm(m.createdAt))
         if (readNow) withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF3DB7FF), fontWeight = FontWeight.ExtraBold)) { append("  ✓✓") }
         else append(tick)
@@ -899,7 +907,7 @@ private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit, onSelect: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
+private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onEdit: () -> Unit, onCopy: () -> Unit, onSelect: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xF2261820),
@@ -909,6 +917,7 @@ private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, 
             Column {
                 if (!m.deleted) MenuRow(null, "↩  Répondre", Rose, onReply)
                 if (!m.deleted && m.kind == "text" && !m.body.isNullOrEmpty()) MenuRow(null, "⧉  Copier", Rose, onCopy)
+                if (m.mine && !m.deleted && !m.pending && m.id != 0L && m.kind == "text") MenuRow(null, "✏️  Modifier", Rose, onEdit)
                 MenuRow(null, "☑  Sélectionner", Rose, onSelect)
                 MenuRow(R.drawable.ic_trash, "Supprimer pour moi", Rose, onDelMe)
                 if (m.mine && !m.deleted) MenuRow(R.drawable.ic_trash, "Supprimer pour tout le monde", Color(0xFFD32F2F), onDelAll)

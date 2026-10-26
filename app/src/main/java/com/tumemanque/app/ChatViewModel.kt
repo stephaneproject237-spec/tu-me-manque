@@ -167,6 +167,7 @@ class ChatViewModel : ViewModel() {
                 }
             }
             if (syncDeleted()) changed = true
+            if (syncEdited()) changed = true
             if (changed) publish()
             if (unreadOwn.isNotEmpty()) {
                 val read = Backend.readAmong(unreadOwn.toList().take(100))
@@ -201,6 +202,37 @@ class ChatViewModel : ViewModel() {
             if (i >= 0 && !confirmed[i].deleted) { markDeletedAt(i); any = true }
         }
         return any
+    }
+
+    private fun markEditedAt(i: Int, body: String) {
+        val m = confirmed[i]
+        val meta = JSONObject(m.meta?.toString() ?: "{}").put("edited", true)
+        confirmed[i] = m.copy(body = body, meta = meta)
+    }
+
+    /** Une modification faite par l'autre personne (ou depuis un autre appareil) apparaît ici aussi. */
+    private suspend fun syncEdited(): Boolean {
+        val min = confirmed.minOfOrNull { it.id } ?: return false
+        var any = false
+        for ((id, body) in Backend.editedSince(min)) {
+            val i = confirmed.indexOfFirst { it.id == id }
+            if (i >= 0 && !confirmed[i].deleted && (confirmed[i].body != body || confirmed[i].meta?.optBoolean("edited") != true)) { markEditedAt(i, body); any = true }
+        }
+        return any
+    }
+
+    /** Modifie un de mes messages texte déjà envoyé. */
+    fun editMessage(m: ChatMsg, text: String, done: () -> Unit) {
+        val t = text.trim()
+        if (m.pending || m.id == 0L || t.isEmpty()) return
+        if (t == (m.body ?: "")) { done(); return }
+        viewModelScope.launch {
+            val ok = try { Backend.editMessage(m.id, t) } catch (e: Exception) { false }
+            if (!ok) { showToast("Impossible de modifier. Vérifie ta connexion."); return@launch }
+            val i = confirmed.indexOfFirst { it.id == m.id }
+            if (i >= 0) { markEditedAt(i, t); publish() }
+            done()
+        }
     }
 
     fun deleteMessage(m: ChatMsg, all: Boolean) {

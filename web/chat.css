@@ -472,3 +472,5 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .gm-fold.open { grid-template-rows: 1fr; opacity: 1; }
 .gm-foldin { overflow: hidden; min-height: 0; }
 .gm-chev { color: #B7A3AE; font-weight: 400; margin-left: 6px; }
+
+.ch-edited { font-style: italic; opacity: .9; }

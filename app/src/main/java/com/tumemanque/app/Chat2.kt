@@ -105,14 +105,14 @@ fun QuoteChip(r: Reply, partner: String) {
         Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33FFFFFF))
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
-        Text(if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(title ?: if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Text(r.text, color = Color(0xFFE3D6DD), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /** Barre au-dessus du champ de saisie : le message auquel on répond. */
 @Composable
-fun ReplyBar(r: Reply, partner: String, onCancel: () -> Unit) {
+fun ReplyBar(r: Reply, partner: String, title: String? = null, onCancel: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp).clip(RoundedCornerShape(16.dp))
             .background(Color(0xCC2A1B24)).padding(start = 0.dp, end = 4.dp),
