@@ -71,13 +71,21 @@ private val Pink = Color(0xFFE91E63)
 
 /** Glisser un message vers la droite = répondre à ce message. */
 @Composable
-fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, content: @Composable () -> Unit) {
+fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, onLongPress: () -> Unit, content: @Composable () -> Unit) {
     var off by remember { mutableFloatStateOf(0f) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val limit = with(LocalDensity.current) { 80.dp.toPx() }
     Box(
         Modifier
             .fillMaxWidth()
             .offset { IntOffset(off.roundToInt(), 0) }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                androidx.compose.foundation.gestures.detectTapGestures(onLongPress = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    onLongPress()
+                })
+            }
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
                 detectHorizontalDragGestures(
@@ -254,4 +262,16 @@ fun VideoViewer(m: ChatMsg, onClose: () -> Unit) {
             ) { Ico(R.drawable.ic_close, Color.White, 22.dp) }
         }
     }
+}
+
+/** Message supprimé : une bulle discrète à la place. */
+@Composable
+fun DeletedBubble(mine: Boolean) {
+    Text(
+        "🚫 Message supprimé", color = Color(0xFF8A6D7A), fontSize = 15.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+        modifier = Modifier.clip(RoundedCornerShape(20.dp))
+            .background(if (mine) Color(0x1FE91E63) else Color(0x59FFFFFF))
+            .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }

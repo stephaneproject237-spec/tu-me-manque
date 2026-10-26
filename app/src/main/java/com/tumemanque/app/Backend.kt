@@ -63,6 +63,7 @@ data class ChatMsg(
     val localBytes: ByteArray? = null,
     val localFile: String? = null,
     val reply: Reply? = null,
+    val deleted: Boolean = false,
 ) {
     val key: String get() = if (pending) "t$tmp" else "m$id"
 }
@@ -393,6 +394,7 @@ object Backend {
         return ChatMsg(
             id = o.getLong("id"),
             reply = reply,
+            deleted = o.has("deleted_at") && !o.isNull("deleted_at"),
             mine = isMine,
             kind = o.getString("kind"),
             body = o.str("body"),
@@ -405,10 +407,36 @@ object Backend {
         )
     }
 
+    // La colonne deleted_at n'existe qu'après supprimer.sql : sans elle, on lit les messages comme avant.
+    @Volatile private var colsFull = true
+
     private suspend fun messages(query: String): List<ChatMsg> {
         val uid = ensureSession()
-        val arr = JSONArray(authed("GET", "/rest/v1/messages?select=$COLS&$query"))
+        val text = try {
+            authed("GET", "/rest/v1/messages?select=$COLS${if (colsFull) ",deleted_at" else ""}&$query")
+        } catch (e: IOException) {
+            if (colsFull && (e.message ?: "").contains("HTTP 400")) {
+                colsFull = false
+                authed("GET", "/rest/v1/messages?select=$COLS&$query")
+            } else throw e
+        }
+        val arr = JSONArray(text)
         return List(arr.length()) { parseMsg(arr.getJSONObject(it), uid) }
+    }
+
+    /** Supprime un message pour moi, ou pour tout le monde (si c'est le mien). */
+    suspend fun deleteMessage(id: Long, all: Boolean): Boolean =
+        rpc("delete_message", JSONObject().put("p_id", id).put("p_all", all)) == "ok"
+
+    /** Parmi les messages chargés (à partir de [minId]), lesquels l'autre personne a-t-elle supprimés pour tous ? */
+    suspend fun deletedSince(minId: Long): List<Long> {
+        if (!colsFull) return emptyList()
+        return try {
+            val arr = JSONArray(authed("GET", "/rest/v1/messages?select=id&deleted_at=not.is.null&id=gte.$minId"))
+            List(arr.length()) { arr.getJSONObject(it).getLong("id") }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     /** Les derniers messages, du plus ancien au plus récent. */

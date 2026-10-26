@@ -210,6 +210,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         if (granted) beginRecording() else vm.showToast("Micro refusé. Autorise-le dans les réglages pour envoyer des vocaux.")
     }
     var showCam by remember { mutableStateOf(false) }
+    var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var camPath by rememberSaveable { mutableStateOf("") }
     fun newCamFile(ext: String): Pair<File, Uri> {
         val dir = File(context.cacheDir, "cam").apply { mkdirs() }
@@ -237,7 +239,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
 
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
-                MessagesArea(state, partner, vm, Modifier.weight(1f), onReply = { vm.setReply(it) }) { viewer = it }
+                MessagesArea(state, partner, vm, Modifier.weight(1f), onReply = { vm.setReply(it) }, onMenu = { menuMsg = it }) { viewer = it }
 
                 if (state.typing && !recording) TypingBubble()
                 state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
@@ -269,6 +271,16 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         StickerBurst(burstId, burstN)
     }
 
+    menuMsg?.let { mm ->
+        MessageMenu(
+            m = mm,
+            onDismiss = { menuMsg = null },
+            onReply = { menuMsg = null; vm.setReply(mm) },
+            onCopy = { menuMsg = null; clipboard.setText(androidx.compose.ui.text.AnnotatedString(mm.body ?: "")); vm.showToast("Copié.") },
+            onDelMe = { menuMsg = null; vm.deleteMessage(mm, false) },
+            onDelAll = { menuMsg = null; vm.deleteMessage(mm, true) },
+        )
+    }
     if (showCam) {
         CameraChoice(
             onDismiss = { showCam = false },
@@ -300,15 +312,18 @@ private fun DayChip(t: Long) {
 }
 
 @Composable
-private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onReply: () -> Unit) {
-    SwipeToReply(!m.pending, onReply) {
+private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onReply: () -> Unit, onMenu: () -> Unit) {
+    SwipeToReply(!m.pending, { if (!m.deleted) onReply() }, onMenu) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
             Column(horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start) {
-                m.reply?.let {
-                    QuoteChip(it, partner)
-                    Spacer(Modifier.height(2.dp))
+                if (m.deleted) DeletedBubble(m.mine)
+                else {
+                    m.reply?.let {
+                        QuoteChip(it, partner)
+                        Spacer(Modifier.height(2.dp))
+                    }
+                    Bubble(m, onOpenPhoto)
                 }
-                Bubble(m, onOpenPhoto)
             }
         }
     }
@@ -573,7 +588,7 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
 
 
 @Composable
-private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onReply: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onReply: (ChatMsg) -> Unit, onMenu: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
                 Box(modifier.fillMaxWidth()) {
                     val items = remember(state.messages) { state.messages.asReversed() }
                     val listState = rememberLazyListState()
@@ -614,7 +629,7 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                                 val older = items.getOrNull(i + 1)
                                 Column(Modifier.fillMaxWidth()) {
                                     if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
-                                    BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) })
+                                    BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) }, { onMenu(m) })
                                 }
                             }
                         }
@@ -806,5 +821,35 @@ private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
         Ico(icon, Rose, 24.dp)
         Spacer(Modifier.width(14.dp))
         Text(label, color = Rose, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+    }
+}
+
+@Composable
+private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White.copy(alpha = 0.95f),
+        shape = RoundedCornerShape(24.dp),
+        title = null,
+        text = {
+            Column {
+                if (!m.deleted) MenuRow(null, "↩  Répondre", Rose, onReply)
+                if (!m.deleted && m.kind == "text" && !m.body.isNullOrEmpty()) MenuRow(null, "⧉  Copier", Rose, onCopy)
+                MenuRow(R.drawable.ic_trash, "Supprimer pour moi", Rose, onDelMe)
+                if (m.mine && !m.deleted) MenuRow(R.drawable.ic_trash, "Supprimer pour tout le monde", Color(0xFFD32F2F), onDelAll)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Annuler", color = Color.Gray) } },
+    )
+}
+
+@Composable
+private fun MenuRow(icon: Int?, label: String, color: Color, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(color.copy(alpha = 0.08f)).clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) { Ico(icon, color, 22.dp); Spacer(Modifier.width(12.dp)) }
+        Text(label, color = color, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }

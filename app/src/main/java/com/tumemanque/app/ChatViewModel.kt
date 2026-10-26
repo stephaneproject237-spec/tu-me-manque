@@ -161,6 +161,7 @@ class ChatViewModel : ViewModel() {
                     }
                 }
             }
+            if (syncDeleted()) changed = true
             if (changed) publish()
             if (unreadOwn.isNotEmpty()) {
                 val read = Backend.readAmong(unreadOwn.toList().take(100))
@@ -178,6 +179,39 @@ class ChatViewModel : ViewModel() {
             // hors-ligne : on réessaie au prochain tour
         }
         polling = false
+    }
+
+    private fun markDeletedAt(i: Int) {
+        val m = confirmed[i]
+        confirmed[i] = m.copy(deleted = true, body = null, media = null, reply = null, localBytes = null, localFile = null)
+        unreadOwn.remove(m.id)
+    }
+
+    /** L'autre personne a supprimé un message « pour tout le monde » : on le voit changer ici aussi. */
+    private suspend fun syncDeleted(): Boolean {
+        val min = confirmed.minOfOrNull { it.id } ?: return false
+        var any = false
+        for (id in Backend.deletedSince(min)) {
+            val i = confirmed.indexOfFirst { it.id == id }
+            if (i >= 0 && !confirmed[i].deleted) { markDeletedAt(i); any = true }
+        }
+        return any
+    }
+
+    fun deleteMessage(m: ChatMsg, all: Boolean) {
+        if (m.pending || m.id == 0L) return
+        viewModelScope.launch {
+            val ok = try { Backend.deleteMessage(m.id, all) } catch (e: Exception) { false }
+            if (!ok) { showToast("Impossible de supprimer. Vérifie ta connexion."); return@launch }
+            if (all) {
+                val i = confirmed.indexOfFirst { it.id == m.id }
+                if (i >= 0) markDeletedAt(i)
+            } else {
+                confirmed.removeAll { it.id == m.id }
+                unreadOwn.remove(m.id)
+            }
+            publish()
+        }
     }
 
     private suspend fun markReadIfNeeded() {
