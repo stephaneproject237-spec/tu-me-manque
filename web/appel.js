@@ -13,9 +13,18 @@
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
     { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"], username: "openrelayproject", credential: "openrelayproject" },
   ];
+  let relay = null, relayAt = 0;
+  // Relais TURN Cloudflare (fonction « turn » de Supabase). S'il n'est pas disponible, on garde le relais public de secours.
+  async function loadRelay() {
+    if (relay && Date.now() - relayAt < 3600000) return;
+    try {
+      const r = await Promise.race([A().authed("GET", "/functions/v1/turn"), new Promise((_, rej) => setTimeout(() => rej(new Error("lent")), 4000))]);
+      if (r && Array.isArray(r.iceServers) && r.iceServers.length) { relay = r.iceServers; relayAt = Date.now(); }
+    } catch (e) { /* pas de relais Cloudflare : secours */ }
+  }
   const iceServers = () => {
     try { const c = A() && A().CFG && A().CFG.ICE_SERVERS; if (Array.isArray(c) && c.length) return c; } catch (e) { /* ignoré */ }
-    return DEFAULT_ICE;
+    return relay ? relay.concat([{ urls: ["stun:stun.l.google.com:19302"] }]) : DEFAULT_ICE;
   };
 
   // st : idle | out (ça sonne chez l'autre) | in (ça sonne ici) | connecting | active
@@ -170,6 +179,7 @@
   }
   async function makeOffer() {
     S.st = "connecting"; paint();
+    await loadRelay();
     createPc();
     const o = await S.pc.createOffer();
     await S.pc.setLocalDescription(o);
@@ -193,6 +203,7 @@
     S.cid = rid(); S.handled.add(S.cid); S.video = !!video; S.dir = "out"; S.name = partnerName();
     S.st = "out"; S.muted = false; S.camOff = false;
     paint();
+    loadRelay();
     try { S.local = await getMedia(S.video); }
     catch (e) { S.st = "idle"; hideUi(); say(S.video ? "Autorise le micro et la caméra pour appeler." : "Autorise le micro pour appeler."); return; }
     if (S.st !== "out") { stopLocal(); return; }
@@ -204,6 +215,7 @@
     return r;
   }
   function incoming(cid, video) {
+    loadRelay();
     S.cid = cid; S.video = video; S.dir = "in"; S.name = partnerName() || S.name || ""; S.st = "in"; S.muted = false; S.camOff = false;
     paint();
     startTone("in");
@@ -216,6 +228,7 @@
     stopTone(); clearTimeout(S.ringTimer);
     S.st = "connecting"; paint();
     S.ready = (async () => {
+      await loadRelay();
       S.local = await getMedia(S.video);
       createPc();
     })();
