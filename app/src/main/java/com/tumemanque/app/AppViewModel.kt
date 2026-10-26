@@ -20,6 +20,7 @@ data class UiState(
     val error: String? = null,
     val username: String? = null,
     val partnerName: String? = null,
+    val wall: String? = null,
     val partnerPhone: String? = null,
     /** Contacts du téléphone : fin du numéro → nom enregistré (Android seulement). */
     val contacts: Map<String, String> = emptyMap(),
@@ -78,9 +79,19 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    private var wallLockUntil = 0L
+
+    /** Fond changé ici : on l'affiche tout de suite (les mises à jour du serveur sont ignorées 6 s). */
+    fun setWall(v: String?) {
+        wallLockUntil = System.currentTimeMillis() + 6000
+        _state.update { it.copy(wall = v) }
+    }
+
     private fun applySnapshot(s: Snapshot) {
+        val keepWall = System.currentTimeMillis() < wallLockUntil
         _state.update {
             it.copy(
+                wall = if (keepWall) it.wall else if (s.partnerName != null) s.wall else null,
                 loading = false,
                 error = null,
                 username = s.username,

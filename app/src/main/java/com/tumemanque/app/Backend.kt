@@ -27,6 +27,7 @@ data class Snapshot(
     val username: String?,
     val partnerName: String?,
     val partnerPhone: String?,
+    val wall: String?,
     val miss: Miss?,
     val unread: Int,
     val incoming: List<Req>,
@@ -205,7 +206,12 @@ object Backend {
                 ).length()
             }.getOrDefault(0)
         }
+        // Fond d'écran commun : on ignore l'erreur si la mise à jour du serveur n'est pas faite.
+        val wall = runCatching {
+            JSONArray(authed("GET", "/rest/v1/profiles?select=wall&id=eq.$uid")).optJSONObject(0)?.str("wall")
+        }.getOrNull()
         return Snapshot(
+            wall = wall,
             username = profile?.str("username"),
             partnerName = profile?.str("partner_name"),
             partnerPhone = profile?.str("partner_phone"),
@@ -386,6 +392,10 @@ object Backend {
     }
 
     suspend fun markRead() { rpc("mark_read") }
+
+    /** Change le fond d'écran de la conversation pour les deux partenaires (null = fond d'origine). */
+    suspend fun setWallpaper(value: String?): Boolean =
+        rpc("set_wallpaper", JSONObject().put("p_value", value ?: JSONObject.NULL)) == "ok"
 
     suspend fun clearMiss() { rpc("clear_miss") }
 

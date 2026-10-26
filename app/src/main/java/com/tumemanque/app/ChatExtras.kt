@@ -1,6 +1,5 @@
 package com.tumemanque.app
 
-import android.content.Context
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -46,7 +45,6 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -54,7 +52,7 @@ import kotlin.math.sin
 
 private val RoseChat = Color(0xFFE91E63)
 
-/** Fond d'écran de la conversation (réglage local à cet appareil). */
+/** Fond d'écran de la conversation : commun aux deux partenaires, enregistré sur le serveur. */
 object Wallpaper {
     val presets: List<List<Color>> = listOf(
         listOf(Color(0xFFFFD6E0), Color(0xFFFFB3C7)),
@@ -65,52 +63,21 @@ object Wallpaper {
         listOf(Color(0xFF2B2140), Color(0xFF4B2A5E)),
     )
     val defaultColors = listOf(Color(0xFFFFE3EC), Color(0xFFF3E5FF), Color(0xFFFFEFE0))
-
-    private fun prefs(c: Context) = c.getSharedPreferences("wall", Context.MODE_PRIVATE)
-    fun current(c: Context): String = prefs(c).getString("v", "default") ?: "default"
-
-    private fun deleteOld(c: Context) {
-        val v = current(c)
-        if (v.startsWith("photo:")) File(c.filesDir, v.removePrefix("photo:")).delete()
-    }
-
-    fun setPreset(c: Context, i: Int) {
-        deleteOld(c)
-        prefs(c).edit().putString("v", "preset:$i").apply()
-    }
-
-    fun reset(c: Context) {
-        deleteOld(c)
-        prefs(c).edit().putString("v", "default").apply()
-    }
-
-    fun setPhoto(c: Context, uri: android.net.Uri): Boolean {
-        val p = ImageUtil.prepare(c, uri, 1600) ?: return false
-        val name = "wall_${System.currentTimeMillis()}.jpg"
-        File(c.filesDir, name).writeBytes(p.bytes)
-        deleteOld(c)
-        prefs(c).edit().putString("v", "photo:$name").apply()
-        return true
-    }
-
-    fun file(c: Context, v: String): File? =
-        if (v.startsWith("photo:")) File(c.filesDir, v.removePrefix("photo:")).takeIf { it.exists() } else null
 }
 
 @Composable
-fun WallpaperLayer(value: String) {
-    val context = LocalContext.current
-    val file = remember(value) { Wallpaper.file(context, value) }
+fun WallpaperLayer(value: String?) {
+    val v = value ?: ""
     when {
-        file != null -> Box(Modifier.fillMaxSize()) {
+        v.startsWith("photo:") -> Box(Modifier.fillMaxSize()) {
             AsyncImage(
-                model = file, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                model = Backend.mediaUrl(v.removePrefix("photo:")), contentDescription = null,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
             )
             Box(Modifier.fillMaxSize().background(Color(0x22FFFFFF)))
         }
-        value.startsWith("preset:") -> {
-            val i = value.removePrefix("preset:").toIntOrNull() ?: 0
+        v.startsWith("preset:") -> {
+            val i = v.removePrefix("preset:").toIntOrNull() ?: 0
             val cols = Wallpaper.presets.getOrElse(i) { Wallpaper.defaultColors }
             Box(Modifier.fillMaxSize().background(Brush.linearGradient(cols)))
         }
@@ -142,13 +109,30 @@ fun ChatHeader(partner: String, onBack: () -> Unit, onMenu: () -> Unit) {
 
 /** Fenêtre « Fond d'écran » : couleurs, photo de la galerie (sélecteur système), retour au fond d'origine. */
 @Composable
-fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String) -> Unit, onToast: (String) -> Unit) {
+fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String?) -> Unit, onToast: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    fun choose(value: String?) {
+        onChanged(value)
+        onDismiss()
+        scope.launch {
+            val ok = runCatching { Backend.setWallpaper(value) }.getOrDefault(false)
+            if (!ok) onToast("Impossible de changer le fond pour le moment.")
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
-            val ok = withContext(Dispatchers.IO) { Wallpaper.setPhoto(context.applicationContext, uri) }
-            if (ok) { onChanged(Wallpaper.current(context)); onDismiss() } else onToast("Photo illisible.")
+            try {
+                val p = withContext(Dispatchers.IO) { ImageUtil.prepare(context.applicationContext, uri, 1600) }
+                if (p == null) { onToast("Photo illisible."); return@launch }
+                val path = Backend.upload(p.bytes, "jpg", "image/jpeg")
+                val value = "photo:$path"
+                onChanged(value)
+                onDismiss()
+                if (!Backend.setWallpaper(value)) onToast("Impossible de changer le fond pour le moment.")
+            } catch (e: Exception) {
+                onToast("Impossible d'envoyer la photo.")
+            }
         }
     }
     if (!show) return
@@ -157,7 +141,7 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String) -> U
         title = { Text("Fond d'écran") },
         text = {
             Column {
-                Text("Couleurs", fontSize = 13.sp, color = Color.Gray)
+                Text("Il change chez vous deux. Couleurs :", fontSize = 13.sp, color = Color.Gray)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Wallpaper.presets.forEachIndexed { i, cols ->
@@ -165,10 +149,7 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String) -> U
                             Modifier.size(38.dp).clip(CircleShape)
                                 .background(Brush.linearGradient(cols))
                                 .border(2.dp, Color.White, CircleShape)
-                                .clickable {
-                                    Wallpaper.setPreset(context, i)
-                                    onChanged(Wallpaper.current(context)); onDismiss()
-                                },
+                                .clickable { choose("preset:$i") },
                         )
                     }
                 }
@@ -176,10 +157,7 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String) -> U
                 TextButton(onClick = {
                     picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }, modifier = Modifier.fillMaxWidth()) { Text("📷 Choisir une photo dans la galerie") }
-                TextButton(onClick = {
-                    Wallpaper.reset(context)
-                    onChanged(Wallpaper.current(context)); onDismiss()
-                }, modifier = Modifier.fillMaxWidth()) { Text("↺ Fond d'origine") }
+                TextButton(onClick = { choose(null) }, modifier = Modifier.fillMaxWidth()) { Text("↺ Fond d'origine") }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fermer") } },

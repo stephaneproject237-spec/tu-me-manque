@@ -124,7 +124,13 @@
         unread = (rows || []).length;
       } catch (e) { /* le chat n'est peut-être pas encore installé côté serveur */ }
     }
+    let wall = null;
+    try {
+      const w = await authed("GET", "/rest/v1/profiles?select=wall&id=eq." + uid);
+      wall = (w && w[0] && w[0].wall) || null;
+    } catch (e) { /* le fond partagé n'est pas encore installé côté serveur */ }
     return {
+      wall,
       username: p ? p.username || null : null,
       partnerName: p ? p.partner_name || null : null,
       miss: p && p.last_miss_from ? { from: p.last_miss_from, isReply: !!p.last_miss_reply, at: p.last_miss_at || "" } : null,
@@ -389,6 +395,7 @@
   function afterSnapshot() {
     const c = chat();
     if (!c) return;
+    if (c.setWall) c.setWall(S.partnerName ? S.wall : null);
     if (!S.partnerName) { if (c.isOpen()) c.close(); return; }
     // Après « Tu me manques » → « Tu me manques aussi », le chat s'ouvre tout seul (une seule fois).
     if (S.miss && S.miss.isReply && !c.isOpen() && autoOpenedFor !== S.miss.at) {

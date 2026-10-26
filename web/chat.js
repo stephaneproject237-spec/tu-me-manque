@@ -106,30 +106,44 @@
     "linear-gradient(160deg,#D4F1FF,#A6DCFF)", "linear-gradient(160deg,#D8F5E4,#A9E5C4)",
     "linear-gradient(160deg,#FFE9C7,#FFC98A)", "linear-gradient(160deg,#2B2140,#4B2A5E)",
   ];
-  function wallGet() { try { return JSON.parse(localStorage.getItem("tmm_wall") || "null"); } catch (e) { return null; } }
-  function wallSet(v) {
-    try { if (v) localStorage.setItem("tmm_wall", JSON.stringify(v)); else localStorage.removeItem("tmm_wall"); return true; } catch (e) { return false; }
-  }
+  let curWall = null, wallLock = 0;
   function applyWall() {
-    const w = wallGet();
-    if (w && w.t === "photo" && w.d) host.style.background = 'center / cover no-repeat url("' + w.d + '")';
-    else if (w && w.t === "preset" && WALL_PRESETS[w.i]) host.style.background = WALL_PRESETS[w.i];
+    const w = curWall || "";
+    if (w.startsWith("photo:")) host.style.background = 'center / cover no-repeat url("' + mediaUrl(w.slice(6)) + '")';
+    else if (w.startsWith("preset:") && WALL_PRESETS[Number(w.slice(7))]) host.style.background = WALL_PRESETS[Number(w.slice(7))];
     else host.style.background = "";
+  }
+  // Valeur reçue du serveur (le fond est commun aux deux partenaires).
+  function setWall(v) {
+    if (Date.now() < wallLock) return;
+    v = v || null;
+    if (v === curWall) return;
+    curWall = v;
+    if (built) applyWall();
+  }
+  // Changement fait ici : on l'applique tout de suite, puis on l'envoie au serveur pour l'autre personne.
+  async function chooseWall(v) {
+    const prev = curWall;
+    curWall = v; wallLock = Date.now() + 6000; applyWall();
+    $("ch-wp").hidden = true;
+    try {
+      const r = await A().authed("POST", "/rest/v1/rpc/set_wallpaper", { p_value: v });
+      if (!r || r.status !== "ok") throw new Error("wall");
+    } catch (e) {
+      curWall = prev; wallLock = 0; applyWall();
+      toast("Impossible de changer le fond pour le moment.");
+    }
   }
   async function onWpFile(ev) {
     const f = ev.target.files && ev.target.files[0];
     ev.target.value = "";
     if (!f) return;
     try {
-      let img = await resizeImage(f, 1080, 0.75);
-      const toUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
-      let d = await toUrl(img.blob);
-      if (d.length > 3500000) { img = await resizeImage(f, 800, 0.6); d = await toUrl(img.blob); }
-      if (!wallSet({ t: "photo", d })) { toast("Photo trop lourde pour ce téléphone."); return; }
-      applyWall();
-      $("ch-wp").hidden = true;
+      const img = await resizeImage(f, 1080, 0.78);
+      const path = await uploadFile(img.blob, "jpg", "image/jpeg");
+      await chooseWall("photo:" + path);
     } catch (e) {
-      console.error("wp", e); toast("Impossible de lire cette photo.");
+      toast("Impossible de lire cette photo.");
     }
   }
 
@@ -174,7 +188,7 @@
       <div class="ch-wp" id="ch-wp" hidden data-c="wpClose">
         <div class="ch-wpbox">
           <b>Fond d'écran</b>
-          <small>Couleurs</small>
+          <small>Il change chez vous deux. Couleurs :</small>
           <div class="ch-sws">${WALL_PRESETS.map((g, i) => '<button class="ch-sw" data-c="wpPreset" data-i="' + i + '" style="background:' + g + '" aria-label="Couleur ' + (i + 1) + '"></button>').join("")}</div>
           <button class="ch-wpbtn" data-c="wpGallery">📷 Choisir une photo dans la galerie</button>
           <button class="ch-wpbtn" data-c="wpReset">↺ Fond d'origine</button>
@@ -880,9 +894,9 @@
       case "attach": $("ch-file").click(); break;
       case "wpOpen": $("ch-wp").hidden = false; break;
       case "wpClose": if (ev.target === t || t.classList.contains("ch-wpclose")) $("ch-wp").hidden = true; break;
-      case "wpPreset": wallSet({ t: "preset", i: Number(t.dataset.i) }); applyWall(); $("ch-wp").hidden = true; ev.stopPropagation(); break;
+      case "wpPreset": chooseWall("preset:" + Number(t.dataset.i)); ev.stopPropagation(); break;
       case "wpGallery": $("ch-wpfile").click(); ev.stopPropagation(); break;
-      case "wpReset": wallSet(null); applyWall(); $("ch-wp").hidden = true; ev.stopPropagation(); break;
+      case "wpReset": chooseWall(null); ev.stopPropagation(); break;
       case "pvCancel": $("ch-pv").hidden = true; pendingPhoto = null; break;
       case "pvSend": {
         if (!pendingPhoto) break;
@@ -904,5 +918,6 @@
     open,
     close,
     isOpen: () => opened,
+    setWall,
   };
 })();

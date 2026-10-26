@@ -131,7 +131,7 @@ private fun isBigEmoji(text: String?): Boolean {
 }
 
 @Composable
-fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: () -> Unit) {
+fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (String?) -> Unit, onBack: () -> Unit, onRead: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -143,7 +143,6 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
     var recording by remember { mutableStateOf(false) }
     var recSecs by remember { mutableIntStateOf(0) }
     var viewer by remember { mutableStateOf<ChatMsg?>(null) }
-    var wall by remember { mutableStateOf(Wallpaper.current(context)) }
     var showWall by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(context.applicationContext) }
 
@@ -230,7 +229,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
         }
     }
 
-    WallpaperMenu(showWall, { showWall = false }, { wall = it }, { vm.showToast(it) })
+    WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm) }
     viewer?.let { m -> PhotoViewer(m) { viewer = null } }
 }

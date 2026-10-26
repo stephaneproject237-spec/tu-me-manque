@@ -206,6 +206,8 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         ChatScreen(
             partner = partnerLabel(state),
             vm = chatVm,
+            wall = state.wall,
+            onWall = { vm.setWall(it) },
             onBack = { showChat = false },
             onRead = { vm.setUnread(0) },
         )
