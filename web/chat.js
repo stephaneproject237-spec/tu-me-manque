@@ -703,7 +703,7 @@
       saveQ(q);
     }
     toast("Pas de réseau : ton message partira dès que la connexion reviendra. 🕓");
-    return false;
+    return true;
   }
 
   // Remet dans le fil les messages en attente (appli fermée puis rouverte).
