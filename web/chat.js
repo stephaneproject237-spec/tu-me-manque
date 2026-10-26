@@ -212,6 +212,10 @@
           <input id="ch-pvcap" placeholder="Ajouter une légende…" maxlength="300">
           <button class="ch-send on" data-c="pvSend" aria-label="Envoyer la photo">${ic("send", 22)}</button>
         </div>
+        <div class="ch-pvact">
+          <button class="ch-pvbtn" data-c="pvRetake">↻ Reprendre</button>
+          <button class="ch-pvbtn ok" data-c="pvSend">✓ Utiliser cette photo</button>
+        </div>
         <button class="ch-pvx" data-c="pvCancel" aria-label="Fermer">${ic("close", 22)}</button>
       </div>
       <div class="ch-view" id="ch-view" hidden data-c="viewClose"><img id="ch-viewimg" alt=""></div>
@@ -1330,6 +1334,7 @@
       case "wpPreset": chooseWall("preset:" + Number(t.dataset.i)); ev.stopPropagation(); break;
       case "wpGallery": $("ch-wpfile").click(); ev.stopPropagation(); break;
       case "wpReset": chooseWall(null); ev.stopPropagation(); break;
+      case "pvRetake": $("ch-pv").hidden = true; pendingPhoto = null; $("ch-cam").hidden = false; break;
       case "pvCancel": $("ch-pv").hidden = true; pendingPhoto = null; break;
       case "pvSend": {
         if (!pendingPhoto) break;

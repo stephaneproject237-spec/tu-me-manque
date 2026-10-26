@@ -338,7 +338,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         )
     }
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
-    state.photo?.let { ph -> PhotoPreview(ph, vm) }
+    state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showCam = true }) }
     viewer?.let { m -> if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }
 }
 
@@ -812,7 +812,7 @@ private fun PanelArea(panel: Int, vm: ChatViewModel, onPanel: (Int) -> Unit, onE
 }
 
 @Composable
-private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel) {
+private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel, onRetake: () -> Unit) {
         var caption by remember { mutableStateOf("") }
         Dialog(
             onDismissRequest = { vm.cancelPhoto() },
@@ -836,6 +836,16 @@ private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel) {
                     )
                     Spacer(Modifier.width(8.dp))
                     RoundButton(R.drawable.ic_send, true) { vm.sendPhoto(caption) }
+                }
+                Row(Modifier.fillMaxWidth().background(Color(0xFF111111)).padding(start = 10.dp, end = 10.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(26.dp)).background(Color(0xFF2A1B24)).clickable { onRetake() }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("↻ Reprendre", color = Color(0xFFF5EEF2), fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
+                    Box(
+                        Modifier.weight(1.4f).clip(RoundedCornerShape(26.dp)).background(Rose).clickable { vm.sendPhoto(caption) }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("✓ Utiliser cette photo", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
                 }
             }
         }
