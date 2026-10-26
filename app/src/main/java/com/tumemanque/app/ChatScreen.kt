@@ -67,6 +67,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -391,14 +392,14 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, Color.Gray)
             }
         } else {
-            Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.widthIn(max = 290.dp)) {
+            Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, mine).widthIn(max = 290.dp)) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) {
                     Text(m.body ?: "", color = fg, fontSize = 17.sp)
                     Meta(m, sub, Modifier.align(Alignment.End))
                 }
             }
         }
-        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
+        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, mine)) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.media,
@@ -412,7 +413,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "image" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
+        "image" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, mine)) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.localBytes ?: Backend.mediaUrl(m.media ?: ""),
@@ -430,7 +431,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
+        "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, mine)) {
             Column(Modifier.padding(3.dp)) {
                 VideoTile(m, onOpenPhoto)
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
@@ -460,7 +461,7 @@ private fun VoiceBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: Rou
         }
     }
 
-    Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
+    Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, m.mine)) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Row(Modifier.width(230.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -705,7 +706,7 @@ private fun InputBar(
             verticalAlignment = Alignment.Bottom,
         ) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Color(0xCC2A1B24))
+                Modifier.size(44.dp).softGlow(CircleShape, false).clip(CircleShape).background(Color(0xCC2A1B24))
                     .border(1.dp, Color(0x1AFFFFFF), CircleShape)
                     .clickable {
                         if (panel != 0) onPanel(0)
@@ -715,7 +716,7 @@ private fun InputBar(
             ) { Ico(if (panel != 0) R.drawable.ic_close else R.drawable.ic_add, Rose, 28.dp) }
             Spacer(Modifier.width(8.dp))
             Row(
-                Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(24.dp))
+                Modifier.weight(1f).heightIn(min = 44.dp).softGlow(RoundedCornerShape(24.dp), false).clip(RoundedCornerShape(24.dp))
                     .background(Color(0xCC2A1B24))
                     .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(24.dp)),
                 verticalAlignment = Alignment.Bottom,
@@ -879,3 +880,11 @@ private fun MenuRow(icon: Int?, label: String, color: Color, onClick: () -> Unit
         Text(label, color = color, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }
+
+
+/** Très léger halo diffus autour des bulles et de la barre de saisie (effet « verre » façon iMessage). */
+private fun Modifier.softGlow(shape: androidx.compose.ui.graphics.Shape, mine: Boolean): Modifier =
+    if (android.os.Build.VERSION.SDK_INT >= 28) {
+        val c = if (mine) Color(0x66FF4886) else Color(0x40FFB3CC)
+        this.shadow(9.dp, shape, clip = false, ambientColor = c, spotColor = c)
+    } else this
