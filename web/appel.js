@@ -225,7 +225,7 @@
     await send("accept");
   }
   function reject() { if (S.st === "in") finish("", true, "reject"); }
-  function hangup() { if (S.st !== "idle") finish("", true); }
+  function hangup() { if (S.st === "in") reject(); else if (S.st !== "idle") finish("", true); }
 
   function stopLocal() {
     if (S.local) { S.local.getTracks().forEach((t) => { try { t.stop(); } catch (e) { /* ignoré */ } }); S.local = null; }
@@ -329,7 +329,7 @@
     el.hidden = false; el.classList.remove("ended");
     el.classList.toggle("audio", !S.video);
     el.classList.toggle("live", S.video && S.st === "active");
-    $("cl-name").textContent = "@" + (S.name || partnerName() || "…");
+    $("cl-name").textContent = S.label || ("@" + (S.name || partnerName() || "…"));
     const lv = $("cl-local");
     if (lv) { lv.hidden = !(S.video && S.local); if (S.local && lv.srcObject !== S.local) { lv.srcObject = S.local; const pl = lv.play(); if (pl && pl.catch) pl.catch(() => {}); } lv.style.transform = S.facing === "user" ? "scaleX(-1)" : "none"; }
     const rv = $("cl-remote"); if (rv && S.remote && rv.srcObject !== S.remote) { rv.srcObject = S.remote; const pl = rv.play(); if (pl && pl.catch) pl.catch(() => {}); }
@@ -353,7 +353,7 @@
   function showEnd(msg) {
     const el = build();
     el.hidden = false; el.classList.add("ended");
-    $("cl-name").textContent = "@" + (S.name || partnerName() || "…");
+    $("cl-name").textContent = S.label || ("@" + (S.name || partnerName() || "…"));
     setStatus(msg);
     $("cl-bar").innerHTML = ""; $("cl-bar").dataset.k = "";
     const lv = $("cl-local"); if (lv) { lv.hidden = true; lv.srcObject = null; }
@@ -371,6 +371,7 @@
   function nativeStart(o) {
     window.TMM_NATIVE = true;
     S.name = o.name || "";
+    S.label = o.label || "";
     S.lastId = Number(o.after) || 0;
     loop();
     if (o.mode === "in") { S.handled.add(o.cid); incoming(o.cid, !!o.video); }

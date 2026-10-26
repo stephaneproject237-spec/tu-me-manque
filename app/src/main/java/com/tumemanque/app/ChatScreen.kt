@@ -244,6 +244,16 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     val captureVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { ok ->
         if (ok && camPath.isNotEmpty()) vm.sendVideoFile(File(camPath))
     }
+    // L'appli déclare maintenant la permission caméra (appels vidéo) : le système exige alors qu'elle soit accordée avant d'ouvrir l'appareil photo.
+    var afterCam by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val camPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val f = afterCam; afterCam = null
+        if (granted) f?.invoke() else vm.showToast("Autorise la caméra dans les réglages du téléphone pour prendre une photo.")
+    }
+    fun withCam(f: () -> Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) f()
+        else { afterCam = f; camPerm.launch(Manifest.permission.CAMERA) }
+    }
 
     var topPx by remember { mutableIntStateOf(0) }
     var botPx by remember { mutableIntStateOf(0) }
@@ -262,7 +272,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         }
 
         Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { topPx = it.height }) {
-            if (selected.isEmpty()) ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
+            if (selected.isEmpty()) ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true }, onCall = { Calls.start(it) })
             else SelectionBar(selected.size, onClose = { selected = emptySet() }, onDelete = { confirmDel = true })
         }
 
@@ -339,8 +349,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     if (showCam) {
         CameraChoice(
             onDismiss = { showCam = false },
-            onPhoto = { showCam = false; takePicture.launch(newCamFile(".jpg").second) },
-            onVideo = { showCam = false; captureVideo.launch(newCamFile(".mp4").second) },
+            onPhoto = { showCam = false; withCam { takePicture.launch(newCamFile(".jpg").second) } },
+            onVideo = { showCam = false; withCam { captureVideo.launch(newCamFile(".mp4").second) } },
             onGallery = { showCam = false; photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
         )
     }

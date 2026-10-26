@@ -479,6 +479,21 @@ object Backend {
     suspend fun deleteMessage(id: Long, all: Boolean): Boolean =
         rpc("delete_message", JSONObject().put("p_id", id).put("p_all", all)) == "ok"
 
+    /** Pour la page d'appel (WebView) : appel brut à Supabase avec ma session. */
+    suspend fun callRaw(method: String, path: String, body: String?): String = authed(method, path, body)
+
+    class CallSig(val id: Long, val kind: String, val cid: String, val video: Boolean)
+
+    /** Signaux d'appel reçus depuis [after] (sonnerie, acceptation, raccroché…). */
+    suspend fun callPoll(after: Long): List<CallSig> {
+        val arr = JSONArray(authed("POST", "/rest/v1/rpc/call_poll", JSONObject().put("p_after", after).toString()))
+        return List(arr.length()) {
+            val o = arr.getJSONObject(it)
+            val p = o.optJSONObject("payload")
+            CallSig(o.getLong("id"), o.optString("kind"), p?.optString("cid") ?: "", p?.optBoolean("video", false) ?: false)
+        }
+    }
+
     /** Modifie le texte d'un de mes messages déjà envoyés. */
     suspend fun editMessage(id: Long, body: String): Boolean =
         rpc("edit_message", JSONObject().put("p_id", id).put("p_body", body)) == "ok"

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="appel.css">
+<style>html,body{margin:0;height:100%;background:#160A12;overflow:hidden}</style>
+</head><body>
+<script>
+  // Page d'appel de l'appli Android : même code que le web, la connexion à Supabase passe par l'appli (objet Native).
+  window.TMM_NATIVE = true;
+  const q = new URLSearchParams(location.search);
+  const cbs = {}; let n = 0;
+  window.__cb = (id, ok, text) => {
+    const c = cbs[id]; if (!c) return; delete cbs[id];
+    if (!ok) return c.rej(new Error(text));
+    try { c.res(text ? JSON.parse(text) : null); } catch (e) { c.res(null); }
+  };
+  window.TMM_API = {
+    CFG: {},
+    partner: () => q.get("name") || "…",
+    authed: (method, path, body) => new Promise((res, rej) => {
+      const id = ++n; cbs[id] = { res, rej };
+      Native.http(id, method, path, body == null ? "" : JSON.stringify(body));
+    }),
+  };
+  window.TMM_NATIVE_END = () => Native.ended();
+</script>
+<script src="appel.js"></script>
+<script>
+  TMM_CALL.nativeStart({
+    mode: q.get("mode"), video: q.get("video") === "1", cid: q.get("cid") || "",
+    after: q.get("after") || 0, name: q.get("name") || "", label: q.get("label") || "",
+  });
+</script>
+</body></html>

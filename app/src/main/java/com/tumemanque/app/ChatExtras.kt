@@ -87,7 +87,7 @@ fun WallpaperLayer(value: String?) {
 }
 
 @Composable
-fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () -> Unit) {
+fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () -> Unit, onCall: (Boolean) -> Unit = {}) {
     val glass = Color(0xA3281C24)
     val edge = Color(0x1AFFFFFF)
     Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -112,10 +112,17 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
                 Text(if (typing) "est en train d'écrire…" else "Ton partenaire ›", color = if (typing) RoseChat else Color(0xFFB7A3AE), fontSize = 12.sp)
             }
         }
-        Box(
-            Modifier.align(Alignment.TopEnd).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onMenu() },
-            contentAlignment = Alignment.Center,
-        ) { Ico(R.drawable.ic_settings, RoseChat, 22.dp) }
+        Column(Modifier.align(Alignment.TopEnd), horizontalAlignment = Alignment.End) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onMenu() },
+                contentAlignment = Alignment.Center,
+            ) { Ico(R.drawable.ic_settings, RoseChat, 22.dp) }
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(false) }, contentAlignment = Alignment.Center) { Text("📞", fontSize = 17.sp) }
+                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(true) }, contentAlignment = Alignment.Center) { Text("📹", fontSize = 17.sp) }
+            }
+        }
     }
 }
 
