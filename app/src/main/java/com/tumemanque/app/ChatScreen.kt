@@ -392,7 +392,7 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
     }
     val label = androidx.compose.ui.text.buildAnnotatedString {
         append(hhmm(m.createdAt))
-        if (readNow) { append(" "); withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF1E9BFF), fontWeight = FontWeight.ExtraBold, background = Color(0xF2FFFFFF))) { append(" ✓✓ ") } }
+        if (readNow) withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF3DB7FF), fontWeight = FontWeight.ExtraBold)) { append("  ✓✓") }
         else append(tick)
     }
     Text(
