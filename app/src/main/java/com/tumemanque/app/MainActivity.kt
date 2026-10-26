@@ -205,7 +205,10 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     if (showSupport) {
-        SupportScreen(supportVm, onBack = { showSupport = false }, onRead = { vm.setSupportUnread(0) })
+        SupportScreen(
+            supportVm, onBack = { showSupport = false }, onRead = { vm.setSupportUnread(0) },
+            onEnded = { showSupport = false; vm.setSupportHas(false) },
+        )
     } else if (showChat && state.partnerName != null) {
         ChatScreen(
             partner = partnerLabel(state),
@@ -319,11 +322,13 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onSupport: () -> Uni
     Message(state)
     Spacer(Modifier.height(24.dp))
     TextButton(onClick = onInvite) { Text("Inviter quelqu'un à installer l'appli") }
-    SupportButton(state.supportUnread, onSupport)
+    SupportButton(state, onSupport)
 }
 
 @Composable
-private fun SupportButton(unread: Int, onClick: () -> Unit) {
+private fun SupportButton(state: UiState, onClick: () -> Unit) {
+    if (!state.supportHas) return
+    val unread = state.supportUnread
     TextButton(onClick = onClick) {
         Text(if (unread > 0) "🛟 Écrire à @admin  ($unread)" else "🛟 Écrire à @admin")
     }
@@ -383,7 +388,7 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, 
         }
     }
 
-    SupportButton(state.supportUnread, onSupport)
+    SupportButton(state, onSupport)
 
     if (confirmRemove) {
         AlertDialog(

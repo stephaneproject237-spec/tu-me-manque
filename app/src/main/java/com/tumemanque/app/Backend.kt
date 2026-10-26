@@ -30,6 +30,7 @@ data class Snapshot(
     val partnerPhone: String?,
     val wall: String?,
     val supportUnread: Int,
+    val supportHas: Boolean,
     val miss: Miss?,
     val unread: Int,
     val incoming: List<Req>,
@@ -214,12 +215,20 @@ object Backend {
         val wall = runCatching {
             JSONArray(authed("GET", "/rest/v1/profiles?select=wall&id=eq.$uid")).optJSONObject(0)?.str("wall")
         }.getOrNull()
-        val supportUnread = runCatching {
-            JSONArray(authed("GET", "/rest/v1/support_messages?select=id&from_admin=eq.true&read_at=is.null&limit=50")).length()
-        }.getOrDefault(0)
+        // (nombre de messages, non lus) de la messagerie @admin ; (0, 0) si elle n'existe pas encore.
+        val support = runCatching {
+            val arr = JSONArray(authed("GET", "/rest/v1/support_messages?select=from_admin,read_at&limit=200"))
+            var unread = 0
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                if (o.optBoolean("from_admin", false) && o.isNull("read_at")) unread++
+            }
+            Pair(arr.length(), unread)
+        }.getOrDefault(Pair(0, 0))
         return Snapshot(
             wall = wall,
-            supportUnread = supportUnread,
+            supportUnread = support.second,
+            supportHas = support.first > 0,
             username = profile?.str("username"),
             partnerName = profile?.str("partner_name"),
             partnerPhone = profile?.str("partner_phone"),

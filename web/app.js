@@ -124,10 +124,11 @@
         unread = (rows || []).length;
       } catch (e) { /* le chat n'est peut-être pas encore installé côté serveur */ }
     }
-    let supportUnread = 0;
+    let supportUnread = 0, supportHas = false;
     try {
-      const r = await authed("GET", "/rest/v1/support_messages?select=id&from_admin=eq.true&read_at=is.null&limit=50");
-      supportUnread = (r || []).length;
+      const r = await authed("GET", "/rest/v1/support_messages?select=from_admin,read_at&limit=200");
+      supportHas = (r || []).length > 0;
+      supportUnread = (r || []).filter((x) => x.from_admin && !x.read_at).length;
     } catch (e) { /* messagerie @admin pas encore installée côté serveur */ }
     let wall = null;
     try {
@@ -136,6 +137,7 @@
     } catch (e) { /* le fond partagé n'est pas encore installé côté serveur */ }
     return {
       supportUnread,
+      supportHas,
       wall,
       username: p ? p.username || null : null,
       partnerName: p ? p.partner_name || null : null,
@@ -664,6 +666,7 @@
   }
 
   function supportBtn() {
+    if (!S.supportHas) return "";
     const n = S.supportUnread || 0;
     return `<button class="lien" data-action="openSupport">🛟 Écrire à @admin${n ? ' <span class="badge">' + (n > 99 ? "99+" : n) + "</span>" : ""}</button>`;
   }
@@ -767,6 +770,7 @@
 
   window.TMM_API = {
     CFG, session, authed, esc,
+    setSupportHas(v) { if (S.supportHas !== v) { S.supportHas = v; lastSnapshotKey = ""; render(); } },
     setSupportUnread(n) { if (S.supportUnread !== n) { S.supportUnread = n; lastSnapshotKey = ""; render(); } },
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },

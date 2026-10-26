@@ -22,6 +22,7 @@ data class UiState(
     val partnerName: String? = null,
     val wall: String? = null,
     val supportUnread: Int = 0,
+    val supportHas: Boolean = false,
     val partnerPhone: String? = null,
     /** Contacts du téléphone : fin du numéro → nom enregistré (Android seulement). */
     val contacts: Map<String, String> = emptyMap(),
@@ -93,6 +94,7 @@ class AppViewModel : ViewModel() {
         _state.update {
             it.copy(
                 supportUnread = s.supportUnread,
+                supportHas = s.supportHas,
                 wall = if (keepWall) it.wall else if (s.partnerName != null) s.wall else null,
                 loading = false,
                 error = null,
@@ -170,6 +172,8 @@ class AppViewModel : ViewModel() {
     }
 
     fun setUnread(n: Int) = _state.update { it.copy(unread = n) }
+
+    fun setSupportHas(v: Boolean) = _state.update { it.copy(supportHas = v) }
 
     fun setSupportUnread(n: Int) = _state.update { it.copy(supportUnread = n) }
 

@@ -64,6 +64,7 @@ data class SupportState(
     val loading: Boolean = true,
     val error: Boolean = false,
     val note: String? = null,
+    val ended: Boolean = false,
 )
 
 class SupportViewModel : ViewModel() {
@@ -75,6 +76,10 @@ class SupportViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val list = Backend.supportList()
+                if (list.isEmpty()) {
+                    _state.update { it.copy(messages = emptyList(), loading = false, error = false, ended = true) }
+                    return@launch
+                }
                 _state.update { it.copy(messages = list, loading = false, error = false) }
                 if (list.any { it.fromAdmin }) {
                     Backend.supportMarkRead()
@@ -93,6 +98,7 @@ class SupportViewModel : ViewModel() {
             val st = runCatching { Backend.supportSend(body) }.getOrDefault("error")
             when (st) {
                 "ok" -> { onSent(); load() }
+                "no_thread" -> _state.update { it.copy(ended = true, messages = emptyList()) }
                 "too_fast" -> _state.update { it.copy(note = "Doucement ! Réessaie dans une minute.") }
                 else -> _state.update { it.copy(note = "Message non envoyé.") }
             }
@@ -100,12 +106,14 @@ class SupportViewModel : ViewModel() {
     }
 
     fun clearNote() = _state.update { it.copy(note = null) }
+
+    fun reset() { _state.value = SupportState() }
 }
 
 private val RoseS = Color(0xFFE91E63)
 
 @Composable
-fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit) {
+fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, onEnded: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     var text by rememberSaveable { mutableStateOf("") }
@@ -113,6 +121,9 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit) 
     BackHandler { onBack() }
 
     LaunchedEffect(Unit) { vm.onRead = onRead }
+    LaunchedEffect(state.ended) {
+        if (state.ended) { vm.reset(); onEnded() }
+    }
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {

@@ -228,7 +228,7 @@
     const body = S.thread.msgs.map((m) => `<div class="b ${m.from_admin ? "me" : "them"}">${esc(m.body)}<small>${hh(m.created_at)}${m.from_admin && m.read_at ? " ✓✓" : ""}</small></div>`).join("") ||
       '<p class="muted">Aucun message. Écris le premier 💗</p>';
     if (!prev) {
-      el.innerHTML = `<div class="thread"><header><button data-a="tback">‹</button><h1>@${esc(S.thread.name)}</h1></header>
+      el.innerHTML = `<div class="thread"><header><button data-a="tback">‹</button><h1>@${esc(S.thread.name)}</h1><button data-a="tdel">🗑 Supprimer</button></header>
         <div class="tl" id="t-list">${body}</div>
         <div class="bar"><textarea id="t-in" rows="1" placeholder="Écrire en tant que @admin…" maxlength="2000"></textarea><button class="p" data-a="tsend">➤</button></div></div>`;
       document.getElementById("t-list").scrollTop = 1e9;
@@ -285,6 +285,12 @@
       case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }
       case "tback": S.thread = null; renderThread(); loadAll(); break;
       case "tsend": sendThread(); break;
+      case "tdel": {
+        if (!S.thread || !confirm("Supprimer cette conversation ?\nElle disparaîtra aussi chez @" + S.thread.name + ".")) break;
+        try { await call("admin_delete_thread", { p_user: S.thread.id }); S.thread = null; renderThread(); await loadAll(); }
+        catch (e) { alert("Suppression impossible : " + (e.message || e)); }
+        break;
+      }
       case "hist": S.modal = { type: "history", user: user() }; renderModal(); break;
       case "del": S.modal = { type: "delete", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
       case "mclose": S.modal = null; renderModal(); break;

@@ -51,7 +51,8 @@
   async function load() {
     try {
       const rows = await A().authed("GET", "/rest/v1/support_messages?select=id,from_admin,body,created_at&order=id.asc&limit=300");
-      msgs = rows || [];
+      if (!rows || !rows.length) { close(); if (A().setSupportHas) A().setSupportHas(false); return; }
+      msgs = rows;
       paint(false);
       if (msgs.some((m) => m.from_admin)) {
         await A().authed("POST", "/rest/v1/rpc/support_mark_read", {});
@@ -70,6 +71,7 @@
     try {
       const j = await A().authed("POST", "/rest/v1/rpc/support_send", { p_body: body });
       if (j && j.status === "ok") { inp.value = ""; await load(); paint(true); }
+      else if (j && j.status === "no_thread") { alert("Cette conversation est terminée."); close(); if (A().setSupportHas) A().setSupportHas(false); }
       else if (j && j.status === "too_fast") alert("Doucement ! Réessaie dans une minute.");
       else alert("Message non envoyé.");
     } catch (e) { alert("Message non envoyé."); }
