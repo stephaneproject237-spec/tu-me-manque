@@ -9,7 +9,6 @@ alter table public.profiles add column if not exists linked_at timestamptz;
 create table if not exists public.admin_emails (email text primary key);
 alter table public.admin_emails enable row level security;
 revoke all on public.admin_emails from anon, authenticated;
-insert into public.admin_emails (email) values ('stephaneproject237@gmail.com') on conflict do nothing;
 
 create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public as $$
