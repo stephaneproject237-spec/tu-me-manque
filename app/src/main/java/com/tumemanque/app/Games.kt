@@ -2,6 +2,7 @@ package com.tumemanque.app
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -35,11 +36,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -99,12 +102,14 @@ private fun parseRound(o: JSONObject?): GRound? {
     )
 }
 
-class GameCtl(private val scope: CoroutineScope, private val ctx: Context, private val chatSay: (String) -> Unit) {
+class GameCtl(private val scope: CoroutineScope, private val ctx: Context, private val chatSay: (String) -> Unit, private val pollChat: () -> Unit) {
     var round by mutableStateOf<GRound?>(null)
     var bank by mutableStateOf<Map<Int, GQ>>(emptyMap())
     var overlay by mutableStateOf(false)
     var menu by mutableStateOf(false)
-    var verdict by mutableStateOf<GVerdict?>(null)
+    val localRes = mutableStateMapOf<String, GRes>()
+    private val heard = HashSet<String>()
+    private val picking = HashSet<String>()
     var editing by mutableStateOf(false)
     var toast by mutableStateOf<String?>(null)
     var fx by mutableIntStateOf(0)
@@ -145,11 +150,16 @@ class GameCtl(private val scope: CoroutineScope, private val ctx: Context, priva
         val prev = round
         if (r != null && prev?.id != r.id) {
             for (i in 0 until 10) draft[i] = ""
-            verdict = null; editing = false
+            editing = false
         }
         if (prev != null && prev.state == "invite" && prev.byMe && r == null && overlay && !menu) {
             toast = "@$partner ne souhaite pas jouer pour l'instant."
             menu = true
+        }
+        if (prev != null && r != null && overlay && !menu && r.state == "playing" && r.myAnswers >= 10 && r.theirAnswers >= 10 &&
+            (prev.myAnswers < 10 || prev.theirAnswers < 10)) {
+            overlay = false
+            pollChat()
         }
         round = r
     }
@@ -211,23 +221,47 @@ class GameCtl(private val scope: CoroutineScope, private val ctx: Context, priva
             }
         }
     }
-    fun guess(raw: String) {
-        val r = round ?: return
-        val i = r.myGuesses
-        val v = raw
-        if (v.isBlank()) { toast = "Choisis une réponse."; return }
-        call("game_guess", JSONObject().put("p_round", r.id).put("p_idx", i).put("p_guess", v)) { j ->
-            if (j.optString("status") == "ok") {
+    /** Une option touchée dans une carte du chat. */
+    fun pick(round: Long, idx: Int, who: String, o: Int) {
+        val key = "$round:$idx:$who"
+        if (!picking.add(key)) return
+        scope.launch {
+            val j = Backend.gameCall("game_guess", JSONObject().put("p_round", round).put("p_idx", idx).put("p_guess", o.toString()))
+            if (j != null && j.optString("status") == "ok") {
                 val ok = j.optBoolean("ok")
-                verdict = GVerdict(ok, j.optString("answer"), v, i)
-                round = round?.copy(myGuesses = i + 1)
-                fxOk = ok; fx += 1
-                scope.launch { delay(600); refresh() }
+                localRes[key] = GRes(idx, o.toString(), ok, j.optString("answer"))
+                heard.add(key)
+                if (ok) Sounds.joy() else Sounds.sad()
+                pollChat()
+                delay(900)
+                pollChat()
+                refresh()
+            } else {
+                picking.remove(key)
+                toast = if (j == null) "Connexion impossible. Réessaie." else "Cette question n'est plus disponible."
             }
         }
     }
-    fun next() { verdict = null }
+
+    /** Un message du jeu vient d'arriver : petit bruit de joie ou de tristesse si l'autre a répondu. */
+    fun onIncoming(m: ChatMsg) {
+        val mt = m.meta ?: return
+        when (mt.optString("t")) {
+            "result" -> {
+                val key = gKey(mt)
+                if (mt.optString("who") != m.myUid && heard.add(key)) {
+                    if (mt.optBoolean("ok")) Sounds.joy() else Sounds.sad()
+                }
+            }
+            "end" -> Sounds.joy()
+        }
+    }
 }
+
+fun gKey(mt: JSONObject): String = "${mt.optLong("round")}:${mt.optInt("idx")}:${mt.optString("who")}"
+
+val LocalGameCtl = androidx.compose.runtime.compositionLocalOf<GameCtl?> { null }
+val LocalChatMsgs = androidx.compose.runtime.compositionLocalOf<List<ChatMsg>> { emptyList() }
 
 // ---------- Pastille dans le chat ----------
 @Composable
@@ -335,9 +369,7 @@ private fun GOptions(options: List<String>, selected: String, onSelect: (String)
 @Composable
 private fun GameBody(ctl: GameCtl, partner: String) {
     val r = ctl.round
-    val v = ctl.verdict
     if (ctl.bank.isEmpty()) { Box(Modifier.fillMaxWidth().padding(60.dp), Alignment.Center) { Text("…", color = GSub) }; return }
-    if (v != null) { GVerdictView(ctl, v); return }
     if (ctl.menu || r == null || r.state == "cancelled") { GMenu(ctl, partner); return }
     when (r.state) {
         "invite" -> GInvite(ctl, r, partner)
@@ -434,76 +466,18 @@ private fun GPlay(ctl: GameCtl, r: GRound, partner: String) {
         }
         return
     }
-    val i = r.myGuesses
-    if (i >= 10) {
-        val sc = r.myResults.count { it.ok }
-        GCenter(if (sc >= 7) "🥰" else if (sc >= 4) "🙂" else "😅", "Tu as trouvé $sc / 10", "On attend que @$partner devine tes réponses (${r.theirGuesses}/10).")
-        return
+    GCenter("💬", "La partie continue dans le chat !", "Cupidon 💘 pose les questions directement dans la conversation.\nToi : ${r.myGuesses}/10 · @$partner : ${r.theirGuesses}/10") {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GBtn("Retour au chat") { ctl.closeOverlay() }
+            GBtn("Arrêter la partie", ghost = true) { ctl.cancel() }
+        }
     }
-    var text by remember(i) { mutableStateOf("") }
-    Text("Étape 2 sur 2 · Question ${i + 1} / 10", color = GSoft, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-    GBar(i / 10f)
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(GCard).border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(24.dp)).padding(16.dp)) {
-        Text("@$partner a répondu à :", color = GSub, fontSize = 13.sp)
-        Spacer(Modifier.height(8.dp))
-        Text("« ${ctl.q(i).q} »", color = GTxt, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        Text("Que penses-tu qu'il/elle a choisi ?", color = GSub, fontSize = 13.sp)
-        Spacer(Modifier.height(8.dp))
-        GOptions(ctl.q(i).o, text) { text = it }
-    }
-    Spacer(Modifier.height(18.dp))
-    GBtn("Valider", wide = true) { ctl.guess(text) }
 }
 
 @Composable
 private fun GBar(p: Float) {
     Box(Modifier.fillMaxWidth().padding(vertical = 10.dp).height(8.dp).clip(RoundedCornerShape(50)).background(Color(0x1AFFFFFF))) {
         Box(Modifier.fillMaxWidth(p.coerceIn(0f, 1f)).height(8.dp).clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFFFF4F86), Color(0xFFFFB3CC)))))
-    }
-}
-
-@Composable
-private fun GVerdictView(ctl: GameCtl, v: GVerdict) {
-    val sc = remember(v) { Animatable(0.3f) }
-    val sh = remember(v) { Animatable(0f) }
-    val dens = LocalDensity.current.density
-    LaunchedEffect(v) {
-        sc.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium))
-    }
-    LaunchedEffect(v) {
-        if (!v.ok) for (k in listOf(-14f, 12f, -8f, 5f, 0f)) sh.animateTo(k, tween(60))
-    }
-    val last = v.idx + 1 >= 10
-    Text("Question ${v.idx + 1} / 10", color = GSoft, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-    GBar((v.idx + 1) / 10f)
-    Column(
-        Modifier.fillMaxWidth().graphicsLayer { scaleX = sc.value; scaleY = sc.value; translationX = sh.value * dens }
-            .clip(RoundedCornerShape(26.dp))
-            .background(if (v.ok) Color(0x66287846) else Color(0x66963236))
-            .padding(horizontal = 16.dp, vertical = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.size(84.dp).clip(CircleShape).background(if (v.ok) Color(0xFF2E9E5B) else Color(0xFFD6334A)), Alignment.Center) {
-            Text(if (v.ok) "✓" else "✗", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.ExtraBold)
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(if (v.ok) "Bravo, c'est vrai !" else "Raté… c'est faux", color = GTxt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text("« ${ctl.q(v.idx).q} »", color = Color(0xFFE3D6DD), fontSize = 15.sp, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(12.dp))
-        GCmp("Ta réponse", ctl.opt(v.idx, v.guess), GTxt)
-        if (!v.ok) { Spacer(Modifier.height(8.dp)); GCmp("La bonne réponse", ctl.opt(v.idx, v.answer), Color(0xFF7BE0A3)) }
-    }
-    Spacer(Modifier.height(18.dp))
-    GBtn(if (last) "Voir mon score" else "Question suivante", wide = true) { ctl.next() }
-}
-
-@Composable
-private fun GCmp(label: String, value: String, color: Color) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x38000000)).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(label, color = GSub, fontSize = 12.sp)
-        Text(value, color = color, fontSize = 17.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -589,6 +563,131 @@ fun Confetti(trigger: Int, ok: Boolean) {
                         .graphicsLayer { alpha = 1f - p.value * 0.8f },
                 )
             }
+        }
+    }
+}
+
+// ---------- Cupidon : les messages du jeu dans le fil du chat ----------
+private val Praise = listOf("Bravo", "Excellent", "Bien joué", "Dans le mille", "Parfait", "Quel flair")
+private val Oups = listOf("Aïe", "Oups", "Raté", "Pas de chance", "Presque", "Dommage")
+
+private fun gTime(t: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.FRANCE).format(java.util.Date(t))
+
+private fun findRes(ctl: GameCtl, msgs: List<ChatMsg>, key: String): GRes? {
+    ctl.localRes[key]?.let { return it }
+    val x = msgs.lastOrNull { it.kind == "game" && it.meta?.optString("t") == "result" && gKey(it.meta!!) == key } ?: return null
+    val mt = x.meta!!
+    return GRes(mt.optInt("idx"), mt.optString("guess"), mt.optBoolean("ok"), mt.optString("answer"))
+}
+
+@Composable
+fun GameBotRow(m: ChatMsg, partner: String) {
+    val ctl = LocalGameCtl.current ?: return
+    val msgs = LocalChatMsgs.current
+    val mt = m.meta ?: JSONObject()
+    val t = mt.optString("t")
+    val me = m.myUid
+    val pn = "@$partner"
+    val bank = ctl.bank
+    var bg = Brush.linearGradient(listOf(Color(0xDB3A2834), Color(0xD1241822)))
+    var res: GRes? = null
+    if (t == "card") {
+        res = findRes(ctl, msgs, gKey(mt))
+        if (res != null) bg = if (res.ok) Brush.linearGradient(listOf(Color(0xCC1F4A33), Color(0xCC1A2E24))) else Brush.linearGradient(listOf(Color(0xCC4A1F28), Color(0xCC2E1A1E)))
+    }
+    if (t == "result") bg = if (mt.optBoolean("ok")) Brush.linearGradient(listOf(Color(0xCC1F5A3A), Color(0xCC1A3A2A))) else Brush.linearGradient(listOf(Color(0xCC5A1F2A), Color(0xCC3A1A20)))
+    val sc = remember(m.id, res?.ok) { Animatable(if (t == "result" || res != null) 0.85f else 1f) }
+    LaunchedEffect(m.id, res?.ok) { if (sc.value < 1f) sc.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium)) }
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.fillMaxWidth(0.94f).graphicsLayer { scaleX = sc.value; scaleY = sc.value }
+                .clip(RoundedCornerShape(22.dp)).background(bg).padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
+        ) {
+            val title = when (t) {
+                "card" -> "💘 Cupidon · Question ${mt.optInt("idx") + 1}/10"
+                "end" -> "💘 Cupidon · Résultats"
+                else -> "💘 Cupidon"
+            }
+            Text(title, color = GSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            when (t) {
+                "intro" -> Text("🎉 Vous avez choisi vos réponses !\nPassons au jeu : chacun va deviner ce que l'autre a choisi. Je pose les questions ici, répondez quand vous voulez, et n'hésitez pas à commenter. 😏", color = GTxt, fontSize = 15.sp)
+                "card" -> {
+                    val q = bank[mt.optInt("qid")]
+                    val mineTurn = mt.optString("who") == me
+                    if (q == null) Text("…", color = GSub)
+                    else {
+                        Text(if (mineTurn) "Qu'a choisi $pn ?" else "$pn doit deviner ce que tu as choisi :", color = GSub, fontSize = 13.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text("« ${q.q} »", color = GTxt, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            q.o.forEachIndexed { k, txt ->
+                                val right = res != null && res.answer == k.toString()
+                                val wrong = res != null && !right && res.guess == k.toString()
+                                val bgc by animateColorAsState(
+                                    if (right) Color(0x732E9E5B) else if (wrong) Color(0x6BD6334A) else Color(0x12FFFFFF), tween(250), label = "o",
+                                )
+                                val can = res == null && mineTurn
+                                Row(
+                                    Modifier.fillMaxWidth().alpha(if (res != null && !right && !wrong) 0.45f else 1f)
+                                        .clip(RoundedCornerShape(14.dp)).background(bgc)
+                                        .border(1.dp, if (right) Color(0xFF3FD07F) else if (wrong) Color(0xFFFF5A70) else Color(0x1FFFFFFF), RoundedCornerShape(14.dp))
+                                        .clickable(enabled = can) { ctl.pick(mt.optLong("round"), mt.optInt("idx"), mt.optString("who"), k) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(Modifier.size(24.dp).clip(CircleShape).background(if (right) Color(0xFF2E9E5B) else if (wrong) Color(0xFFD6334A) else Color(0x1AFFFFFF)), Alignment.Center) {
+                                        Text("ABCD"[k % 4].toString(), color = if (right || wrong) Color.White else GSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(txt, color = GTxt, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                    if (right) Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                    if (wrong) Text("✗", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        if (res != null) Text(if (res.ok) "✅ Bonne réponse !" else "❌ Raté…", color = if (res.ok) Color(0xFF7BE0A3) else Color(0xFFFF8A9A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        else if (!mineTurn) Text("⏳ $pn réfléchit…", color = GSub, fontSize = 13.sp)
+                    }
+                }
+                "result" -> {
+                    val q = bank[mt.optInt("qid")]
+                    val ans = q?.o?.getOrNull(mt.optString("answer").toIntOrNull() ?: -1) ?: "…"
+                    val mine = mt.optString("who") == me
+                    val n = (m.id % 1000).toInt()
+                    val txt = if (mt.optBoolean("ok")) {
+                        if (mine) "🎉 ${Praise[n % Praise.size]} ! Tu connais bien $pn." else "🥰 $pn a trouvé exactement ce que tu avais choisi !"
+                    } else {
+                        if (mine) "😅 ${Oups[n % Oups.size]}… $pn avait choisi « $ans »." else "🙈 $pn s'est trompé(e) : tu avais choisi « $ans »."
+                    }
+                    Text(txt, color = GTxt, fontSize = 15.sp)
+                }
+                "finish" -> {
+                    val mine = mt.optString("who") == me
+                    Text("🏁 ${if (mine) "Tu as terminé" else "$pn a terminé"} ses 10 questions : ${mt.optInt("score")}/10 !${if (mine) " On attend $pn…" else ""}", color = GTxt, fontSize = 15.sp)
+                }
+                "end" -> {
+                    val iAmA = mt.optString("ua") == me
+                    val mine = if (iAmA) mt.optInt("sa") else mt.optInt("sb")
+                    val theirs = if (iAmA) mt.optInt("sb") else mt.optInt("sa")
+                    val verdict = if (mine > theirs) "Tu connais $pn mieux qu'il/elle ne te connaît 😏" else if (mine < theirs) "$pn te connaît mieux 💗" else "Égalité parfaite, vous êtes faits l'un pour l'autre 💞"
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.Bottom) {
+                        GScore(mine, "Toi")
+                        Spacer(Modifier.width(24.dp))
+                        GScore(theirs, pn)
+                    }
+                    Text("🏆 $verdict", color = GTxt, fontSize = 15.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GBtn("Rejouer 🔁") { ctl.openOverlay(); ctl.invite() }
+                        GBtn("Détails", ghost = true) { ctl.openOverlay() }
+                    }
+                }
+                else -> Text(m.body ?: "🎮", color = GTxt, fontSize = 15.sp)
+            }
+            Text(gTime(m.createdAt), color = Color(0x80F5EEF2), fontSize = 11.sp, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
         }
     }
 }

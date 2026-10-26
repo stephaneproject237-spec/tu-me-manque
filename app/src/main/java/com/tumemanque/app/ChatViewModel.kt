@@ -45,6 +45,9 @@ class ChatViewModel : ViewModel() {
 
     /** Un sticker vient d'être envoyé ou reçu : il s'envole en plusieurs exemplaires. */
     var onSticker: ((String) -> Unit)? = null
+    var onGame: ((ChatMsg) -> Unit)? = null
+
+    fun pollSoon() { viewModelScope.launch { poll() } }
     private var lastTyping = 0L
 
     fun setReply(m: ChatMsg) {
@@ -56,6 +59,7 @@ class ChatViewModel : ViewModel() {
             "image" -> "📷 " + (m.body?.take(60) ?: "Photo")
             "voice" -> "🎤 Message vocal"
             "video" -> "🎥 Vidéo"
+            "game" -> "🎮 " + (m.body ?: "Cupidon").removePrefix("🎮 ").take(60)
             else -> ""
         }
         _state.update { it.copy(replyTo = Reply(m.id, m.mine, m.kind, text)) }
@@ -154,7 +158,7 @@ class ChatViewModel : ViewModel() {
                     changed = true
                     if (m.mine) dropMatchingPending(m)
                     else {
-                        Sounds.receive()
+                        if (m.kind == "game") onGame?.invoke(m) else Sounds.receive()
                         if (_state.value.typing) _state.update { it.copy(typing = false) }
                         if (isLove(m)) onLove?.invoke()
                         if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }

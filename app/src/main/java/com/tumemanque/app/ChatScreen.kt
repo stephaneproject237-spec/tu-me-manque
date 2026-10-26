@@ -154,7 +154,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     var showWall by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(context.applicationContext) }
     val gameScope = androidx.compose.runtime.rememberCoroutineScope()
-    val game = remember { GameCtl(gameScope, context.applicationContext) { vm.sendText(it) } }
+    val game = remember { GameCtl(gameScope, context.applicationContext, { vm.sendText(it) }, { vm.pollSoon() }) }
+    DisposableEffect(Unit) { vm.onGame = { game.onIncoming(it) }; onDispose { vm.onGame = null } }
     LaunchedEffect(Unit) { while (true) { game.refresh(); delay(2500) } }
 
     DisposableEffect(Unit) {
@@ -243,11 +244,13 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     Box(Modifier.fillMaxSize()) {
         WallpaperLayer(wall)
         // La liste occupe tout l'écran : elle passe sous l'en-tête et sous la barre de saisie (verre liquide).
-        MessagesArea(
-            state, partner, vm, Modifier.fillMaxSize(),
-            padTop = (topPx / dens).dp, padBottom = (botPx / dens).dp,
-            onReply = { vm.setReply(it) }, onMenu = { menuMsg = it },
-        ) { viewer = it }
+        androidx.compose.runtime.CompositionLocalProvider(LocalGameCtl provides game, LocalChatMsgs provides state.messages) {
+            MessagesArea(
+                state, partner, vm, Modifier.fillMaxSize(),
+                padTop = (topPx / dens).dp, padBottom = (botPx / dens).dp,
+                onReply = { vm.setReply(it) }, onMenu = { menuMsg = it },
+            ) { viewer = it }
+        }
 
         Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
@@ -330,6 +333,10 @@ private fun DayChip(t: Long) {
 
 @Composable
 private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onReply: () -> Unit, onMenu: () -> Unit) {
+    if (m.kind == "game") {
+        SwipeToReply(!m.pending, { onReply() }, {}) { GameBotRow(m, partner) }
+        return
+    }
     SwipeToReply(!m.pending, { if (!m.deleted) onReply() }, onMenu) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
             Column(horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start) {

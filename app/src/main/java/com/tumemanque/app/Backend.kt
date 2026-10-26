@@ -64,6 +64,8 @@ data class ChatMsg(
     val localFile: String? = null,
     val reply: Reply? = null,
     val deleted: Boolean = false,
+    val meta: JSONObject? = null,
+    val myUid: String = "",
 ) {
     val key: String get() = if (pending) "t$tmp" else "m$id"
 }
@@ -398,6 +400,8 @@ object Backend {
         return ChatMsg(
             id = o.getLong("id"),
             reply = reply,
+            meta = meta,
+            myUid = uid,
             deleted = o.has("deleted_at") && !o.isNull("deleted_at"),
             mine = isMine,
             kind = o.getString("kind"),
