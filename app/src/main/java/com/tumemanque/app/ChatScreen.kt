@@ -67,6 +67,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -358,16 +359,22 @@ private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onRe
 
 @Composable
 private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
+    val readNow = m.mine && m.read && !m.pending
     val tick = when {
         !m.mine -> ""
         m.pending -> "  🕓"
         m.read -> "  ✓✓"
         else -> "  ✓"
     }
+    val label = androidx.compose.ui.text.buildAnnotatedString {
+        append(hhmm(m.createdAt))
+        if (readNow) withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF2FB8FF), fontWeight = FontWeight.ExtraBold)) { append(tick) }
+        else append(tick)
+    }
     Text(
-        hhmm(m.createdAt) + tick,
+        label,
         fontSize = 11.sp,
-        color = if (m.mine && m.read && !m.pending) Color(0xFFBDF1FF) else color,
+        color = color,
         modifier = modifier,
         textAlign = TextAlign.End,
     )

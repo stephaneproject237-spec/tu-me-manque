@@ -16,7 +16,7 @@ body.chat-open { overflow: hidden; }
 .ch-text { white-space: pre-wrap; font-size: 16px; line-height: 1.3; } .ch-text a { color: inherit; text-decoration: underline; }
 .ch-text.cap { padding: 4px 2px 0; }
 .ch-meta { display: block; text-align: right; font-size: 11px; opacity: .75; margin-top: 1px; }
-.ch-tick.read { color: #BDF1FF; opacity: 1; }
+.ch-tick.read { color: #2FB8FF; opacity: 1; font-weight: 800; }
 .ch-bubble.big, .ch-bubble.sticker { background: none !important; box-shadow: none; padding: 0; }
 .ch-bubble.big .ch-meta, .ch-bubble.sticker .ch-meta { color: var(--gris); }
 .ch-bigemoji { font-size: 56px; line-height: 1.1; }
@@ -426,3 +426,5 @@ body.chat-open { overflow: hidden; }
 /* Sablier qui se retourne */
 .hg { display: inline-block; animation: hgflip 2.8s infinite; }
 @keyframes hgflip { 0%, 25% { transform: rotate(0); } 43%, 75% { transform: rotate(180deg); } 93%, 100% { transform: rotate(360deg); } }
+
+.ch-tick.read { color: #2FB8FF !important; opacity: 1 !important; font-weight: 800; }
