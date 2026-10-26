@@ -76,10 +76,6 @@ class SupportViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val list = Backend.supportList()
-                if (list.isEmpty()) {
-                    _state.update { it.copy(messages = emptyList(), loading = false, error = false, ended = true) }
-                    return@launch
-                }
                 _state.update { it.copy(messages = list, loading = false, error = false) }
                 if (list.any { it.fromAdmin }) {
                     Backend.supportMarkRead()
@@ -98,7 +94,7 @@ class SupportViewModel : ViewModel() {
             val st = runCatching { Backend.supportSend(body) }.getOrDefault("error")
             when (st) {
                 "ok" -> { onSent(); load() }
-                "no_thread" -> _state.update { it.copy(ended = true, messages = emptyList()) }
+                "no_thread" -> _state.update { it.copy(note = "Le SAV n'est pas encore disponible. Réessaie plus tard.") }
                 "too_fast" -> _state.update { it.copy(note = "Doucement ! Réessaie dans une minute.") }
                 else -> _state.update { it.copy(note = "Message non envoyé.") }
             }
@@ -151,20 +147,16 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("@admin", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text("Aide et questions", color = Color(0xCCFFFFFF), fontSize = 12.sp)
+                    Text("SAV", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text("Service après-vente", color = Color(0xCCFFFFFF), fontSize = 12.sp)
                 }
             }
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when {
                         state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-                        items.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                            Text(
-                                if (state.error) "Messagerie indisponible pour le moment."
-                                else "Pose ta question à @admin 💗\nTu recevras sa réponse ici et par notification.",
-                                color = Color.Gray,
-                            )
+                        items.isEmpty() && state.error -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+                            Text("Messagerie indisponible pour le moment.", color = Color.Gray)
                         }
                         else -> LazyColumn(
                             state = listState, reverseLayout = true, modifier = Modifier.fillMaxSize(),
@@ -172,6 +164,16 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             items(items, key = { it.id }) { m -> SupportBubble(m) }
+                            item(key = "intro") {
+                                SupportBubble(
+                                    SupportMsg(
+                                        -1, true,
+                                        "Bonjour 👋 Bienvenue au SAV de « Tu me manques ».\nDécris-nous ici ton problème, ou donne-nous tes idées et recommandations pour améliorer l'application. Nous te répondons dans cette conversation (et par notification).",
+                                        0,
+                                    ),
+                                    showTime = false,
+                                )
+                            }
                         }
                     }
                     state.note?.let {
@@ -189,7 +191,7 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                 ) {
                     TextField(
                         value = text, onValueChange = { text = it.take(2000) },
-                        placeholder = { Text("Écris à @admin…") }, maxLines = 5,
+                        placeholder = { Text("Décris ton problème ou ton idée…") }, maxLines = 5,
                         modifier = Modifier.weight(1f),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
@@ -208,7 +210,7 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
 }
 
 @Composable
-private fun SupportBubble(m: SupportMsg) {
+private fun SupportBubble(m: SupportMsg, showTime: Boolean = true) {
     val mine = !m.fromAdmin
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Surface(
@@ -218,7 +220,7 @@ private fun SupportBubble(m: SupportMsg) {
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Text(m.body, color = Color.White, fontSize = 16.sp)
-                Text(
+                if (showTime) Text(
                     SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(m.createdAt)),
                     fontSize = 11.sp, color = if (mine) Color(0xCCFFFFFF) else Color.Gray,
                     modifier = Modifier.align(Alignment.End),

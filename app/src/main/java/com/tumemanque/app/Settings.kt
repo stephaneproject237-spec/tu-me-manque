@@ -52,7 +52,7 @@ fun SettingsGear(hasUpdate: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, onBack: () -> Unit) {
+fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, supportUnread: Int, onSupport: () -> Unit, onBack: () -> Unit) {
     val s by upd.state.collectAsState()
     val context = LocalContext.current
     BackHandler { onBack() }
@@ -127,6 +127,14 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, on
                 s.checked -> Text("✓ Tu as la dernière version.", fontSize = 14.sp, color = Color(0xFF66BB6A))
                 else -> Text("Touche « Vérifier » pour chercher une mise à jour.", fontSize = 14.sp, color = Color.Gray)
             }
+        }
+        Spacer(Modifier.height(14.dp))
+
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("SAV", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text("Un problème ? Une idée ? Écris-nous, nous te répondons ici.", color = Color.Gray, fontSize = 14.sp)
+            Spacer(Modifier.height(10.dp))
+            GlassButton(if (supportUnread > 0) "🛟 Contacter le SAV ($supportUnread)" else "🛟 Contacter le SAV", Modifier.fillMaxWidth()) { onSupport() }
         }
     }
 }

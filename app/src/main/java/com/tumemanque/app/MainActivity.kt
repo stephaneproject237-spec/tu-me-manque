@@ -220,7 +220,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     if (showSettings) {
-        SettingsScreen(updateVm, state.username, state.partnerName) { showSettings = false }
+        SettingsScreen(updateVm, state.username, state.partnerName, state.supportUnread, onSupport = { showSettings = false; showSupport = true }) { showSettings = false }
     } else if (showSupport) {
         SupportScreen(
             supportVm, onBack = { showSupport = false }, onRead = { vm.setSupportUnread(0) },

@@ -582,6 +582,7 @@
       else say("Impossible d'envoyer pour le moment.");
     }),
     openChat: () => openChat(false),
+    openSav: () => { S.settings = false; render(); if (window.TMM_SUPPORT) window.TMM_SUPPORT.open(); },
     openSupport: () => { if (window.TMM_SUPPORT) window.TMM_SUPPORT.open(); },
     askRemove: () => { S.confirmRemove = true; render(); },
     cancelRemove: () => { S.confirmRemove = false; render(); },
@@ -808,6 +809,10 @@
       <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
         <b>Version de l'application</b><span class="gris">Version ${esc(CFG.VERSION)}</span>${state}
         <button class="lien" data-action="checkWeb">Vérifier les mises à jour</button>
+      </div>
+      <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
+        <b>SAV</b><span class="gris">Un problème ? Une idée ? Écris-nous, nous te répondons ici.</span>
+        <button class="principal" data-action="openSav">🛟 Contacter le SAV${S.supportUnread ? ' <span class="badge">' + (S.supportUnread > 99 ? "99+" : S.supportUnread) + "</span>" : ""}</button>
       </div>
       <div class="rangee"><button class="lien" data-action="closeSettings">Fermer</button></div></div></div>`;
   }

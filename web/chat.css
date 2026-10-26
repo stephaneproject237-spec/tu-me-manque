@@ -333,3 +333,17 @@ body.chat-open { overflow: hidden; }
 .ch-row.bot .ch-bubble.gm-b { display: block !important; flex-direction: column; text-align: left; }
 .ch-row.bot .ch-bubble.gm-b .ch-text { display: block; }
 .ch-row.bot .gm-bopts, .ch-row.bot .gm-bo { width: 100%; }
+
+/* ===== SAV (@admin) : mise en page classique, thème sombre ===== */
+#support .ch-head { position: static; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; pointer-events: auto;
+  background: linear-gradient(135deg, #3A1424, #5A1B38); box-shadow: 0 4px 18px rgba(0,0,0,.4); color: #F5EEF2; }
+#support .ch-head .ch-icon { width: 40px; height: 40px; font-size: 30px; background: none; border: 0; box-shadow: none; color: #FF8FB4; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#support .ch-avatar { width: 40px; height: 40px; font-size: 22px; border: 0; box-shadow: none; background: rgba(255,255,255,.12); }
+#support .ch-title { padding: 0; background: none; border: 0; box-shadow: none; align-items: flex-start; max-width: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#support .ch-title b { font-size: 17px; max-width: none; color: #F5EEF2; }
+#support .ch-title small { color: #D8B8C8; }
+#support .ch-list { position: static; flex: 1; z-index: auto; padding: 10px 12px 8px; }
+#support .ch-bar { background: #1E0F18; border-top: 1px solid #4A2A3C; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); }
+#support .ch-bar textarea { background: rgba(40,28,36,.66); border: 1px solid rgba(255,255,255,.10); border-radius: 22px; padding: 10px 14px; color: #F5EEF2; }
+#support .ch-bar textarea::placeholder { color: #8F7A86; }
+#support .ch-bar .ch-send { width: 42px; height: 42px; border-radius: 50%; font-size: 18px; color: #fff; background: linear-gradient(135deg, #FF6A9C, #E91E63); flex: none; }

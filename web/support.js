@@ -13,11 +13,11 @@
       <div class="ch-head">
         <button class="ch-icon" data-s="back" aria-label="Retour">‹</button>
         <div class="ch-avatar">🛟</div>
-        <div class="ch-title"><b>@admin</b><small>Aide et questions</small></div>
+        <div class="ch-title"><b>SAV</b><small>Service après-vente</small></div>
       </div>
       <div class="ch-list" id="sp-list"></div>
       <div class="ch-bar">
-        <textarea id="sp-input" rows="1" placeholder="Écris à @admin…" maxlength="2000" autocomplete="off"></textarea>
+        <textarea id="sp-input" rows="1" placeholder="Décris ton problème ou ton idée…" maxlength="2000" autocomplete="off"></textarea>
         <button class="ch-send on" data-s="send" aria-label="Envoyer">➤</button>
       </div>`;
     host.addEventListener("click", (ev) => {
@@ -42,17 +42,16 @@
     lastKey = key;
     const list = document.getElementById("sp-list");
     const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
-    list.innerHTML = msgs.length
-      ? msgs.map((m) => `<div class="ch-row ${m.from_admin ? "theirs" : "mine"}"><div class="ch-bubble"><span class="ch-text">${esc(m.body)}</span> <span class="ch-meta">${hhmm(m.created_at)}</span></div></div>`).join("")
-      : '<div class="ch-empty">Pose ta question à @admin 💗<br>Tu recevras sa réponse ici et par notification.</div>';
+    const intro = '<div class="ch-row theirs"><div class="ch-bubble"><span class="ch-text">Bonjour 👋 Bienvenue au SAV de « Tu me manques ».\nDécris-nous ici ton problème, ou donne-nous tes idées et recommandations pour améliorer l\'application. Nous te répondons dans cette conversation (et par notification).</span></div></div>';
+    list.innerHTML = intro + msgs.map((m) => `<div class="ch-row ${m.from_admin ? "theirs" : "mine"}"><div class="ch-bubble"><span class="ch-text">${esc(m.body)}</span> <span class="ch-meta">${hhmm(m.created_at)}</span></div></div>`).join("");
     if (force || atBottom) list.scrollTop = list.scrollHeight;
   }
 
   async function load() {
     try {
       const rows = await A().authed("GET", "/rest/v1/support_messages?select=id,from_admin,body,created_at&order=id.asc&limit=300");
-      if (!rows || !rows.length) { close(); if (A().setSupportHas) A().setSupportHas(false); return; }
-      msgs = rows;
+      msgs = rows || [];
+      if (A().setSupportHas) A().setSupportHas(msgs.length > 0);
       paint(false);
       if (msgs.some((m) => m.from_admin)) {
         await A().authed("POST", "/rest/v1/rpc/support_mark_read", {});
@@ -71,7 +70,7 @@
     try {
       const j = await A().authed("POST", "/rest/v1/rpc/support_send", { p_body: body });
       if (j && j.status === "ok") { inp.value = ""; await load(); paint(true); }
-      else if (j && j.status === "no_thread") { alert("Cette conversation est terminée."); close(); if (A().setSupportHas) A().setSupportHas(false); }
+      else if (j && j.status === "no_thread") alert("Le SAV n'est pas encore disponible. Réessaie un peu plus tard.");
       else if (j && j.status === "too_fast") alert("Doucement ! Réessaie dans une minute.");
       else alert("Message non envoyé.");
     } catch (e) { alert("Message non envoyé."); }
