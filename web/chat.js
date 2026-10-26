@@ -301,6 +301,7 @@
     }
     markRead();
     startPolling();
+    if (window.TMM_GAMES) window.TMM_GAMES.attach(partner);
   }
 
   function close() {
@@ -310,6 +311,7 @@
     closePanel();
     pauseAllAudio();
     host.hidden = true;
+    if (window.TMM_GAMES) window.TMM_GAMES.detach();
     document.body.classList.remove("chat-open");
     clearInterval(pollTimer); pollTimer = null;
     clearInterval(typTimer); typTimer = null;
@@ -1247,7 +1249,13 @@
     }
   }
 
+  async function sendRaw(text) {
+    const p = addPending({ kind: "text", body: text });
+    return deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
+  }
+
   window.TMM_CHAT = {
+    sendRaw,
     open,
     close,
     isOpen: () => opened,
