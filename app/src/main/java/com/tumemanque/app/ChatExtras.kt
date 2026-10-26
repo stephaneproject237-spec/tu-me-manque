@@ -176,22 +176,27 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String?) -> 
     )
 }
 
+/** Les stickers « a01_… » sont de vrais stickers animés (WebP) ; les « s01_… » sont des PNG animés par le code. */
+fun isAnimatedSticker(id: String): Boolean = id.length > 1 && id[0] == 'a' && id[1].isDigit()
+
 /** Sticker animé : chaque sticker a son mouvement (battement, balancement, rebond, flottement…). */
 @Composable
 fun AnimatedSticker(id: String, modifier: Modifier = Modifier) {
+    val real = isAnimatedSticker(id)
     val n = id.drop(1).take(2).toIntOrNull() ?: 0
-    val style = n % 5
+    val style = if (real) -1 else n % 5
     val dur = when (style) { 0 -> 900; 1 -> 1400; 2 -> 1000; 3 -> 2600; else -> 1600 }
     val t = rememberInfiniteTransition(label = "stk")
     val phase = t.animateFloat(0f, 1f, infiniteRepeatable(tween(dur, easing = LinearEasing)), label = "p")
     AsyncImage(
-        model = "file:///android_asset/stickers/$id.png",
+        model = "file:///android_asset/stickers/$id.${if (isAnimatedSticker(id)) "webp" else "png"}",
         contentDescription = "Sticker",
         modifier = modifier.graphicsLayer {
             val p = (phase.value + n * 0.13f) % 1f
             val w = sin(2.0 * PI * p).toFloat()
             val d = density
             when (style) {
+                -1 -> {}
                 0 -> { val s = 1f + 0.09f * (0.5f + 0.5f * w); scaleX = s; scaleY = s }
                 1 -> rotationZ = 8f * w
                 2 -> { val a = abs(w); translationY = -14f * d * a; scaleY = 1f - 0.05f * (1f - a) }

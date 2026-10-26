@@ -104,7 +104,11 @@
     return path;
   }
 
+  // Les stickers animés (a01_…) sont des images WebP qui bougent d'elles-mêmes ; les anciens (s01_…) sont des PNG animés par le code.
+  const stkAnim = (id) => /^a\d/.test(String(id || ""));
+  const stkSrc = (id) => "stickers/" + id + (stkAnim(id) ? ".webp" : ".png");
   function stkClass(id) {
+    if (stkAnim(id)) return "";
     const n = parseInt(String(id || "").slice(1, 3), 10) || 0;
     return "stk" + (n % 5);
   }
@@ -505,7 +509,7 @@
         const ok = stickers.some((s) => s.id === m.body) || /^s\d\d_/.test(m.body || "");
         return {
           cls: "sticker",
-          html: ok ? '<img class="ch-sticker ' + stkClass(m.body) + '" src="stickers/' + esc(m.body) + '.png" alt="sticker" onerror="this.replaceWith(document.createTextNode(\'💗\'))">' + t
+          html: ok ? '<img class="ch-sticker ' + stkClass(m.body) + '" src="' + esc(stkSrc(m.body)) + '" alt="sticker" onerror="this.replaceWith(document.createTextNode(\'💗\'))">' + t
             : '<div class="ch-bigemoji">💗</div>' + t,
         };
       }
@@ -1126,7 +1130,7 @@
     }
     if (panelTab !== "sticker") return;
     body.innerHTML = '<div class="ch-grid stick">' + stickers.map((s) =>
-      '<button data-c="stk" data-id="' + esc(s.id) + '" title="' + esc(s.label) + '"><img class="' + stkClass(s.id) + '" src="stickers/' + esc(s.id) + '.png" alt="' + esc(s.label) + '" loading="lazy"></button>').join("") + "</div>";
+      '<button data-c="stk" data-id="' + esc(s.id) + '" title="' + esc(s.label) + '"><img class="' + stkClass(s.id) + '" src="' + esc(stkSrc(s.id)) + '" alt="' + esc(s.label) + '" loading="lazy"></button>').join("") + "</div>";
   }
 
   let gifQ = "", gifOffset = 0, gifBusy = false, gifDone = false, gifTimer = null, gifSeq = 0;

@@ -176,7 +176,7 @@ fun StickerBurst(id: String, trigger: Int) {
                 else -> 1f
             }
             AsyncImage(
-                model = "file:///android_asset/stickers/$id.png",
+                model = "file:///android_asset/stickers/$id.${if (isAnimatedSticker(id)) "webp" else "png"}",
                 contentDescription = null,
                 modifier = Modifier
                     .size(pt.size.dp)

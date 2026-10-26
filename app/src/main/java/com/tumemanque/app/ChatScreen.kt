@@ -533,7 +533,7 @@ private fun StickerPanel(onPick: (String) -> Unit) {
     val context = LocalContext.current
     val ids = remember {
         (context.assets.list("stickers") ?: emptyArray())
-            .filter { it.endsWith(".png") }.sorted().map { it.removeSuffix(".png") }
+            .filter { it.endsWith(".png") || it.endsWith(".webp") }.sorted().map { it.substringBeforeLast(".") }
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
