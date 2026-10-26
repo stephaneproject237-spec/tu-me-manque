@@ -8,7 +8,9 @@ import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,7 @@ data class UpdateState(
     val checked: Boolean = false,
     val available: UpdateInfo? = null,
     val error: Boolean = false,
+    val errorDetail: String = "",
     val downloading: Boolean = false,
     val progress: Float = 0f,
     val ready: Boolean = false,
@@ -42,11 +45,11 @@ class UpdateViewModel : ViewModel() {
     private var apkFile: File? = null
     private var started = false
 
-    private fun fetch(): UpdateInfo? {
-        val conn = URL(Config.WEB_URL + "update.json?t=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+    private fun fetchOne(url: String): UpdateInfo? {
+        val conn = URL(url).openConnection() as HttpURLConnection
         try {
-            conn.connectTimeout = 10000
-            conn.readTimeout = 10000
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
             conn.useCaches = false
             if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
             val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
@@ -59,6 +62,29 @@ class UpdateViewModel : ViewModel() {
         }
     }
 
+    /** Interroge plusieurs adresses en même temps (au cas où l'une serait bloquée sur ce réseau) : la première qui répond gagne. */
+    private suspend fun fetch(): UpdateInfo? = coroutineScope {
+        val t = System.currentTimeMillis()
+        val sources = listOf(
+            Config.WEB_URL + "update.json?t=$t",
+            "https://raw.githubusercontent.com/stephaneproject237-spec/tu-me-manque/main/web/update.json?t=$t",
+        )
+        val result = CompletableDeferred<UpdateInfo?>()
+        val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val jobs = sources.map { url ->
+            launch(Dispatchers.IO) {
+                try {
+                    result.complete(fetchOne(url))
+                } catch (e: Exception) {
+                    val host = url.substringAfter("://").substringBefore("/")
+                    errors.add("$host : ${e.javaClass.simpleName}${e.message?.let { m -> " ($m)".take(60) } ?: ""}")
+                    if (errors.size == sources.size) result.completeExceptionally(IOException(errors.joinToString("\n")))
+                }
+            }
+        }
+        try { result.await() } finally { jobs.forEach { it.cancel() } }
+    }
+
     /** Vérifie s'il existe une version plus récente que celle installée. */
     fun check(force: Boolean = true) {
         if (!force && started) return
@@ -69,9 +95,9 @@ class UpdateViewModel : ViewModel() {
             try {
                 val info = withContext(Dispatchers.IO) { fetch() }
                 val newer = if (info != null && info.code > BuildConfig.VERSION_CODE) info else null
-                _state.update { it.copy(checking = false, checked = true, available = newer, error = false, ready = if (newer == null) false else it.ready) }
+                _state.update { it.copy(checking = false, checked = true, available = newer, error = false, errorDetail = "", ready = if (newer == null) false else it.ready) }
             } catch (e: Exception) {
-                _state.update { it.copy(checking = false, checked = true, error = true) }
+                _state.update { it.copy(checking = false, checked = true, error = true, errorDetail = e.message ?: e.javaClass.simpleName) }
             }
         }
     }
@@ -89,7 +115,7 @@ class UpdateViewModel : ViewModel() {
                 _state.update { it.copy(downloading = false, ready = true) }
                 install(app)
             } catch (e: Exception) {
-                _state.update { it.copy(downloading = false, error = true) }
+                _state.update { it.copy(downloading = false, error = true, errorDetail = "Téléchargement : " + (e.message ?: e.javaClass.simpleName)) }
             }
         }
     }

@@ -109,7 +109,10 @@ fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     GlassButton("Mettre à jour maintenant", Modifier.fillMaxWidth()) { upd.update(context) }
                 }
-                s.error -> Text("Impossible de vérifier pour le moment. Vérifie ta connexion.", fontSize = 14.sp, color = Color(0xFFD32F2F))
+                s.error -> {
+                    Text("Impossible de vérifier pour le moment. Vérifie ta connexion.", fontSize = 14.sp, color = Color(0xFFD32F2F))
+                    if (s.errorDetail.isNotBlank()) Text(s.errorDetail, fontSize = 11.sp, color = Color.Gray)
+                }
                 s.checking -> Text("Vérification en cours…", fontSize = 14.sp, color = Color.Gray)
                 s.checked -> Text("✓ Tu as la dernière version.", fontSize = 14.sp, color = Color(0xFF2E7D32))
                 else -> Text("Touche « Vérifier » pour chercher une mise à jour.", fontSize = 14.sp, color = Color.Gray)
