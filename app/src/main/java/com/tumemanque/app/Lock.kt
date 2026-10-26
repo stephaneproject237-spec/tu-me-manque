@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,10 +47,13 @@ object AppLock {
     fun available(c: Context): Boolean =
         BiometricManager.from(c).canAuthenticate(authenticators()) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun prompt(activity: FragmentActivity, title: String, onOk: () -> Unit, onFail: () -> Unit = {}) {
+    fun prompt(activity: FragmentActivity, title: String, onOk: () -> Unit, onFail: (String) -> Unit = {}) {
         val cb = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { onOk() }
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { onFail() }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                // 10 = annulé par l'utilisateur, 13 = bouton « Annuler » : pas une vraie erreur
+                onFail(if (errorCode == 10 || errorCode == 13) "" else errString.toString())
+            }
         }
         val p = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), cb)
         val b = BiometricPrompt.PromptInfo.Builder()
@@ -55,7 +61,7 @@ object AppLock {
             .setSubtitle("Tu me manques 💗")
             .setAllowedAuthenticators(authenticators())
         if (Build.VERSION.SDK_INT < 30) b.setNegativeButtonText("Annuler")
-        try { p.authenticate(b.build()) } catch (e: Exception) { onFail() }
+        try { p.authenticate(b.build()) } catch (e: Exception) { onFail(e.message ?: "Erreur") }
     }
 }
 
@@ -71,13 +77,28 @@ fun LockScreen(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val activity = context.findFragmentActivity()
     val busy = androidx.compose.runtime.remember { booleanArrayOf(false) }
-    fun ask() {
-        if (activity == null || busy[0]) return
+    var err by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    fun ask(force: Boolean) {
+        if (activity == null) { err = "Impossible d'ouvrir la vérification."; return }
+        if (busy[0] && !force) return
         busy[0] = true
-        AppLock.prompt(activity, "Déverrouiller l'appli", onOk = { busy[0] = false; onUnlocked() }, onFail = { busy[0] = false })
+        err = null
+        AppLock.prompt(
+            activity, "Déverrouiller l'appli",
+            onOk = { busy[0] = false; onUnlocked() },
+            onFail = { busy[0] = false; if (it.isNotEmpty()) err = it },
+        )
     }
     BackHandler(enabled = true) { }
-    LaunchedEffect(Unit) { ask() }
+    // À chaque retour au premier plan, on relance la vérification (le système peut l'avoir interrompue).
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            busy[0] = false
+            kotlinx.coroutines.delay(350)
+            ask(false)
+        }
+    }
     Box(Modifier.fillMaxSize().background(Color(0xFF160A12)).clickable(enabled = true) { }, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.padding(32.dp)) {
             Text("💗", fontSize = 64.sp)
@@ -85,8 +106,9 @@ fun LockScreen(onUnlocked: () -> Unit) {
             Text("Tu me manques est verrouillée", color = Color(0xFFF5EEF2), fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
             Text("Déverrouille avec ton empreinte, ton visage ou le code du téléphone.", color = Color(0xFFB7A3AE), fontSize = 14.sp, textAlign = TextAlign.Center)
+            err?.let { Spacer(Modifier.height(8.dp)); Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp, textAlign = TextAlign.Center) }
             Spacer(Modifier.height(24.dp))
-            GlassButton("🔓 Déverrouiller", Modifier.fillMaxWidth()) { ask() }
+            GlassButton("🔓 Déverrouiller", Modifier.fillMaxWidth()) { ask(true) }
         }
     }
 }
