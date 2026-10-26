@@ -228,7 +228,7 @@
     const list = filteredUsers();
     return `<input class="q" id="q" placeholder="Rechercher (pseudo, e-mail, numéro, appareil)…" value="${esc(S.q)}" autocomplete="off">
       <div class="row" style="margin:8px 0"><span class="k grow">${list.length} compte${list.length > 1 ? "s" : ""}</span>
-        ${[["created", "🕒 Création"], ["alpha", "🔤 A→Z"], ["login", "🔑 Connexion"]].map(([k, l]) => `<button class="${S.sort === k ? "p" : "s"}" data-a="sort" data-k="${k}">${l}</button>`).join("")}</div>` +
+        ${[["created", "🕒 Création"], ["alpha", "🔤 A→Z"], ["login", "🔑 Activité"]].map(([k, l]) => `<button class="${S.sort === k ? "p" : "s"}" data-a="sort" data-k="${k}">${l}</button>`).join("")}</div>` +
       (list.map(userCard).join("") || '<p class="muted">Aucun compte.</p>');
   }
 
@@ -242,7 +242,7 @@
         <span class="k">Téléphone</span><span class="v">${esc(phone(u.phone))}</span>
         <span class="k">Âge</span><span class="v">${u.age != null ? esc(u.age) + " ans" : "—"}</span>
         <span class="k">Appareil</span><span class="v">${esc(u.device || "inconnu (compte ancien)")}</span>
-        <span class="k">Dernière connexion</span><span class="v">${u.last_sign_in_at ? esc(fdate(u.last_sign_in_at)) : "jamais"}</span>
+        <span class="k">Dernière activité</span><span class="v">${u.last_sign_in_at ? esc(fdate(u.last_sign_in_at)) : "jamais"}</span>
         <span class="k">Créé le</span><span class="v">${esc(fdate(u.created_at))}</span>
         <span class="k">Partenaire</span><span class="v">${u.partner_name ? "💗 @" + esc(u.partner_name) + (u.linked_at ? " · depuis " + esc(fdate(u.linked_at)) : "") : "aucun"}</span>
       </div>
