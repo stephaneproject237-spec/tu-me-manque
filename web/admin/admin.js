@@ -1,0 +1,296 @@
+(function () {
+  "use strict";
+  const CFG = window.TMM_CONFIG;
+  const root = document.getElementById("app");
+  const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" },
+  });
+
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fdate = (t) => (t ? new Date(t).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : "date inconnue");
+  const phone = (p) => (p ? "+" + p : "—");
+
+  const S = {
+    stage: "loading",      // loading | login | denied | app
+    email: "",
+    tab: "users",
+    users: [], fr: { current: [], history: [] }, threads: [],
+    q: "", loaded: false, err: null,
+    thread: null,          // { id, name, msgs }
+    modal: null,           // { type: "delete" | "history", user }
+    busy: false,
+  };
+
+  async function call(name, args) {
+    const { data, error } = await sb.rpc(name, args || {});
+    if (error) throw error;
+    return data;
+  }
+
+  // ---------- Connexion ----------
+  async function init() {
+    const { data } = await sb.auth.getSession();
+    if (!data.session) { S.stage = "login"; return render(); }
+    await checkAdmin(data.session);
+  }
+
+  async function checkAdmin(session) {
+    S.email = (session.user && session.user.email) || "";
+    try {
+      const r = await call("admin_whoami");
+      if (r && r.admin) { S.stage = "app"; render(); await loadAll(); startPolling(); }
+      else { S.stage = "denied"; render(); }
+    } catch (e) {
+      S.stage = "denied"; S.err = "Le serveur n'est pas à jour (admin.sql).";
+      render();
+    }
+  }
+
+  sb.auth.onAuthStateChange((ev, session) => {
+    if (ev === "SIGNED_IN" && session && S.stage !== "app") checkAdmin(session);
+    if (ev === "SIGNED_OUT") { S.stage = "login"; render(); }
+  });
+
+  async function login() {
+    const redirectTo = location.origin + location.pathname.replace(/index\.html$/, "");
+    await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  }
+
+  // ---------- Données ----------
+  async function loadAll() {
+    try {
+      const [u, f, t] = await Promise.all([call("admin_users"), call("admin_friendships"), call("admin_threads")]);
+      S.users = u || []; S.fr = f || { current: [], history: [] }; S.threads = t || [];
+      S.loaded = true; S.err = null;
+    } catch (e) {
+      S.err = "Chargement impossible : " + (e.message || e);
+    }
+    renderContent();
+  }
+
+  let pollT = null;
+  function startPolling() {
+    clearInterval(pollT);
+    pollT = setInterval(async () => {
+      if (document.hidden || S.stage !== "app" || S.modal) return;
+      if (S.thread) await openThread(S.thread.id, S.thread.name, true);
+      else await loadAll();
+    }, 5000);
+  }
+
+  // ---------- Messagerie ----------
+  async function openThread(id, name, silent) {
+    try {
+      const msgs = await call("admin_thread", { p_user: id });
+      const first = !S.thread || S.thread.id !== id;
+      S.thread = { id, name, msgs: msgs || [] };
+      renderThread(first);
+      if (first) loadAll();
+    } catch (e) { if (!silent) alert("Impossible d'ouvrir la conversation."); }
+  }
+
+  async function sendThread() {
+    const inp = document.getElementById("t-in");
+    const body = inp.value.trim();
+    if (!body || S.busy || !S.thread) return;
+    S.busy = true;
+    try {
+      const r = await call("admin_send", { p_user: S.thread.id, p_body: body });
+      if (r && r.status === "ok") { inp.value = ""; await openThread(S.thread.id, S.thread.name, true); document.getElementById("t-list").scrollTop = 1e9; }
+      else alert("Message non envoyé.");
+    } catch (e) { alert("Message non envoyé."); }
+    S.busy = false;
+  }
+
+  // ---------- Suppression ----------
+  async function deleteUser() {
+    const u = S.modal && S.modal.user;
+    if (!u || S.busy) return;
+    S.busy = true; renderModal();
+    try {
+      const r = await call("admin_delete_user", { p_id: u.id });
+      if (!r || r.status !== "ok") throw new Error(r && r.status);
+      S.modal = null; S.busy = false;
+      await loadAll(); renderModal();
+    } catch (e) {
+      S.busy = false; renderModal();
+      alert("Suppression impossible : " + (e.message || e));
+    }
+  }
+
+  // ---------- Affichage ----------
+  function render() {
+    if (S.stage === "loading") { root.innerHTML = '<div class="center"><div class="spin"></div></div>'; return; }
+    if (S.stage === "login") {
+      root.innerHTML = `<div class="center"><div style="font-size:56px">🛠️💗</div><h1 style="margin:0">Tu me manques – Admin</h1>
+        <p class="muted" style="padding:0">Réservé à l'administrateur.</p>
+        <button class="p" data-a="login" style="font-size:17px;padding:14px 24px">Continuer avec Google</button></div>`;
+      return;
+    }
+    if (S.stage === "denied") {
+      root.innerHTML = `<div class="center"><div style="font-size:56px">⛔</div><h2 style="margin:0">Accès refusé</h2>
+        <p class="muted" style="padding:0">${esc(S.email)} n'est pas autorisé.${S.err ? "<br>" + esc(S.err) : ""}</p>
+        <button class="s" data-a="logout">Changer de compte</button></div>`;
+      return;
+    }
+    root.innerHTML = `<header><h1>🛠️ Admin</h1><button data-a="refresh" aria-label="Actualiser">↻</button><button data-a="logout">Quitter</button></header>
+      <main id="content"></main>
+      <nav><button data-a="tab" data-t="users" id="n-users"></button><button data-a="tab" data-t="friends" id="n-friends"></button><button data-a="tab" data-t="msgs" id="n-msgs"></button></nav>
+      <div id="modal"></div><div id="thread"></div>`;
+    renderContent();
+  }
+
+  function unreadTotal() { return S.threads.reduce((n, t) => n + (Number(t.unread) || 0), 0); }
+
+  function renderNav() {
+    const set = (id, label, on) => { const b = document.getElementById(id); if (b) { b.innerHTML = label; b.classList.toggle("on", on); } };
+    set("n-users", "👥 Comptes <small>(" + S.users.length + ")</small>", S.tab === "users");
+    set("n-friends", "💗 Amitiés <small>(" + S.fr.current.length + ")</small>", S.tab === "friends");
+    const u = unreadTotal();
+    set("n-msgs", "💬 Messages" + (u ? ' <span class="dot">' + u + "</span>" : ""), S.tab === "msgs");
+  }
+
+  function renderContent() {
+    if (S.stage !== "app") return;
+    renderNav();
+    const c = document.getElementById("content");
+    if (!c) return;
+    if (!S.loaded) { c.innerHTML = S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>'; return; }
+    const err = S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "";
+    if (S.tab === "users") c.innerHTML = err + usersHtml();
+    else if (S.tab === "friends") c.innerHTML = err + friendsHtml();
+    else c.innerHTML = err + threadsHtml();
+    const q = document.getElementById("q");
+    if (q && S.focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  }
+
+  function filteredUsers() {
+    const q = S.q.trim().toLowerCase().replace(/^@/, "");
+    if (!q) return S.users;
+    return S.users.filter((u) => [u.username, u.email, u.phone, u.device, u.partner_name].some((x) => x && String(x).toLowerCase().includes(q)));
+  }
+
+  function usersHtml() {
+    const list = filteredUsers();
+    return `<input class="q" id="q" placeholder="Rechercher (pseudo, e-mail, numéro, appareil)…" value="${esc(S.q)}" autocomplete="off">
+      <p class="k" style="margin:8px 4px">${list.length} compte${list.length > 1 ? "s" : ""}</p>` +
+      (list.map(userCard).join("") || '<p class="muted">Aucun compte.</p>');
+  }
+
+  function userCard(u) {
+    const name = u.username ? "@" + esc(u.username) : "(sans pseudo)";
+    return `<div class="card glass">
+      <div class="row"><span class="name grow">${name}</span>${u.provider ? '<span class="chip">' + esc(u.provider) + "</span>" : ""}
+        ${u.unread ? '<span class="dot">' + u.unread + "</span>" : ""}</div>
+      <div class="grid">
+        <span class="k">E-mail</span><span class="v">${esc(u.email || "—")}</span>
+        <span class="k">Téléphone</span><span class="v">${esc(phone(u.phone))}</span>
+        <span class="k">Âge</span><span class="v">${u.age != null ? esc(u.age) + " ans" : "—"}</span>
+        <span class="k">Appareil</span><span class="v">${esc(u.device || "inconnu (compte ancien)")}</span>
+        <span class="k">Créé le</span><span class="v">${esc(fdate(u.created_at))}</span>
+        <span class="k">Partenaire</span><span class="v">${u.partner_name ? "💗 @" + esc(u.partner_name) + (u.linked_at ? " · depuis " + esc(fdate(u.linked_at)) : "") : "aucun"}</span>
+      </div>
+      <div class="row">
+        <button class="p" data-a="chat" data-id="${esc(u.id)}">💬 Chat</button>
+        <button class="s" data-a="hist" data-id="${esc(u.id)}">📜 Amitiés</button>
+        <button class="d" data-a="del" data-id="${esc(u.id)}">🗑 Supprimer</button>
+      </div></div>`;
+  }
+
+  function pairCard(f, ended) {
+    const side = (n, p, d) => `<div class="grow"><div class="name">@${esc(n || "?")}</div><div class="k">${esc(phone(p))}</div>${d !== undefined ? '<div class="k">' + esc(d || "appareil inconnu") + "</div>" : ""}</div>`;
+    return `<div class="card glass"><div class="row">${side(f.a_name, f.a_phone, ended ? undefined : f.a_device)}<span style="font-size:24px">💗</span>${side(f.b_name, f.b_phone, ended ? undefined : f.b_device)}</div>
+      <p class="k" style="margin:8px 0 0">${ended ? "Du " + esc(fdate(f.started_at)) + " au " + esc(fdate(f.ended_at)) + (f.ended_by ? " · terminé par " + esc(f.ended_by) : "") : "Depuis le " + esc(fdate(f.started_at))}</p></div>`;
+  }
+
+  function friendsHtml() {
+    return `<h2>En cours (${S.fr.current.length})</h2>` + (S.fr.current.map((f) => pairCard(f, false)).join("") || '<p class="muted">Aucune amitié en cours.</p>') +
+      `<h2>Historique (${S.fr.history.length})</h2>` + (S.fr.history.map((f) => pairCard(f, true)).join("") || '<p class="muted">Aucune amitié terminée.</p>');
+  }
+
+  function threadsHtml() {
+    return `<h2>Conversations avec les comptes</h2><p class="k" style="margin:0 4px 6px">Pour écrire à quelqu'un qui n'a pas encore écrit : onglet Comptes → 💬 Chat.</p>` +
+      (S.threads.map((t) => `<div class="card glass" data-a="chat" data-id="${esc(t.user_id)}" style="cursor:pointer">
+        <div class="row"><span class="name grow">@${esc(t.username || "?")}</span>${Number(t.unread) ? '<span class="dot">' + t.unread + "</span>" : ""}</div>
+        <div class="v">${t.last_from_admin ? "Vous : " : ""}${esc((t.last_body || "").slice(0, 120))}</div>
+        <div class="k">${esc(fdate(t.last_at))}</div></div>`).join("") || '<p class="muted">Aucun message pour le moment.</p>');
+  }
+
+  function renderThread(scroll) {
+    const el = document.getElementById("thread");
+    if (!el) return;
+    if (!S.thread) { el.innerHTML = ""; return; }
+    const prev = document.getElementById("t-in");
+    const draft = prev ? prev.value : "";
+    const list = document.getElementById("t-list");
+    const nearBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 100;
+    const hh = (t) => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const body = S.thread.msgs.map((m) => `<div class="b ${m.from_admin ? "me" : "them"}">${esc(m.body)}<small>${hh(m.created_at)}${m.from_admin && m.read_at ? " ✓✓" : ""}</small></div>`).join("") ||
+      '<p class="muted">Aucun message. Écris le premier 💗</p>';
+    if (!prev) {
+      el.innerHTML = `<div class="thread"><header><button data-a="tback">‹</button><h1>@${esc(S.thread.name)}</h1></header>
+        <div class="tl" id="t-list">${body}</div>
+        <div class="bar"><textarea id="t-in" rows="1" placeholder="Écrire en tant que @admin…" maxlength="2000"></textarea><button class="p" data-a="tsend">➤</button></div></div>`;
+      document.getElementById("t-list").scrollTop = 1e9;
+    } else {
+      document.getElementById("t-list").innerHTML = body;
+      if (scroll || nearBottom) document.getElementById("t-list").scrollTop = 1e9;
+      document.getElementById("t-in").value = draft;
+    }
+  }
+
+  function renderModal() {
+    const el = document.getElementById("modal");
+    if (!el) return;
+    const m = S.modal;
+    if (!m) { el.innerHTML = ""; return; }
+    const u = m.user;
+    const name = u.username ? "@" + u.username : "ce compte";
+    if (m.type === "delete") {
+      const word = u.username || "SUPPRIMER";
+      el.innerHTML = `<div class="fond"><div class="box">
+        <h2 style="margin:0">Supprimer ${esc(name)} ?</h2>
+        <p class="v">Le compte, le pseudo, ses messages et ses demandes seront effacés. ${u.partner_name ? "Son partenaire @" + esc(u.partner_name) + " sera libéré (conversation effacée). " : ""}La personne pourra se réinscrire comme un nouvel utilisateur (même pseudo possible).</p>
+        <p class="k">Pour confirmer, écris <b>${esc(word)}</b> :</p>
+        <input class="mi" id="m-in" autocomplete="off" autocapitalize="none" placeholder="${esc(word)}">
+        <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="d" id="m-ok" data-a="mdel" disabled>${S.busy ? "Suppression…" : "Supprimer"}</button></div></div></div>`;
+      const inp = document.getElementById("m-in");
+      inp.addEventListener("input", () => { document.getElementById("m-ok").disabled = S.busy || inp.value.trim().toLowerCase() !== word.toLowerCase(); });
+    } else {
+      const rel = S.fr.current.concat(S.fr.history).filter((f) => f.a_id === u.id || f.b_id === u.id);
+      el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amitiés de ${esc(name)}</h2>
+        ${rel.map((f) => pairCard(f, !!f.ended_at)).join("") || '<p class="muted">Aucune amitié enregistrée.</p>'}
+        <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Fermer</button></div></div></div>`;
+    }
+  }
+
+  // ---------- Événements ----------
+  root.addEventListener("input", (ev) => {
+    if (ev.target.id === "q") { S.q = ev.target.value; S.focusQ = true; renderContent(); }
+  });
+  root.addEventListener("keydown", (ev) => {
+    if (ev.target.id === "t-in" && ev.key === "Enter" && !ev.shiftKey && window.matchMedia("(pointer: fine)").matches) { ev.preventDefault(); sendThread(); }
+  });
+  root.addEventListener("click", async (ev) => {
+    const t = ev.target.closest("[data-a]");
+    if (!t) return;
+    const a = t.dataset.a, id = t.dataset.id;
+    const user = () => S.users.find((u) => u.id === id);
+    S.focusQ = false;
+    switch (a) {
+      case "login": login(); break;
+      case "logout": await sb.auth.signOut(); S.stage = "login"; S.thread = null; render(); break;
+      case "refresh": loadAll(); break;
+      case "tab": S.tab = t.dataset.t; renderContent(); break;
+      case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }
+      case "tback": S.thread = null; renderThread(); loadAll(); break;
+      case "tsend": sendThread(); break;
+      case "hist": S.modal = { type: "history", user: user() }; renderModal(); break;
+      case "del": S.modal = { type: "delete", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
+      case "mclose": S.modal = null; renderModal(); break;
+      case "mdel": deleteUser(); break;
+    }
+  });
+
+  init();
+})();

@@ -1,6 +1,6 @@
-#chat { position: fixed; left: 0; top: 0; width: 100%; height: 100dvh; z-index: 20; display: flex; flex-direction: column;
+#chat, #support { position: fixed; left: 0; top: 0; width: 100%; height: 100dvh; z-index: 20; display: flex; flex-direction: column;
   background: linear-gradient(160deg, #FFE3EC, #F3E5FF 55%, #FFEFE0); text-align: left; overscroll-behavior: contain; }
-#chat[hidden] { display: none; }
+#chat[hidden], #support[hidden] { display: none; }
 body.chat-open { overflow: hidden; }
 .ch-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; background: linear-gradient(135deg, #FF6A9C, #E91E63); box-shadow: 0 4px 18px rgba(233,30,99,.3); color: #fff; flex: none; }
 .ch-icon { background: none; color: inherit; padding: 6px 10px; font-size: 24px; border-radius: 50%; line-height: 1; }

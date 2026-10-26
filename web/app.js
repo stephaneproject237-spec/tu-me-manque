@@ -124,12 +124,18 @@
         unread = (rows || []).length;
       } catch (e) { /* le chat n'est peut-être pas encore installé côté serveur */ }
     }
+    let supportUnread = 0;
+    try {
+      const r = await authed("GET", "/rest/v1/support_messages?select=id&from_admin=eq.true&read_at=is.null&limit=50");
+      supportUnread = (r || []).length;
+    } catch (e) { /* messagerie @admin pas encore installée côté serveur */ }
     let wall = null;
     try {
       const w = await authed("GET", "/rest/v1/profiles?select=wall&id=eq." + uid);
       wall = (w && w[0] && w[0].wall) || null;
     } catch (e) { /* le fond partagé n'est pas encore installé côté serveur */ }
     return {
+      supportUnread,
       wall,
       username: p ? p.username || null : null,
       partnerName: p ? p.partner_name || null : null,
@@ -305,6 +311,32 @@
   }
 
   // Après une connexion réussie : on retrouve le profil, ou on le crée (pseudo + âge).
+  // Appareil utilisé pour créer le compte (visible seulement par l'administrateur).
+  function deviceInfo() {
+    const ua = navigator.userAgent || "";
+    let os = "Appareil inconnu", m;
+    if (/iPhone|iPad|iPod/.test(ua)) {
+      m = ua.match(/OS (\d+)[_.](\d+)/);
+      os = (/iPad/.test(ua) ? "iPad" : "iPhone") + (m ? " · iOS " + m[1] + "." + m[2] : "");
+    } else if (/Android/.test(ua)) {
+      m = ua.match(/Android ([\d.]+)/);
+      const model = (ua.match(/;\s*([^;)]+?)\s+Build/) || [])[1];
+      os = (model || "Android") + " · Android " + (m ? m[1] : "");
+    } else if (/Mac OS X/.test(ua)) os = "Mac";
+    else if (/Windows/.test(ua)) os = "Windows";
+    else if (/Linux/.test(ua)) os = "Linux";
+    return (os + " · " + (isStandalone ? "appli installée" : "navigateur") + " · " + CFG.VERSION).slice(0, 200);
+  }
+
+  async function createAccountRpc(pseudo, age) {
+    try {
+      return await authed("POST", "/rest/v1/rpc/create_account", { p_username: pseudo, p_age: age, p_device: deviceInfo() });
+    } catch (e) {
+      // Serveur pas encore à jour : on réessaie sans l'appareil.
+      return await authed("POST", "/rest/v1/rpc/create_account", { p_username: pseudo, p_age: age });
+    }
+  }
+
   async function finishAuth() {
     S.needAuth = false;
     const snap = await loadSnapshot();
@@ -313,7 +345,7 @@
       lsDel(PENDING);
       let note = null;
       if (pend) {
-        const j = await authed("POST", "/rest/v1/rpc/create_account", { p_username: pend.pseudo, p_age: pend.age });
+        const j = await createAccountRpc(pend.pseudo, pend.age);
         if (j && j.status === "ok") { applySnapshot(await loadSnapshot()); afterLogin(); return; }
         note = j && j.status === "taken" ? "Ce pseudo vient d'être pris. Choisis-en un autre." : "Impossible de créer le compte.";
       }
@@ -444,7 +476,7 @@
     oauthGoogle: () => startOAuth("google"),
     oauthApple: () => startOAuth("apple"),
     createProfile: () => act(async () => {
-      const j = await authed("POST", "/rest/v1/rpc/create_account", { p_username: S.auth.pseudo, p_age: Number(S.auth.age) });
+      const j = await createAccountRpc(S.auth.pseudo, Number(S.auth.age));
       const st = (j && j.status) || "error";
       if (st === "taken") { S.auth.avail = "taken"; say("Ce pseudo est déjà pris. Choisis-en un autre."); }
       else if (st === "invalid" || st === "invalid_age") say("Vérifie ton pseudo et ton âge.");
@@ -484,6 +516,7 @@
       else say("Impossible d'envoyer pour le moment.");
     }),
     openChat: () => openChat(false),
+    openSupport: () => { if (window.TMM_SUPPORT) window.TMM_SUPPORT.open(); },
     askRemove: () => { S.confirmRemove = true; render(); },
     cancelRemove: () => { S.confirmRemove = false; render(); },
     remove: () => {
@@ -626,7 +659,13 @@
       ${messageBlock()}
       ${pushBlock()}
       <button class="lien" data-action="shareOnly">Inviter quelqu'un à installer l'appli</button>
+      ${supportBtn()}
     </div>`;
+  }
+
+  function supportBtn() {
+    const n = S.supportUnread || 0;
+    return `<button class="lien" data-action="openSupport">🛟 Écrire à @admin${n ? ' <span class="badge">' + (n > 99 ? "99+" : n) + "</span>" : ""}</button>`;
   }
 
   function homeScreen() {
@@ -646,6 +685,7 @@
       ${messageBlock()}
       ${miss}
       ${pushBlock()}
+      ${supportBtn()}
     </div>`;
   }
 
@@ -727,6 +767,7 @@
 
   window.TMM_API = {
     CFG, session, authed, esc,
+    setSupportUnread(n) { if (S.supportUnread !== n) { S.supportUnread = n; lastSnapshotKey = ""; render(); } },
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },
   };

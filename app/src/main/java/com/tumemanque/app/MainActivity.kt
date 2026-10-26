@@ -135,6 +135,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatVm: ChatViewModel = viewModel()
+    val supportVm: SupportViewModel = viewModel()
     var crash by remember { mutableStateOf(CrashLog.take(context)) }
     crash?.let { trace ->
         Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -174,6 +175,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
     }
     var showChat by rememberSaveable { mutableStateOf(false) }
+    var showSupport by rememberSaveable { mutableStateOf(false) }
     var autoOpened by rememberSaveable { mutableStateOf("") }
 
     // Plus de partenaire : on ferme le chat et on oublie la conversation.
@@ -202,7 +204,9 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
     }
 
-    if (showChat && state.partnerName != null) {
+    if (showSupport) {
+        SupportScreen(supportVm, onBack = { showSupport = false }, onRead = { vm.setSupportUnread(0) })
+    } else if (showChat && state.partnerName != null) {
         ChatScreen(
             partner = partnerLabel(state),
             vm = chatVm,
@@ -229,8 +233,8 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
                 Button(onClick = { vm.start() }) { Text("Réessayer") }
             }
             state.username == null -> ProfileScreen(authState, authVm) { vm.start() }
-            state.partnerName == null -> PartnerScreen(state, vm) { shareApp(context, state.username) }
-            else -> HomeScreen(state, vm) { showChat = true }
+            state.partnerName == null -> PartnerScreen(state, vm, onSupport = { showSupport = true }) { shareApp(context, state.username) }
+            else -> HomeScreen(state, vm, onSupport = { showSupport = true }) { showChat = true }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -272,7 +276,7 @@ private fun Message(state: UiState) {
 }
 
 @Composable
-private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit) {
+private fun PartnerScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, onInvite: () -> Unit) {
     var partner by rememberSaveable { mutableStateOf("") }
     Text("Salut 👋", fontSize = 24.sp, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(8.dp))
@@ -315,10 +319,18 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
     Message(state)
     Spacer(Modifier.height(24.dp))
     TextButton(onClick = onInvite) { Text("Inviter quelqu'un à installer l'appli") }
+    SupportButton(state.supportUnread, onSupport)
 }
 
 @Composable
-private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit) {
+private fun SupportButton(unread: Int, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Text(if (unread > 0) "🛟 Écrire à @admin  ($unread)" else "🛟 Écrire à @admin")
+    }
+}
+
+@Composable
+private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, onOpenChat: () -> Unit) {
     val context = LocalContext.current
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -370,6 +382,8 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit)
             }
         }
     }
+
+    SupportButton(state.supportUnread, onSupport)
 
     if (confirmRemove) {
         AlertDialog(

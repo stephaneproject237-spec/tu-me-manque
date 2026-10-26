@@ -3,6 +3,7 @@ package com.tumemanque.app
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
@@ -28,11 +29,14 @@ data class Snapshot(
     val partnerName: String?,
     val partnerPhone: String?,
     val wall: String?,
+    val supportUnread: Int,
     val miss: Miss?,
     val unread: Int,
     val incoming: List<Req>,
     val outgoing: List<Req>,
 )
+
+data class SupportMsg(val id: Long, val fromAdmin: Boolean, val body: String, val createdAt: Long)
 
 data class Gif(val id: String, val url: String, val preview: String, val w: Int, val h: Int)
 
@@ -210,8 +214,12 @@ object Backend {
         val wall = runCatching {
             JSONArray(authed("GET", "/rest/v1/profiles?select=wall&id=eq.$uid")).optJSONObject(0)?.str("wall")
         }.getOrNull()
+        val supportUnread = runCatching {
+            JSONArray(authed("GET", "/rest/v1/support_messages?select=id&from_admin=eq.true&read_at=is.null&limit=50")).length()
+        }.getOrDefault(0)
         return Snapshot(
             wall = wall,
+            supportUnread = supportUnread,
             username = profile?.str("username"),
             partnerName = profile?.str("partner_name"),
             partnerPhone = profile?.str("partner_phone"),
@@ -295,8 +303,27 @@ object Backend {
         return true
     }
 
-    suspend fun createAccount(username: String, age: Int): String =
-        rpc("create_account", JSONObject().put("p_username", username).put("p_age", age))
+    suspend fun createAccount(username: String, age: Int): String {
+        val device = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · app ${BuildConfig.VERSION_NAME}".take(200)
+        val base = JSONObject().put("p_username", username).put("p_age", age)
+        // Si le serveur n'est pas encore à jour, on réessaie sans l'appareil.
+        val first = runCatching { rpc("create_account", JSONObject(base.toString()).put("p_device", device)) }.getOrDefault("error")
+        return if (first == "error") rpc("create_account", base) else first
+    }
+
+    // ====================== Messagerie avec @admin ======================
+
+    suspend fun supportList(): List<SupportMsg> {
+        val arr = JSONArray(authed("GET", "/rest/v1/support_messages?select=id,from_admin,body,created_at&order=id.asc&limit=300"))
+        return List(arr.length()) {
+            val o = arr.getJSONObject(it)
+            SupportMsg(o.optLong("id"), o.optBoolean("from_admin", false), o.optString("body", ""), parseTime(o.str("created_at")))
+        }
+    }
+
+    suspend fun supportSend(body: String): String = rpc("support_send", JSONObject().put("p_body", body))
+
+    suspend fun supportMarkRead() { rpc("support_mark_read") }
 
     /**
      * Après une connexion réussie. Renvoie null si le compte est prêt, sinon un message
