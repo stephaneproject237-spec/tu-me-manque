@@ -336,8 +336,50 @@
     const changed = key !== lastSnapshotKey || S.loading || S.error;
     lastSnapshotKey = key;
     Object.assign(S, snap, { loading: false, error: null });
+    if (S.miss && S.miss.at && document.visibilityState === "visible" && lsGet("tmm_fx_at") !== S.miss.at) {
+      lsSet("tmm_fx_at", S.miss.at);
+      flutter();
+    }
     afterSnapshot();
     return changed;
+  }
+
+  // ---------- Effets : vibration, cœurs et papillons ----------
+  function haptic() {
+    try {
+      if (navigator.vibrate && navigator.vibrate([60, 90, 90, 200, 140])) return;
+    } catch (e) { /* ignoré */ }
+    // iPhone : Safari n'a pas de vibration web, mais l'interrupteur natif (iOS 17.4+) donne un petit retour tactile.
+    try {
+      let l = document.getElementById("tmm-haptic");
+      if (!l) {
+        l = document.createElement("label");
+        l.id = "tmm-haptic";
+        l.style.display = "none";
+        l.innerHTML = '<input type="checkbox" switch>';
+        document.body.appendChild(l);
+      }
+      l.click();
+      setTimeout(() => { try { l.click(); } catch (e) { /* ignoré */ } }, 140);
+    } catch (e) { /* ignoré */ }
+  }
+
+  function flutter() {
+    const glyphs = ["💗", "💖", "💕", "🦋", "🦋", "💞", "🦋"];
+    const wrap = document.createElement("div");
+    wrap.className = "fx";
+    for (let i = 0; i < 26; i++) {
+      const s = document.createElement("span");
+      s.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+      s.style.left = (Math.random() * 92 + 2) + "vw";
+      s.style.fontSize = (22 + Math.random() * 24) + "px";
+      s.style.setProperty("--dx", (Math.random() * 90 - 45) + "px");
+      s.style.animationDuration = (3 + Math.random() * 2) + "s";
+      s.style.animationDelay = (Math.random() * 1.2) + "s";
+      wrap.appendChild(s);
+    }
+    document.body.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 6800);
   }
 
   // ---------- Chat ----------
@@ -648,6 +690,7 @@
   root.addEventListener("click", (ev) => {
     const el = ev.target.closest("[data-action]");
     if (!el || el.disabled) return;
+    if (el.dataset.action === "miss" || el.dataset.action === "reply") haptic();
     const fn = actions[el.dataset.action];
     if (fn) fn(el.dataset.id);
   });

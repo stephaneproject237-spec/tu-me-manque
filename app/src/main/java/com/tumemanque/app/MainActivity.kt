@@ -28,6 +28,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -87,9 +90,15 @@ class MainActivity : ComponentActivity() {
                     onPrimary = Color.White,
                     primaryContainer = Color(0xFFFFD9E4),
                     onPrimaryContainer = Color(0xFF3E0021),
-                )
+                ),
+                shapes = Shapes(
+                    extraSmall = RoundedCornerShape(16.dp),
+                    small = RoundedCornerShape(16.dp),
+                    medium = RoundedCornerShape(20.dp),
+                ),
             ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
+                    AppBackground()
                     NotificationPermission()
                     Root(viewModel, authViewModel)
                 }
@@ -150,6 +159,17 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
             else if (!askedContacts) {
                 askedContacts = true
                 contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+            }
+        }
+    }
+    var fxTrigger by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.lastMiss?.at) {
+        val at = state.lastMiss?.at
+        if (!at.isNullOrEmpty()) {
+            val prefs = context.getSharedPreferences("fx", Context.MODE_PRIVATE)
+            if (prefs.getString("last", "") != at) {
+                prefs.edit().putString("last", at).apply()
+                fxTrigger++
             }
         }
     }
@@ -234,6 +254,8 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
             },
         )
     }
+
+    FlutterOverlay(fxTrigger)
 }
 
 private fun filterTarget(input: String): String =
@@ -256,8 +278,8 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 
     state.incoming.forEach { req ->
         Spacer(Modifier.height(16.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
                 Text("@${req.fromName} veut être ton partenaire 💗", fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -295,6 +317,7 @@ private fun PartnerScreen(state: UiState, vm: AppViewModel, onInvite: () -> Unit
 
 @Composable
 private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit) {
+    val context = LocalContext.current
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("moi  💗  ", fontSize = 18.sp, color = Color.Gray)
@@ -311,27 +334,22 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit)
     }
     Text("Touche son pseudo pour retirer ton partenaire", fontSize = 12.sp, color = Color.LightGray)
     Spacer(Modifier.height(32.dp))
-    Button(
-        onClick = { vm.sendMiss(false) },
-        enabled = !state.busy,
-        shape = CircleShape,
-        modifier = Modifier.size(240.dp),
-    ) {
-        Text("Tu me manques 💗", fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+    BigMissButton(enabled = !state.busy) {
+        Haptics.beat(context)
+        vm.sendMiss(false)
     }
-    Spacer(Modifier.height(16.dp))
-    OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth()) {
-        Text(if (state.unread > 0) "💬 Chat  (${state.unread})" else "💬 Chat", fontSize = 16.sp)
-    }
+    Spacer(Modifier.height(20.dp))
+    GlassButton(
+        if (state.unread > 0) "💬 Chat  (${state.unread})" else "💬 Chat",
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenChat,
+    )
     Message(state)
 
     state.lastMiss?.let { miss ->
         Spacer(Modifier.height(32.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("@${miss.from}", color = Color.Gray)
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -341,8 +359,10 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onOpenChat: () -> Unit)
                 )
                 if (!miss.isReply) {
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = { vm.sendMiss(true); onOpenChat() }, enabled = !state.busy) {
-                        Text("Tu me manques aussi")
+                    GlassButton("Tu me manques aussi", enabled = !state.busy) {
+                        Haptics.beat(context)
+                        vm.sendMiss(true)
+                        onOpenChat()
                     }
                 }
             }

@@ -1,8 +1,8 @@
 #chat { position: fixed; left: 0; top: 0; width: 100%; height: 100dvh; z-index: 20; display: flex; flex-direction: column;
-  background: #FCEFF3; text-align: left; overscroll-behavior: contain; }
+  background: linear-gradient(160deg, #FFE3EC, #F3E5FF 55%, #FFEFE0); text-align: left; overscroll-behavior: contain; }
 #chat[hidden] { display: none; }
 body.chat-open { overflow: hidden; }
-.ch-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; background: var(--rose); color: #fff; flex: none; }
+.ch-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; background: linear-gradient(135deg, #FF6A9C, #E91E63); box-shadow: 0 4px 18px rgba(233,30,99,.3); color: #fff; flex: none; }
 .ch-icon { background: none; color: inherit; padding: 6px 10px; font-size: 24px; border-radius: 50%; line-height: 1; }
 .ch-avatar { width: 40px; height: 40px; border-radius: 50%; background: #fff3; display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .ch-title { display: flex; flex-direction: column; line-height: 1.2; } .ch-title small { opacity: .8; font-size: 12px; }
@@ -10,8 +10,8 @@ body.chat-open { overflow: hidden; }
 .ch-empty { margin: auto; text-align: center; color: var(--gris); padding: 20px; }
 .ch-day { align-self: center; margin: 10px 0 6px; } .ch-day span { background: #0000001f; color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 12px; }
 .ch-row { display: flex; } .ch-row.mine { justify-content: flex-end; } .ch-row.pending { opacity: .65; }
-.ch-bubble { max-width: 80%; padding: 6px 9px 4px; border-radius: 16px; background: #fff; box-shadow: 0 1px 1px #0001; position: relative; word-break: break-word; }
-.mine .ch-bubble { background: var(--rose); color: #fff; border-bottom-right-radius: 5px; }
+.ch-bubble { max-width: 80%; padding: 6px 9px 4px; border-radius: 18px; background: rgba(255,255,255,.85); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(233,30,99,.1); position: relative; word-break: break-word; }
+.mine .ch-bubble { background: linear-gradient(135deg, #FF6A9C, #E91E63); color: #fff; border-bottom-right-radius: 5px; }
 .theirs .ch-bubble { border-bottom-left-radius: 5px; }
 .ch-text { white-space: pre-wrap; font-size: 16px; line-height: 1.3; } .ch-text a { color: inherit; text-decoration: underline; }
 .ch-text.cap { padding: 4px 2px 0; }

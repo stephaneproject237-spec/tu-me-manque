@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -193,11 +194,11 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
         if (uri != null) vm.onPhotoPicked(context.applicationContext, uri)
     }
 
-    Box(Modifier.fillMaxSize().background(Fond)) {
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFE3EC), Color(0xFFF3E5FF), Color(0xFFFFEFE0))))) {
         Column(Modifier.fillMaxSize()) {
             // ----- En-tête -----
             Row(
-                Modifier.fillMaxWidth().background(Rose).statusBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFFFF6A9C), Rose))).statusBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
