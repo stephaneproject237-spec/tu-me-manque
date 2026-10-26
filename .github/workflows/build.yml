@@ -37,7 +37,13 @@ jobs:
       - name: Compiler l'APK
         env:
           APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/tu-me-manque.apk
-        run: gradle assembleDebug --no-daemon --stacktrace
+        shell: bash
+        run: |
+          set +e
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          grep -E '^e: ' build.log | head -20 | while read -r l; do echo "::error::$l"; done
+          exit $code
 
       - name: Préparer le fichier
         run: cp app/build/outputs/apk/debug/app-debug.apk tu-me-manque.apk
