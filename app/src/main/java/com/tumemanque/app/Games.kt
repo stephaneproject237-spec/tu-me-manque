@@ -286,9 +286,9 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
         if (!(gameActive && remActive)) {
             val scale by androidx.compose.animation.core.animateFloatAsState(if (open) 1.12f else 1f, spring(0.45f, 500f), label = "bolt")
             // Petite vie : l'éclair s'agite et de mini éclairs le frappent de temps en temps.
-            val cycle by androidx.compose.animation.core.rememberInfiniteTransition(label = "boltIdle").animateFloat(
+            val cycle: Float by androidx.compose.animation.core.rememberInfiniteTransition(label = "boltIdle").animateFloat(
                 0f, 1f,
-                androidx.compose.animation.core.infiniteRepeatable(tween(3600, easing = androidx.compose.animation.core.LinearEasing)),
+                androidx.compose.animation.core.infiniteRepeatable<Float>(tween<Float>(3600, easing = androidx.compose.animation.core.LinearEasing)),
                 label = "cycle",
             )
             val wob: Float = if (open || cycle > 0.28f) 0f else kotlin.math.sin(cycle / 0.28f * 15.707964f) * 11f * (1f - cycle / 0.28f)
