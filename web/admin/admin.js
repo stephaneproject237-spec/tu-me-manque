@@ -2,9 +2,49 @@
   "use strict";
   const CFG = window.TMM_CONFIG;
   const root = document.getElementById("app");
-  const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" },
-  });
+  // Petit client Supabase sans bibliothèque externe (connexion Google avec PKCE).
+  const KEY = "tmm_admin_session", PKCE = "tmm_admin_pkce";
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } },
+    set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* ignoré */ } },
+    clear() { try { localStorage.removeItem(KEY); } catch (e) { /* ignoré */ } },
+  };
+  async function http(method, path, body, token) {
+    const headers = { apikey: CFG.SUPABASE_ANON_KEY, "Content-Type": "application/json", Accept: "application/json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    const res = await fetch(CFG.SUPABASE_URL + path, { method, headers, body: body == null ? undefined : JSON.stringify(body) });
+    return { code: res.status, text: await res.text() };
+  }
+  function saveSession(j) {
+    const now = Math.floor(Date.now() / 1000);
+    store.set({ access: j.access_token, refresh: j.refresh_token, email: (j.user && j.user.email) || "", expires: j.expires_at || now + (j.expires_in || 3600) });
+  }
+  let pending = null;
+  function session(force) {
+    if (pending) return pending;
+    pending = (async () => {
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const s = store.get();
+        if (!force && s && s.access && s.expires > now + 60) return s;
+        if (s && s.refresh) {
+          const r = await http("POST", "/auth/v1/token?grant_type=refresh_token", { refresh_token: s.refresh });
+          if (r.code >= 200 && r.code < 300) { saveSession(JSON.parse(r.text)); return store.get(); }
+          store.clear();
+        }
+        throw new Error("NO_SESSION");
+      } finally { pending = null; }
+    })();
+    return pending;
+  }
+  async function authed(method, path, body) {
+    let s = await session(false);
+    let r = await http(method, path, body, s.access);
+    if (r.code === 401) { s = await session(true); r = await http(method, path, body, s.access); }
+    if (r.code < 200 || r.code >= 300) { let m = r.text; try { m = JSON.parse(r.text).message || m; } catch (e) { /* ignoré */ } throw new Error(m); }
+    return r.text ? JSON.parse(r.text) : null;
+  }
+  const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fdate = (t) => (t ? new Date(t).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : "date inconnue");
@@ -21,39 +61,48 @@
     busy: false,
   };
 
-  async function call(name, args) {
-    const { data, error } = await sb.rpc(name, args || {});
-    if (error) throw error;
-    return data;
-  }
+  const call = (name, args) => authed("POST", "/rest/v1/rpc/" + name, args || {});
 
   // ---------- Connexion ----------
   async function init() {
-    const { data } = await sb.auth.getSession();
-    if (!data.session) { S.stage = "login"; return render(); }
-    await checkAdmin(data.session);
+    const q = new URLSearchParams(location.search);
+    const code = q.get("code"), err = q.get("error_description");
+    if (code || err) {
+      try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignoré */ }
+      if (err) { S.stage = "login"; S.err = "Connexion refusée : " + err; return render(); }
+      const verifier = localStorage.getItem(PKCE);
+      localStorage.removeItem(PKCE);
+      if (verifier) {
+        const r = await http("POST", "/auth/v1/token?grant_type=pkce", { auth_code: code, code_verifier: verifier });
+        if (r.code >= 200 && r.code < 300) saveSession(JSON.parse(r.text));
+        else { S.stage = "login"; S.err = "Connexion impossible. Réessaie."; return render(); }
+      }
+    }
+    const s = store.get();
+    if (!s) { S.stage = "login"; return render(); }
+    await checkAdmin(s);
   }
 
-  async function checkAdmin(session) {
-    S.email = (session.user && session.user.email) || "";
+  async function checkAdmin(s) {
+    S.email = s.email || "";
     try {
       const r = await call("admin_whoami");
-      if (r && r.admin) { S.stage = "app"; render(); await loadAll(); startPolling(); }
+      if (r && r.admin) { S.stage = "app"; S.err = null; render(); await loadAll(); startPolling(); }
       else { S.stage = "denied"; render(); }
     } catch (e) {
-      S.stage = "denied"; S.err = "Le serveur n'est pas à jour (admin.sql).";
+      if (e.message === "NO_SESSION") { S.stage = "login"; S.err = null; return render(); }
+      S.stage = "denied"; S.err = e.message || "Erreur";
       render();
     }
   }
 
-  sb.auth.onAuthStateChange((ev, session) => {
-    if (ev === "SIGNED_IN" && session && S.stage !== "app") checkAdmin(session);
-    if (ev === "SIGNED_OUT") { S.stage = "login"; render(); }
-  });
-
   async function login() {
-    const redirectTo = location.origin + location.pathname.replace(/index\.html$/, "");
-    await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+    const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+    localStorage.setItem(PKCE, verifier);
+    const back = location.origin + location.pathname.replace(/index\.html$/, "");
+    location.href = CFG.SUPABASE_URL + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(back) +
+      "&code_challenge=" + challenge + "&code_challenge_method=s256";
   }
 
   // ---------- Données ----------
@@ -124,6 +173,7 @@
     if (S.stage === "login") {
       root.innerHTML = `<div class="center"><div style="font-size:56px">🛠️💗</div><h1 style="margin:0">Tu me manques – Admin</h1>
         <p class="muted" style="padding:0">Réservé à l'administrateur.</p>
+        ${S.err ? '<p class="err">' + esc(S.err) + "</p>" : ""}
         <button class="p" data-a="login" style="font-size:17px;padding:14px 24px">Continuer avec Google</button></div>`;
       return;
     }
@@ -279,7 +329,7 @@
     S.focusQ = false;
     switch (a) {
       case "login": login(); break;
-      case "logout": await sb.auth.signOut(); S.stage = "login"; S.thread = null; render(); break;
+      case "logout": store.clear(); clearInterval(pollT); S.stage = "login"; S.thread = null; S.loaded = false; render(); break;
       case "refresh": loadAll(); break;
       case "tab": S.tab = t.dataset.t; renderContent(); break;
       case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }
@@ -298,5 +348,7 @@
     }
   });
 
-  init();
+  window.addEventListener("error", (e) => { root.innerHTML = '<div class="center"><div style="font-size:48px">⚠️</div><p class="err">Erreur : ' + esc(e.message) + "</p></div>"; });
+  window.addEventListener("unhandledrejection", (e) => { if (S.stage === "loading") { S.stage = "login"; S.err = "Erreur : " + ((e.reason && e.reason.message) || e.reason); render(); } });
+  init().catch((e) => { S.stage = "login"; S.err = "Erreur : " + (e.message || e); render(); });
 })();
