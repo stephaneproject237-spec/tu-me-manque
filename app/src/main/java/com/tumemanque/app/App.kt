@@ -57,5 +57,28 @@ class App : Application(), ImageLoaderFactory {
         super.onCreate()
         Backend.init(this)
         createNotificationChannel(this)
+        CrashLog.install(this)
+    }
+}
+
+/** Garde la dernière erreur fatale pour l'afficher au prochain lancement (aide à comprendre un plantage). */
+object CrashLog {
+    private const val FILE = "crash"
+    fun install(context: Context) {
+        val app = context.applicationContext
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                app.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+                    .putString("trace", android.util.Log.getStackTraceString(e).take(3500)).commit()
+            } catch (_: Throwable) { }
+            previous?.uncaughtException(t, e)
+        }
+    }
+    fun take(context: Context): String? {
+        val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val t = prefs.getString("trace", null)
+        if (t != null) prefs.edit().remove("trace").apply()
+        return t
     }
 }

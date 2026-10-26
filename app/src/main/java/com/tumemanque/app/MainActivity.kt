@@ -126,6 +126,17 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatVm: ChatViewModel = viewModel()
+    var crash by remember { mutableStateOf(CrashLog.take(context)) }
+    crash?.let { trace ->
+        Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("L'appli s'est fermée. Envoie une capture de cet écran à Claude :", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(trace, fontSize = 10.sp)
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { crash = null }) { Text("Continuer") }
+        }
+        return
+    }
     val authState by authVm.state.collectAsStateWithLifecycle()
     var askedContacts by rememberSaveable { mutableStateOf(false) }
     val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
