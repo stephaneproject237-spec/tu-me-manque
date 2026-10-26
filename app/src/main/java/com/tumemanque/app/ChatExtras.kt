@@ -88,7 +88,7 @@ fun WallpaperLayer(value: String?) {
 
 @Composable
 fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () -> Unit) {
-    val glass = Color(0x99FFFFFF)
+    val glass = Color(0xCCFFFFFF)
     val edge = Color(0xB3FFFFFF)
     Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Box(

@@ -67,6 +67,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -233,39 +234,50 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         if (ok && camPath.isNotEmpty()) vm.sendVideoFile(File(camPath))
     }
 
+    var topPx by remember { mutableIntStateOf(0) }
+    var botPx by remember { mutableIntStateOf(0) }
+    val dens = androidx.compose.ui.platform.LocalDensity.current.density
     Box(Modifier.fillMaxSize()) {
         WallpaperLayer(wall)
-        Column(Modifier.fillMaxSize()) {
+        // La liste occupe tout l'écran : elle passe sous l'en-tête et sous la barre de saisie (verre liquide).
+        MessagesArea(
+            state, partner, vm, Modifier.fillMaxSize(),
+            padTop = (topPx / dens).dp, padBottom = (botPx / dens).dp,
+            onReply = { vm.setReply(it) }, onMenu = { menuMsg = it },
+        ) { viewer = it }
+
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
+        }
 
-            Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
-                MessagesArea(state, partner, vm, Modifier.weight(1f), onReply = { vm.setReply(it) }, onMenu = { menuMsg = it }) { viewer = it }
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
+                .navigationBarsPadding().imePadding(),
+        ) {
+            if (state.typing && !recording) TypingBubble()
+            state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
-                if (state.typing && !recording) TypingBubble()
-                state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
+            InputBar(
+                recording = recording, recSecs = recSecs, panel = panel, text = text,
+                onText = { text = it; vm.onTextChanged(it.isNotBlank()) },
+                onPanel = { panel = it },
+                onCancelRec = { recorder.cancel(); recording = false },
+                onStopRec = {
+                    val r = recorder.stop()
+                    recording = false
+                    if (r == null) vm.showToast("Vocal trop court.") else vm.sendVoice(r.first, r.second)
+                },
+                onMic = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        beginRecording()
+                    } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                onPhoto = { showCam = true },
+                onSend = { vm.sendText(text); text = "" },
+            )
 
-                InputBar(
-                    recording = recording, recSecs = recSecs, panel = panel, text = text,
-                    onText = { text = it; vm.onTextChanged(it.isNotBlank()) },
-                    onPanel = { panel = it },
-                    onCancelRec = { recorder.cancel(); recording = false },
-                    onStopRec = {
-                        val r = recorder.stop()
-                        recording = false
-                        if (r == null) vm.showToast("Vocal trop court.") else vm.sendVoice(r.first, r.second)
-                    },
-                    onMic = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            beginRecording()
-                        } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    },
-                    onPhoto = { showCam = true },
-                    onSend = { vm.sendText(text); text = "" },
-                )
-
-                if (panel != 0 && !recording) {
-                    PanelArea(panel, vm, onPanel = { panel = it }, onEmoji = { text += it })
-                }
+            if (panel != 0 && !recording) {
+                PanelArea(panel, vm, onPanel = { panel = it }, onEmoji = { text += it })
             }
         }
         StickerBurst(burstId, burstN)
@@ -588,7 +600,7 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
 
 
 @Composable
-private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onReply: (ChatMsg) -> Unit, onMenu: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, padTop: androidx.compose.ui.unit.Dp, padBottom: androidx.compose.ui.unit.Dp, onReply: (ChatMsg) -> Unit, onMenu: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
                 Box(modifier.fillMaxWidth()) {
                     val items = remember(state.messages) { state.messages.asReversed() }
                     val listState = rememberLazyListState()
@@ -622,7 +634,7 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                             state = listState,
                             reverseLayout = true,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = padTop + 8.dp, bottom = padBottom + 8.dp),
                             verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             itemsIndexed(items, key = { _, m -> m.key }) { i, m ->
@@ -640,7 +652,7 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                             delay(3500)
                             vm.clearToast()
                         }
-                        Box(Modifier.fillMaxSize().padding(bottom = 12.dp), Alignment.BottomCenter) {
+                        Box(Modifier.fillMaxSize().padding(bottom = padBottom + 12.dp), Alignment.BottomCenter) {
                             Text(
                                 state.toast!!, color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
                                 modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC000000)).padding(horizontal = 14.dp, vertical = 8.dp),
@@ -679,7 +691,7 @@ private fun InputBar(
             verticalAlignment = Alignment.Bottom,
         ) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.62f))
+                Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.8f))
                     .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
                     .clickable {
                         if (panel != 0) onPanel(0)
@@ -690,7 +702,7 @@ private fun InputBar(
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.62f))
+                    .background(Color.White.copy(alpha = 0.8f))
                     .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
                 verticalAlignment = Alignment.Bottom,
             ) {
