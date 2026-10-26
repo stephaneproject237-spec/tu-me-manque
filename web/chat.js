@@ -153,20 +153,24 @@
     built = true;
     host.innerHTML = `
       <div class="ch-head">
-        <button class="ch-icon" data-c="back" aria-label="Retour">‹</button>
-        <div class="ch-avatar">💗</div>
-        <div class="ch-title"><b id="ch-name"></b><small>Ton partenaire</small></div>
-        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Fond d'écran">⋮</button>
+        <button class="ch-icon ch-back" data-c="back" aria-label="Retour">‹</button>
+        <div class="ch-who">
+          <div class="ch-avatar">💗</div>
+          <div class="ch-title"><b id="ch-name"></b><small>Ton partenaire ›</small></div>
+        </div>
+        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Fond d'écran">🎨</button>
       </div>
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
       <div class="ch-toast" id="ch-toast" hidden></div>
       <div class="ch-panel" id="ch-panel" hidden></div>
       <div class="ch-bar" id="ch-bar">
-        <button class="ch-icon" data-c="emoji" id="ch-emojibtn" aria-label="Emojis">😊</button>
-        <textarea id="ch-input" rows="1" placeholder="Message" autocomplete="off" enterkeyhint="send"></textarea>
-        <button class="ch-icon" data-c="attach" aria-label="Photo">📷</button>
-        <button class="ch-send" data-c="send" id="ch-send" aria-label="Envoyer">🎤</button>
+        <button class="ch-plus" data-c="emoji" id="ch-emojibtn" aria-label="Stickers et GIF">+</button>
+        <div class="ch-pill">
+          <textarea id="ch-input" rows="1" placeholder="Message" autocomplete="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send"></textarea>
+          <button class="ch-cam" data-c="attach" aria-label="Photo">📷</button>
+          <button class="ch-send" data-c="send" id="ch-send" aria-label="Envoyer">🎤</button>
+        </div>
       </div>
       <div class="ch-rec" id="ch-rec" hidden>
         <button class="ch-icon" data-c="recCancel" aria-label="Annuler">🗑</button>
@@ -771,12 +775,11 @@
     const p = $("ch-panel");
     p.hidden = false;
     $("ch-input").blur();
-    $("ch-emojibtn").textContent = "⌨️";
+    $("ch-emojibtn").textContent = "⌨";
     p.innerHTML = '<div class="ch-pbody" id="ch-pbody"></div><div class="ch-ptabs">' +
-      [["emoji", "😊 Emojis"], ["sticker", "💗 Stickers"], ["gif", "GIF"]].map(([k, l]) =>
+      [["sticker", "💗 Stickers"], ["gif", "GIF"]].map(([k, l]) =>
         '<button data-c="tab" data-t="' + k + '" class="' + (k === tab ? "on" : "") + '">' + l + "</button>").join("") + "</div>";
-    if (tab === "emoji") fillEmoji();
-    else if (tab === "sticker") fillStickers();
+    if (tab === "sticker") fillStickers();
     else fillGif();
     if (host._fit) host._fit();
     setTimeout(() => { if (nearBottomFlag) scrollBottom(true); }, 50);
@@ -785,7 +788,7 @@
     if (!panelTab && $("ch-panel").hidden) return;
     panelTab = null;
     $("ch-panel").hidden = true;
-    $("ch-emojibtn").textContent = "😊";
+    $("ch-emojibtn").textContent = "+";
   }
 
   function fillEmoji(catIndex) {
@@ -886,7 +889,7 @@
     switch (c) {
       case "back": close(); break;
       case "down": scrollBottom(true); missedCount = 0; $("ch-downn").textContent = ""; break;
-      case "emoji": panelTab ? (closePanel(), $("ch-input").focus()) : openPanel("emoji"); break;
+      case "emoji": panelTab ? (closePanel(), $("ch-input").focus()) : openPanel("sticker"); break;
       case "tab": openPanel(t.dataset.t); break;
       case "cat": fillEmoji(Number(t.dataset.i)); break;
       case "emo": insertEmoji(t.dataset.e); break;

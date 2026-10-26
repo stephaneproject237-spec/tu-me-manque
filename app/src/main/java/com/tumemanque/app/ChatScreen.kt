@@ -603,10 +603,10 @@ private fun InputBar(
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(
-                if (panel != 0) "⌨️" else "😊", fontSize = 26.sp,
+                if (panel != 0) "⌨️" else "💗", fontSize = 26.sp,
                 modifier = Modifier.clickable {
                     if (panel != 0) onPanel(0)
-                    else { keyboard?.hide(); focus.clearFocus(); onPanel(1) }
+                    else { keyboard?.hide(); focus.clearFocus(); onPanel(2) }
                 }.padding(horizontal = 8.dp, vertical = 8.dp),
             )
             TextField(
@@ -633,21 +633,20 @@ private fun PanelArea(panel: Int, vm: ChatViewModel, onPanel: (Int) -> Unit, onE
                     Column(Modifier.fillMaxWidth().height(290.dp).background(Color.White)) {
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when (panel) {
-                                1 -> EmojiPanel { onEmoji(it) }
                                 2 -> StickerPanel { vm.sendSticker(it); onPanel(0) }
                                 else -> GifPanel(vm) { vm.sendGif(it); onPanel(0) }
                             }
                         }
                         Row(Modifier.fillMaxWidth()) {
-                            listOf("😊 Emojis", "💗 Stickers", "GIF").forEachIndexed { i, label ->
+                            listOf("💗 Stickers", "GIF").forEachIndexed { i, label ->
                                 TextButton(
-                                    onClick = { onPanel(i + 1) },
+                                    onClick = { onPanel(i + 2) },
                                     modifier = Modifier.weight(1f),
                                 ) {
                                     Text(
                                         label,
-                                        color = if (panel == i + 1) Rose else Color.Gray,
-                                        fontWeight = if (panel == i + 1) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (panel == i + 2) Rose else Color.Gray,
+                                        fontWeight = if (panel == i + 2) FontWeight.Bold else FontWeight.Normal,
                                     )
                                 }
                             }

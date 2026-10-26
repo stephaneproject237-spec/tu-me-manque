@@ -90,3 +90,39 @@ body.chat-open { overflow: hidden; }
 @keyframes stk-float { 0%, 100% { transform: translateY(-5px) rotate(-3deg); } 50% { transform: translateY(5px) rotate(3deg); } }
 @keyframes stk-sway { 0%, 100% { transform: scale(.96) rotate(-5deg); } 50% { transform: scale(1.06) rotate(5deg); } }
 @media (prefers-reduced-motion: reduce) { .stk0, .stk1, .stk2, .stk3, .stk4 { animation: none; } }
+
+/* ===== Style « iMessage » en rose : en-tête verre flottant, bulles translucides, saisie en pilule ===== */
+.ch-head { position: absolute; top: 0; left: 0; right: 0; z-index: 4; background: none; box-shadow: none; color: #3b1a28;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; padding: calc(8px + env(safe-area-inset-top)) 12px 0; pointer-events: none; }
+.ch-head > * { pointer-events: auto; }
+.ch-head .ch-icon { width: 46px; height: 46px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 30px;
+  background: rgba(255,255,255,.55); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+  border: 1px solid rgba(255,255,255,.7); box-shadow: 0 4px 16px rgba(233,30,99,.18); color: #E91E63; }
+.ch-head .ch-menu { justify-self: end; font-size: 20px; margin-left: 0; } .ch-head .ch-back { justify-self: start; padding-bottom: 4px; }
+.ch-who { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 2px; }
+.ch-avatar { width: 58px; height: 58px; font-size: 30px; background: linear-gradient(135deg, #FFB3CC, #FF6A9C); border: 2px solid rgba(255,255,255,.85); box-shadow: 0 4px 16px rgba(233,30,99,.3); }
+.ch-title { align-items: center; padding: 5px 16px; border-radius: 20px; background: rgba(255,255,255,.55); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+  border: 1px solid rgba(255,255,255,.7); box-shadow: 0 4px 16px rgba(233,30,99,.15); max-width: 62vw; }
+.ch-title b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56vw; } .ch-title small { opacity: .6; font-size: 12px; }
+.ch-list { padding: calc(150px + env(safe-area-inset-top)) 12px 8px; gap: 4px; }
+.ch-day { margin: 14px 0 6px; } .ch-day span { background: none; color: #7a5566; font-size: 12px; font-weight: 600; padding: 0; text-shadow: 0 1px 6px rgba(255,255,255,.8); }
+.ch-bubble { max-width: 78%; padding: 8px 14px 5px; border-radius: 22px; background: rgba(255,255,255,.58); color: #231319; border: 1px solid rgba(255,255,255,.65);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); box-shadow: 0 2px 10px rgba(233,30,99,.08); }
+.ch-text { font-size: 17px; line-height: 1.28; }
+.mine .ch-bubble { background: linear-gradient(135deg, rgba(255,106,156,.86), rgba(233,30,99,.8)); color: #fff; border-color: rgba(255,255,255,.28); border-bottom-right-radius: 6px; box-shadow: 0 3px 12px rgba(233,30,99,.25); }
+.theirs .ch-bubble { border-bottom-left-radius: 6px; }
+.ch-meta { font-size: 10.5px; opacity: .6; }
+.ch-bubble.big, .ch-bubble.sticker { background: none !important; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; padding: 0; }
+.ch-bubble.media { padding: 3px; border-radius: 20px; }
+.ch-bar { align-items: flex-end; gap: 8px; padding: 6px 10px calc(8px + env(safe-area-inset-bottom)); background: none; position: relative; z-index: 3; }
+.ch-plus { width: 44px; height: 44px; padding: 0; flex: none; border-radius: 50%; font-size: 30px; font-weight: 300; line-height: 1; color: #E91E63;
+  background: rgba(255,255,255,.58); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); border: 1px solid rgba(255,255,255,.7); box-shadow: 0 4px 16px rgba(233,30,99,.15); }
+.ch-pill { flex: 1; display: flex; align-items: flex-end; gap: 2px; min-width: 0; padding: 4px 5px 4px 14px; border-radius: 24px; min-height: 44px;
+  background: rgba(255,255,255,.58); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); border: 1px solid rgba(255,255,255,.7); box-shadow: 0 4px 16px rgba(233,30,99,.12); }
+.ch-pill textarea { padding: 7px 2px; min-width: 0; }
+.ch-pill textarea::placeholder { color: #a98896; }
+.ch-cam { background: none; font-size: 21px; padding: 0 6px; height: 34px; flex: none; }
+.ch-pill .ch-send { width: 34px; height: 34px; font-size: 17px; background: none; flex: none; }
+.ch-pill .ch-send.on { background: linear-gradient(135deg, #FF6A9C, #E91E63); color: #fff; }
+.ch-panel { background: rgba(255,255,255,.78); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); border-top: 1px solid rgba(255,255,255,.7); position: relative; z-index: 3; }
+.ch-down { bottom: 84px; background: rgba(255,255,255,.75); }
