@@ -105,7 +105,7 @@ fun QuoteChip(r: Reply, partner: String) {
         Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33FFFFFF))
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
-        Text(title ?: if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Text(r.text, color = Color(0xFFE3D6DD), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
