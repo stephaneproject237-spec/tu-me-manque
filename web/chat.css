@@ -455,3 +455,10 @@ body.chat-open { overflow: hidden; }
 .chatentry .ce-txt small.new { color: #FF7FA8; font-weight: 600; }
 .chatentry .ce-badge { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: #E91E63; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .chatentry .ce-go { color: #FF7FA8; font-size: 30px; font-weight: 300; line-height: 1; margin-top: -3px; }
+
+/* Écran de verrouillage */
+html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
+#tmm-lock { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: #160A12; color: #F5EEF2; padding: 32px; text-align: center; }
+#tmm-lock .lk-box { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 340px; }
+#tmm-lock .lk-heart { font-size: 64px; } #tmm-lock h2 { margin: 0; font-size: 22px; } #tmm-lock p { margin: 0 0 12px; color: #B7A3AE; font-size: 14px; }
+#tmm-lock .principal { align-self: stretch; }

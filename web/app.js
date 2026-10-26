@@ -520,6 +520,18 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     openSettings: () => { S.settings = true; S.webCheck = { st: "idle" }; render(); checkWeb(); },
     closeSettings: () => { S.settings = false; render(); },
     checkWeb: () => checkWeb(),
+    toggleLock: async () => {
+      const L = window.TMM_LOCK;
+      S.lockMsg = "";
+      if (!L) return;
+      if (L.enabled()) { if (!(await L.disable())) S.lockMsg = "Vérification annulée : le verrouillage reste actif."; }
+      else {
+        const r = await L.enable();
+        if (r === "unsupported") S.lockMsg = "Ce navigateur ne permet pas la biométrie. Sur iPhone, ouvre l'appli depuis l'écran d'accueil et vérifie que Face ID / Touch ID est configuré.";
+        else if (r !== "ok") S.lockMsg = "Activation annulée.";
+      }
+      render();
+    },
     reloadApp: () => { location.href = location.pathname + "?v=" + Date.now(); },
     goCreate: () => { S.auth = Object.assign(A0(), { screen: "create", mode: "create" }); render(); },
     goLogin: () => { S.auth = Object.assign(A0(), { screen: "login", mode: "login" }); render(); },
@@ -821,6 +833,12 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
         <b>Version de l'application</b><span class="gris">Version ${esc(CFG.VERSION)}</span>${state}
         <button class="lien" data-action="checkWeb">Vérifier les mises à jour</button>
+      </div>
+      <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
+        <b>🔒 Verrouillage biométrique</b>
+        <span class="gris">Protège l'appli avec Face ID, Touch ID ou l'empreinte de ton téléphone. Elle se verrouille quand tu la quittes plus de 30 secondes.</span>
+        ${S.lockMsg ? `<span style="color:#C62828">${esc(S.lockMsg)}</span>` : ""}
+        <button class="${window.TMM_LOCK && window.TMM_LOCK.enabled() ? "secondaire" : "principal"}" data-action="toggleLock">${window.TMM_LOCK && window.TMM_LOCK.enabled() ? "Désactiver le verrouillage" : "Activer le verrouillage"}</button>
       </div>
       <div class="carte" style="align-items:stretch;text-align:left;margin-top:12px">
         <b>SAV</b><span class="gris">Un problème ? Une idée ? Écris-nous, nous te répondons ici.</span>
