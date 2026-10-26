@@ -472,6 +472,7 @@
     el.dataset.day = env.dayKey(m.created_at);
     el.dataset.id = m.id;
     if (m.meta && m.meta.t === "card") el.dataset.gk = gkey(m.meta);
+    if (m.meta && m.meta.t === "card") el.classList.add(m.meta.who === env.me ? "gm-r" : "gm-l");
     el.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + b.html + "</div>";
     el.addEventListener("click", onClick);
     return el;

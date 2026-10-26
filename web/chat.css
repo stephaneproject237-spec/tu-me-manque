@@ -474,3 +474,9 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .gm-chev { color: #B7A3AE; font-weight: 400; margin-left: 6px; }
 
 .ch-edited { font-style: italic; opacity: .9; }
+
+/* « Me connais-tu ? » : la question que JE dois deviner est à droite, celle de l'autre à gauche. */
+.ch-row.bot.gm-r { justify-content: flex-end; } .ch-row.bot.gm-l { justify-content: flex-start; }
+.ch-row.bot.gm-r .ch-bubble.gm-card, .ch-row.bot.gm-l .ch-bubble.gm-card { max-width: 84%; width: 84%; }
+.ch-row.bot.gm-r .ch-bubble.gm-card { border-bottom-right-radius: 6px; }
+.ch-row.bot.gm-l .ch-bubble.gm-card { border-bottom-left-radius: 6px; }

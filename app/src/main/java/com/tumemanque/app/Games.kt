@@ -689,9 +689,11 @@ fun GameBotRow(m: ChatMsg, partner: String) {
     if (t == "result") bg = if (mt.optBoolean("ok")) Brush.linearGradient(listOf(Color(0xCC1F5A3A), Color(0xCC1A3A2A))) else Brush.linearGradient(listOf(Color(0xCC5A1F2A), Color(0xCC3A1A20)))
     val sc = remember(m.id, res?.ok) { Animatable(if (t == "result" || res != null) 0.85f else 1f) }
     LaunchedEffect(m.id, res?.ok) { if (sc.value < 1f) sc.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium)) }
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center) {
+    val isCard = t == "card"
+    val cardMine = isCard && mt.optString("who") == me
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = if (!isCard) Arrangement.Center else if (cardMine) Arrangement.End else Arrangement.Start) {
         Column(
-            Modifier.fillMaxWidth(0.94f).graphicsLayer { scaleX = sc.value; scaleY = sc.value }
+            Modifier.fillMaxWidth(if (isCard) 0.84f else 0.94f).graphicsLayer { scaleX = sc.value; scaleY = sc.value }
                 .clip(RoundedCornerShape(22.dp)).background(bg).padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
         ) {
             val title = when (t) {
