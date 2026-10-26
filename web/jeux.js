@@ -35,7 +35,7 @@
     if (R && R.state === "invite" && !R.by_me) {
       h += `<div class="gm-invite"><span>🎮 <b>@${esc(partner)}</b> te propose « Me connais-tu ? »</span>
         <button class="gm-yes" data-g="yes">Oui</button><button class="gm-no" data-g="no">Non</button></div>`;
-    } else if (R && R.state === "invite") h += '<button class="gm-chip" data-g="open">⏳ Invitation envoyée…</button>';
+    } else if (R && R.state === "invite") h += '<button class="gm-chip" data-g="open"><span class="hg">⏳</span> Invitation envoyée…</button>';
     else if (R && R.state === "playing") h += '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>';
     if (remActive) h += window.TMM_RAPPELS.chipHtml();
     if (boltOpen) {
@@ -275,7 +275,7 @@
       return h + '<button class="gm-btn wide" data-g="saveAns">Valider mes réponses</button>';
     }
     if (theirs < 10) {
-      return `<div class="gm-center"><div class="gm-big pulse">⏳</div><h3>Tes réponses sont prêtes</h3><p>On attend que @${esc(partner)} réponde à ses 10 questions (${theirs}/10).</p>
+      return `<div class="gm-center"><div class="gm-big"><span class="hg">⏳</span></div><h3>Tes réponses sont prêtes</h3><p>On attend que @${esc(partner)} réponde à ses 10 questions (${theirs}/10).</p>
         <button class="gm-btn ghost" data-g="editAns">Modifier mes réponses</button></div>`;
     }
     return `<div class="gm-center"><div class="gm-big pulse">💬</div><h3>La partie continue dans le chat !</h3>
@@ -421,7 +421,7 @@
         });
         h += "</div>";
         if (res) h += `<div class="gm-bres ${res.ok ? "ok" : "ko"}">${res.ok ? "✅ Bonne réponse !" : "❌ Raté…"}</div>`;
-        else if (!mineTurn) h += `<div class="gm-bwait">⏳ ${pn} réfléchit…</div>`;
+        else if (!mineTurn) h += `<div class="gm-bwait"><span class="hg">⏳</span> ${pn} réfléchit…</div>`;
         return { cls: "gm-b gm-card" + (res ? (res.ok ? " done ok" : " done ko") : ""), html: h + time };
       }
       case "result": {

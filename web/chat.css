@@ -422,3 +422,7 @@ body.chat-open { overflow: hidden; }
 .ch-bubble.big, .ch-bubble.sticker { box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .ch-bubble.deleted { box-shadow: none; }
 .ch-pill, .ch-plus { box-shadow: 0 0 16px 1px rgba(255,179,204,.16), 0 2px 8px rgba(0,0,0,.2); }
+
+/* Sablier qui se retourne */
+.hg { display: inline-block; animation: hgflip 2.8s infinite; }
+@keyframes hgflip { 0%, 25% { transform: rotate(0); } 43%, 75% { transform: rotate(180deg); } 93%, 100% { transform: rotate(360deg); } }

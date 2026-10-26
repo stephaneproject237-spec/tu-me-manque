@@ -272,7 +272,35 @@ private fun GPill(text: String, on: Boolean, onClick: () -> Unit) {
             .background(if (on) Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))) else Brush.linearGradient(listOf(Color(0xB3281C24), Color(0xB3281C24))))
             .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(50))
             .clickable { onClick() }.padding(horizontal = 14.dp, vertical = 8.dp),
-    ) { Text(text, color = if (on) Color.White else GSoft, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+    ) {
+        val col = if (on) Color.White else GSoft
+        if (text.startsWith("⏳")) Row(verticalAlignment = Alignment.CenterVertically) {
+            Hourglass(14.sp)
+            Text(text.removePrefix("⏳"), color = col, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        } else Text(text, color = col, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Sablier qui se retourne régulièrement (le temps passe). */
+@Composable
+private fun Hourglass(size: androidx.compose.ui.unit.TextUnit) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "hg")
+    val rot by t.animateFloat(
+        0f, 360f,
+        androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.keyframes {
+                durationMillis = 2800
+                0f at 0
+                0f at 700
+                180f at 1200 using androidx.compose.animation.core.FastOutSlowInEasing
+                180f at 2100
+                360f at 2600 using androidx.compose.animation.core.FastOutSlowInEasing
+                360f at 2800
+            },
+        ),
+        label = "hgr",
+    )
+    Text("⏳", fontSize = size, modifier = Modifier.graphicsLayer { rotationZ = rot })
 }
 
 @Composable
@@ -438,7 +466,7 @@ private fun GameBody(ctl: GameCtl, partner: String) {
 @Composable
 private fun GCenter(emoji: String, title: String, text: String, content: @Composable () -> Unit = {}) {
     Column(Modifier.fillMaxWidth().padding(top = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(emoji, fontSize = 64.sp)
+        if (emoji == "⏳") Hourglass(64.sp) else Text(emoji, fontSize = 64.sp)
         Spacer(Modifier.height(8.dp))
         Text(title, color = GTxt, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
@@ -706,7 +734,7 @@ fun GameBotRow(m: ChatMsg, partner: String) {
                         }
                         Spacer(Modifier.height(8.dp))
                         if (res != null) Text(if (res.ok) "✅ Bonne réponse !" else "❌ Raté…", color = if (res.ok) Color(0xFF7BE0A3) else Color(0xFFFF8A9A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        else if (!mineTurn) Text("⏳ $pn réfléchit…", color = GSub, fontSize = 13.sp)
+                        else if (!mineTurn) Row(verticalAlignment = Alignment.CenterVertically) { Hourglass(13.sp); Text(" $pn réfléchit…", color = GSub, fontSize = 13.sp) }
                     }
                 }
                 "result" -> {
