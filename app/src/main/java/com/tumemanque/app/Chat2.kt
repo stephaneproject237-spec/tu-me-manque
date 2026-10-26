@@ -102,12 +102,11 @@ fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, onLongPress: () -> Unit,
 @Composable
 fun QuoteChip(r: Reply, partner: String) {
     Column(
-        Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.5f))
-            .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+        Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33FFFFFF))
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         Text(if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        Text(r.text, color = Color(0xFF5D4350), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(r.text, color = Color(0xFFE3D6DD), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -116,15 +115,15 @@ fun QuoteChip(r: Reply, partner: String) {
 fun ReplyBar(r: Reply, partner: String, onCancel: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp).clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.7f)).padding(start = 0.dp, end = 4.dp),
+            .background(Color(0xCC2A1B24)).padding(start = 0.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(4.dp).height(40.dp).background(Pink))
         Column(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text(if (r.fromMe) "Toi" else partner, color = Pink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(r.text, color = Color(0xFF5D4350), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(r.text, color = Color(0xFFE3D6DD), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.clickable { onCancel() }.padding(10.dp)) { Ico(R.drawable.ic_close, Color(0xFFA98896), 20.dp) }
+        Box(Modifier.clickable { onCancel() }.padding(10.dp)) { Ico(R.drawable.ic_close, Color(0xFFA58F9B), 20.dp) }
     }
 }
 
@@ -135,7 +134,7 @@ fun TypingBubble() {
     val p = t.animateFloat(0f, 1f, infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "tp")
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp)) {
         Row(
-            Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)).background(Color.White.copy(alpha = 0.62f))
+            Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)).background(Color(0xBC42383F))
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             for (i in 0..2) {
@@ -269,10 +268,10 @@ fun VideoViewer(m: ChatMsg, onClose: () -> Unit) {
 @Composable
 fun DeletedBubble(mine: Boolean) {
     Text(
-        "🚫 Message supprimé", color = Color(0xFF8A6D7A), fontSize = 15.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+        "🚫 Message supprimé", color = Color(0xFF9B8793), fontSize = 15.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
         modifier = Modifier.clip(RoundedCornerShape(20.dp))
-            .background(if (mine) Color(0x1FE91E63) else Color(0x59FFFFFF))
-            .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+            .background(if (mine) Color(0x1AE91E63) else Color(0x0DFFFFFF))
+            .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(20.dp))
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
 }

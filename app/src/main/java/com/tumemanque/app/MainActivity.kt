@@ -39,7 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,11 +86,18 @@ class MainActivity : ComponentActivity() {
         handleLink(intent)
         setContent {
             MaterialTheme(
-                colorScheme = lightColorScheme(
+                colorScheme = darkColorScheme(
                     primary = Color(0xFFE91E63),
                     onPrimary = Color.White,
-                    primaryContainer = Color(0xFFFFD9E4),
-                    onPrimaryContainer = Color(0xFF3E0021),
+                    primaryContainer = Color(0xFF4A1230),
+                    onPrimaryContainer = Color(0xFFFFD9E4),
+                    background = Color(0xFF160A12),
+                    onBackground = Color(0xFFF5EEF2),
+                    surface = Color(0xFF261820),
+                    onSurface = Color(0xFFF5EEF2),
+                    onSurfaceVariant = Color(0xFFB7A3AE),
+                    surfaceVariant = Color(0xFF3A2A33),
+                    outline = Color(0xFF6B5A64),
                 ),
                 shapes = Shapes(
                     extraSmall = RoundedCornerShape(16.dp),
@@ -98,7 +105,7 @@ class MainActivity : ComponentActivity() {
                     medium = RoundedCornerShape(20.dp),
                 ),
             ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent, contentColor = Color(0xFFF5EEF2)) {
                     AppBackground()
                     NotificationPermission()
                     Root(viewModel, authViewModel)

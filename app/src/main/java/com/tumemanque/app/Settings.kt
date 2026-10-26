@@ -41,8 +41,8 @@ private val SetPink = Color(0xFFE91E63)
 fun SettingsGear(hasUpdate: Boolean, onClick: () -> Unit) {
     Box(contentAlignment = Alignment.TopEnd) {
         Box(
-            Modifier.size(46.dp).clip(CircleShape).background(Color(0x99FFFFFF))
-                .border(1.dp, Color(0xB3FFFFFF), CircleShape).clickable { onClick() },
+            Modifier.size(46.dp).clip(CircleShape).background(Color(0xB3281C24))
+                .border(1.dp, Color(0x1AFFFFFF), CircleShape).clickable { onClick() },
             contentAlignment = Alignment.Center,
         ) { Ico(R.drawable.ic_settings, SetPink, 24.dp) }
         if (hasUpdate) {
@@ -63,11 +63,11 @@ fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Color(0x99FFFFFF)).border(1.dp, Color(0xB3FFFFFF), CircleShape).clickable { onBack() },
+                Modifier.size(44.dp).clip(CircleShape).background(Color(0xB3281C24)).border(1.dp, Color(0x1AFFFFFF), CircleShape).clickable { onBack() },
                 contentAlignment = Alignment.Center,
             ) { Ico(R.drawable.ic_chevron, SetPink, 30.dp) }
             Spacer(Modifier.width(14.dp))
-            Text("Réglages", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3B1A28))
+            Text("Réglages", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF5EEF2))
         }
         Spacer(Modifier.height(20.dp))
 
@@ -104,7 +104,7 @@ fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
                     Text("🎉 La version ${info.name} est disponible !", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = SetPink)
                     if (info.notes.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(info.notes, fontSize = 14.sp, color = Color(0xFF5D4350))
+                        Text(info.notes, fontSize = 14.sp, color = Color(0xFFE3D6DD))
                     }
                     Spacer(Modifier.height(12.dp))
                     GlassButton("Mettre à jour maintenant", Modifier.fillMaxWidth()) { upd.update(context) }
@@ -114,7 +114,7 @@ fun SettingsScreen(upd: UpdateViewModel, onBack: () -> Unit) {
                     if (s.errorDetail.isNotBlank()) Text(s.errorDetail, fontSize = 11.sp, color = Color.Gray)
                 }
                 s.checking -> Text("Vérification en cours…", fontSize = 14.sp, color = Color.Gray)
-                s.checked -> Text("✓ Tu as la dernière version.", fontSize = 14.sp, color = Color(0xFF2E7D32))
+                s.checked -> Text("✓ Tu as la dernière version.", fontSize = 14.sp, color = Color(0xFF66BB6A))
                 else -> Text("Touche « Vérifier » pour chercher une mise à jour.", fontSize = 14.sp, color = Color.Gray)
             }
         }

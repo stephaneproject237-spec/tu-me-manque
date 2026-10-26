@@ -56,14 +56,14 @@ private val RoseChat = Color(0xFFE91E63)
 /** Fond d'écran de la conversation : commun aux deux partenaires, enregistré sur le serveur. */
 object Wallpaper {
     val presets: List<List<Color>> = listOf(
-        listOf(Color(0xFFFFD6E0), Color(0xFFFFB3C7)),
-        listOf(Color(0xFFE0D4FF), Color(0xFFB9A6FF)),
-        listOf(Color(0xFFD4F1FF), Color(0xFFA6DCFF)),
-        listOf(Color(0xFFD8F5E4), Color(0xFFA9E5C4)),
-        listOf(Color(0xFFFFE9C7), Color(0xFFFFC98A)),
-        listOf(Color(0xFF2B2140), Color(0xFF4B2A5E)),
+        listOf(Color(0xFF3A1424), Color(0xFF6B1E3F)),
+        listOf(Color(0xFF241B45), Color(0xFF3F2A7A)),
+        listOf(Color(0xFF10263A), Color(0xFF1D4A6B)),
+        listOf(Color(0xFF10301F), Color(0xFF1F5A3A)),
+        listOf(Color(0xFF3A2410), Color(0xFF6B4218)),
+        listOf(Color(0xFF0E0E12), Color(0xFF25252E)),
     )
-    val defaultColors = listOf(Color(0xFFFFE3EC), Color(0xFFF3E5FF), Color(0xFFFFEFE0))
+    val defaultColors = listOf(Color(0xFF1A0D16), Color(0xFF26122A), Color(0xFF120F1C))
 }
 
 @Composable
@@ -75,7 +75,7 @@ fun WallpaperLayer(value: String?) {
                 model = Backend.mediaUrl(v.removePrefix("photo:")), contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
             )
-            Box(Modifier.fillMaxSize().background(Color(0x22FFFFFF)))
+            Box(Modifier.fillMaxSize().background(Color(0x55000000)))
         }
         v.startsWith("preset:") -> {
             val i = v.removePrefix("preset:").toIntOrNull() ?: 0
@@ -88,8 +88,8 @@ fun WallpaperLayer(value: String?) {
 
 @Composable
 fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () -> Unit) {
-    val glass = Color(0xCCFFFFFF)
-    val edge = Color(0xB3FFFFFF)
+    val glass = Color(0xA3281C24)
+    val edge = Color(0x1AFFFFFF)
     Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Box(
             Modifier.align(Alignment.TopStart).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onBack() },
@@ -99,7 +99,7 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
             Box(
                 Modifier.size(56.dp).clip(CircleShape)
                     .background(Brush.linearGradient(listOf(Color(0xFFFFB3CC), Color(0xFFFF6A9C))))
-                    .border(2.dp, Color(0xDDFFFFFF), CircleShape),
+                    .border(2.dp, Color(0x2EFFFFFF), CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Text("💗", fontSize = 28.sp) }
             Spacer(Modifier.height(4.dp))
@@ -108,8 +108,8 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(partner, color = Color(0xFF3B1A28), fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
-                Text(if (typing) "est en train d'écrire…" else "Ton partenaire ›", color = if (typing) RoseChat else Color(0x993B1A28), fontSize = 12.sp)
+                Text(partner, color = Color(0xFFF5EEF2), fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
+                Text(if (typing) "est en train d'écrire…" else "Ton partenaire ›", color = if (typing) RoseChat else Color(0xFFB7A3AE), fontSize = 12.sp)
             }
         }
         Box(
@@ -160,7 +160,7 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String?) -> 
                         Box(
                             Modifier.size(38.dp).clip(CircleShape)
                                 .background(Brush.linearGradient(cols))
-                                .border(2.dp, Color.White, CircleShape)
+                                .border(2.dp, Color(0x66FFFFFF), CircleShape)
                                 .clickable { choose("preset:$i") },
                         )
                     }

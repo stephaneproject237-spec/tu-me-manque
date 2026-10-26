@@ -111,9 +111,9 @@
 
   // ---------- Fond d'écran de la conversation (local à cet appareil) ----------
   const WALL_PRESETS = [
-    "linear-gradient(160deg,#FFD6E0,#FFB3C7)", "linear-gradient(160deg,#E0D4FF,#B9A6FF)",
-    "linear-gradient(160deg,#D4F1FF,#A6DCFF)", "linear-gradient(160deg,#D8F5E4,#A9E5C4)",
-    "linear-gradient(160deg,#FFE9C7,#FFC98A)", "linear-gradient(160deg,#2B2140,#4B2A5E)",
+    "linear-gradient(160deg,#3A1424,#6B1E3F)", "linear-gradient(160deg,#241B45,#3F2A7A)",
+    "linear-gradient(160deg,#10263A,#1D4A6B)", "linear-gradient(160deg,#10301F,#1F5A3A)",
+    "linear-gradient(160deg,#3A2410,#6B4218)", "linear-gradient(160deg,#0E0E12,#25252E)",
   ];
   let curWall = null, wallLock = 0;
   function applyWall() {

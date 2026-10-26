@@ -184,7 +184,7 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                     }
                 }
                 Row(
-                    Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 4.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().background(Color(0xFF1E131A)).padding(horizontal = 4.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     TextField(
@@ -197,7 +197,7 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                         ),
                     )
                     Box(
-                        Modifier.size(44.dp).clip(CircleShape).background(if (text.isBlank()) Color(0xFFF3F3F3) else RoseS)
+                        Modifier.size(44.dp).clip(CircleShape).background(if (text.isBlank()) Color(0xFF2A1B24) else RoseS)
                             .clickable(enabled = text.isNotBlank()) { vm.send(text) { text = "" } },
                         contentAlignment = Alignment.Center,
                     ) { Ico(R.drawable.ic_send, if (text.isBlank()) Color.Gray else Color.White, 20.dp) }
@@ -212,12 +212,12 @@ private fun SupportBubble(m: SupportMsg) {
     val mine = !m.fromAdmin
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Surface(
-            color = if (mine) RoseS else Color.White,
+            color = if (mine) RoseS else Color(0xFF42383F),
             shape = RoundedCornerShape(16.dp, 16.dp, if (mine) 5.dp else 16.dp, if (mine) 16.dp else 5.dp),
             shadowElevation = 1.dp, modifier = Modifier.widthIn(max = 290.dp),
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                Text(m.body, color = if (mine) Color.White else Color(0xFF212121), fontSize = 16.sp)
+                Text(m.body, color = Color.White, fontSize = 16.sp)
                 Text(
                     SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(m.createdAt)),
                     fontSize = 11.sp, color = if (mine) Color(0xCCFFFFFF) else Color.Gray,

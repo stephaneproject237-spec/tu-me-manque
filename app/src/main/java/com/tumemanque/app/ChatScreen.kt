@@ -309,16 +309,16 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
 @Composable
 private fun RoundButton(icon: Int, active: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(if (active) Rose else Color(0xFFF3F3F3)).clickable { onClick() },
+        Modifier.size(44.dp).clip(CircleShape).background(if (active) Rose else Color(0xFF2A1B24)).clickable { onClick() },
         contentAlignment = Alignment.Center,
-    ) { Ico(icon, if (active) Color.White else Color.Black, 22.dp) }
+    ) { Ico(icon, Color.White, 22.dp) }
 }
 
 @Composable
 private fun DayChip(t: Long) {
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), Alignment.Center) {
         Text(
-            dayLabel(t), color = Color(0xFF7A5566), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            dayLabel(t), color = Color(0xFFA58F9B), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -361,9 +361,9 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
     val mine = m.mine
-    val bg = if (mine) Rose.copy(alpha = 0.86f) else Color.White.copy(alpha = 0.6f)
-    val fg = if (mine) Color.White else Color(0xFF231319)
-    val sub = if (mine) Color(0xB3FFFFFF) else Color(0x99231319)
+    val bg = if (mine) Rose.copy(alpha = 0.88f) else Color(0xBC42383F)
+    val fg = if (mine) Color.White else Color(0xFFF5EEF2)
+    val sub = if (mine) Color(0xB3FFFFFF) else Color(0x99F5EEF2)
     val shape = RoundedCornerShape(21.dp, 21.dp, if (mine) 6.dp else 21.dp, if (mine) 21.dp else 6.dp)
 
     when (m.kind) {
@@ -377,14 +377,14 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, Color.Gray)
             }
         } else {
-            Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)), modifier = Modifier.widthIn(max = 290.dp)) {
+            Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.widthIn(max = 290.dp)) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) {
                     Text(m.body ?: "", color = fg, fontSize = 17.sp)
                     Meta(m, sub, Modifier.align(Alignment.End))
                 }
             }
         }
-        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
+        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.media,
@@ -398,7 +398,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "image" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
+        "image" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.localBytes ?: Backend.mediaUrl(m.media ?: ""),
@@ -416,7 +416,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
+        "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
             Column(Modifier.padding(3.dp)) {
                 VideoTile(m, onOpenPhoto)
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
@@ -435,8 +435,8 @@ private fun VoiceBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: Rou
     val playing = active && play.playing
     val fraction = if (active && play.dur > 0) play.pos.toFloat() / play.dur else 0f
     val shownSeconds = if (active && play.dur > 0 && play.pos > 0) play.pos / 1000 else m.dur
-    val barColor = if (m.mine) Color(0x66FFFFFF) else Color(0x33000000)
-    val doneColor = if (m.mine) Color.White else Rose
+    val barColor = if (m.mine) Color(0x66FFFFFF) else Color(0x44FFFFFF)
+    val doneColor = if (m.mine) Color.White else Color(0xFFFF6A9C)
     val seed = (m.media ?: m.key).hashCode()
     val heights = remember(seed) {
         var h = seed.toLong() and 0xFFFFFFFFL
@@ -446,7 +446,7 @@ private fun VoiceBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: Rou
         }
     }
 
-    Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
+    Surface(color = bg, shape = shape, shadowElevation = 0.dp) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Row(Modifier.width(230.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -498,7 +498,7 @@ private fun EmojiPanel(onPick: (String) -> Unit) {
                 Text(
                     c.icon, fontSize = 22.sp,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp))
-                        .background(if (i == cat) RoseClair else Color.Transparent)
+                        .background(if (i == cat) Color(0x44E91E63) else Color.Transparent)
                         .clickable { cat = i }.padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
@@ -588,7 +588,7 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
                                 .fillMaxWidth()
                                 .aspectRatio(if (g.w > 0 && g.h > 0) g.w.toFloat() / g.h else 1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFEEEEEE))
+                                .background(Color(0xFF2A1B24))
                                 .clickable { onPick(g) },
                         )
                     }
@@ -674,7 +674,7 @@ private fun InputBar(
     val keyboard = LocalSoftwareKeyboardController.current
     if (recording) {
         Row(
-            Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.7f)).padding(6.dp),
+            Modifier.fillMaxWidth().background(Color(0xCC26171F)).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.clickable { onCancelRec() }.padding(10.dp)) { Ico(R.drawable.ic_trash, Color(0xFFE53935), 26.dp) }
@@ -691,8 +691,8 @@ private fun InputBar(
             verticalAlignment = Alignment.Bottom,
         ) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.8f))
-                    .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                Modifier.size(44.dp).clip(CircleShape).background(Color(0xCC2A1B24))
+                    .border(1.dp, Color(0x1AFFFFFF), CircleShape)
                     .clickable {
                         if (panel != 0) onPanel(0)
                         else { keyboard?.hide(); focus.clearFocus(); onPanel(2) }
@@ -702,8 +702,8 @@ private fun InputBar(
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.8f))
-                    .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
+                    .background(Color(0xCC2A1B24))
+                    .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(24.dp)),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 TextField(
@@ -735,7 +735,7 @@ private fun InputBar(
 
 @Composable
 private fun PanelArea(panel: Int, vm: ChatViewModel, onPanel: (Int) -> Unit, onEmoji: (String) -> Unit) {
-                    Column(Modifier.fillMaxWidth().height(290.dp).background(Color.White)) {
+                    Column(Modifier.fillMaxWidth().height(290.dp).background(Color(0xFF1E131A))) {
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when (panel) {
                                 2 -> StickerPanel { vm.sendSticker(it); onPanel(0) }
@@ -810,7 +810,7 @@ private fun PhotoViewer(m: ChatMsg, onClose: () -> Unit) {
 private fun CameraChoice(onDismiss: () -> Unit, onPhoto: () -> Unit, onVideo: () -> Unit, onGallery: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White.copy(alpha = 0.95f),
+        containerColor = Color(0xF2261820),
         shape = RoundedCornerShape(24.dp),
         title = { Text("Appareil photo", fontWeight = FontWeight.Bold) },
         text = {
@@ -827,7 +827,7 @@ private fun CameraChoice(onDismiss: () -> Unit, onPhoto: () -> Unit, onVideo: ()
 @Composable
 private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x14E91E63)).clickable { onClick() }.padding(14.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x26E91E63)).clickable { onClick() }.padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Ico(icon, Rose, 24.dp)
@@ -840,7 +840,7 @@ private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
 private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White.copy(alpha = 0.95f),
+        containerColor = Color(0xF2261820),
         shape = RoundedCornerShape(24.dp),
         title = null,
         text = {

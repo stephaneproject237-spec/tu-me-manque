@@ -83,17 +83,17 @@ fun AppBackground() {
     Canvas(Modifier.fillMaxSize()) {
         drawRect(
             Brush.linearGradient(
-                listOf(Color(0xFFFFE3EC), Color(0xFFF3E5FF), Color(0xFFFFEFE0)),
+                listOf(Color(0xFF160A12), Color(0xFF231224), Color(0xFF100E1A)),
                 start = Offset.Zero, end = Offset(size.width, size.height),
             )
         )
         val r = size.width * 0.8f
         val c1 = Offset(size.width * (0.1f + 0.2f * drift), size.height * (0.1f + 0.08f * drift))
-        drawCircle(Brush.radialGradient(listOf(Color(0x99FF78AA), Color.Transparent), center = c1, radius = r), r, c1)
+        drawCircle(Brush.radialGradient(listOf(Color(0x55E91E63), Color.Transparent), center = c1, radius = r), r, c1)
         val c2 = Offset(size.width * (0.95f - 0.25f * drift), size.height * (0.9f - 0.1f * drift))
-        drawCircle(Brush.radialGradient(listOf(Color(0x88AA8CFF), Color.Transparent), center = c2, radius = r), r, c2)
+        drawCircle(Brush.radialGradient(listOf(Color(0x446E50DC), Color.Transparent), center = c2, radius = r), r, c2)
         val c3 = Offset(size.width * (0.9f - 0.2f * drift), size.height * (0.35f + 0.1f * drift))
-        drawCircle(Brush.radialGradient(listOf(Color(0x66FFB48A), Color.Transparent), center = c3, radius = r * 0.7f), r * 0.7f, c3)
+        drawCircle(Brush.radialGradient(listOf(Color(0x33FF7A5A), Color.Transparent), center = c3, radius = r * 0.7f), r * 0.7f, c3)
     }
 }
 
@@ -105,8 +105,8 @@ fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
         modifier
             .shadow(14.dp, shape, ambientColor = Color(0x44E91E63), spotColor = Color(0x44E91E63))
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xB8FFFFFF), Color(0x66FFFFFF))))
-            .border(1.dp, Brush.linearGradient(listOf(Color.White, Color(0x55FFFFFF))), shape)
+            .background(Brush.linearGradient(listOf(Color(0xC0302028), Color(0x9920141C))))
+            .border(1.dp, Brush.linearGradient(listOf(Color(0x24FFFFFF), Color(0x0DFFFFFF))), shape)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
@@ -122,8 +122,8 @@ fun GlassButton(label: String, modifier: Modifier = Modifier, enabled: Boolean =
             .alpha(if (enabled) 1f else 0.5f)
             .shadow(8.dp, shape, ambientColor = Color(0x33E91E63), spotColor = Color(0x33E91E63))
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xCCFFFFFF), Color(0x80FFFFFF))))
-            .border(1.dp, Brush.linearGradient(listOf(Color.White, Color(0x66FFFFFF))), shape)
+            .background(Brush.linearGradient(listOf(Color(0xCC3A2830), Color(0x99281A22))))
+            .border(1.dp, Brush.linearGradient(listOf(Color(0x24FFFFFF), Color(0x0DFFFFFF))), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
