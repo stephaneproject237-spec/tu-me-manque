@@ -24,14 +24,15 @@
 
   // ---------- Pastille dans le chat ----------
   function chipHtml() {
-    if (!R) return '<button class="gm-chip" data-g="open">🎮 Veux-tu jouer ?</button>';
+    const rp = () => (window.TMM_RAPPELS ? window.TMM_RAPPELS.chipHtml() : "");
+    if (!R) return '<button class="gm-chip" data-g="open">🎮 Veux-tu jouer ?</button>' + rp();
     if (R.state === "invite") {
-      if (R.by_me) return '<button class="gm-chip" data-g="open">⏳ Invitation envoyée…</button>';
+      if (R.by_me) return '<button class="gm-chip" data-g="open">⏳ Invitation envoyée…</button>' + rp();
       return `<div class="gm-invite"><span>🎮 <b>@${esc(partner)}</b> te propose « Me connais-tu ? »</span>
         <button class="gm-yes" data-g="yes">Oui</button><button class="gm-no" data-g="no">Non</button></div>`;
     }
-    if (R.state === "playing") return '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>';
-    return '<button class="gm-chip" data-g="open">🎮 Voir les résultats</button>';
+    if (R.state === "playing") return '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>' + rp();
+    return '<button class="gm-chip" data-g="open">🎮 Voir les résultats</button>' + rp();
   }
   function paintChip() {
     const el = $("gm-chip");
@@ -129,6 +130,7 @@
     const a = t.dataset.g;
     if (a === "pick") { pick(t); }
     else if (a === "open") { openOverlay(); }
+    else if (a === "rp") { if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
     else if (a === "close") { closeOverlay(); }
     else if (a === "yes") { act(() => rpc("game_respond", { p_round: R.id, p_accept: true })).then(openOverlay); }
     else if (a === "no") { act(() => rpc("game_respond", { p_round: R.id, p_accept: false })); }
@@ -495,5 +497,5 @@
     return (m.body || "🎮 Cupidon").slice(0, 80);
   }
 
-  window.TMM_GAMES = { attach, detach, refresh, row, onMessages, snippet };
+  window.TMM_GAMES = { paintChip, attach, detach, refresh, row, onMessages, snippet };
 })();

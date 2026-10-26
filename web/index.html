@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="chat.css?v=15">
+  <link rel="stylesheet" href="chat.css?v=16">
   <style>
     :root { --rose: #E91E63; --rose-clair: #FFD9E4; --gris: #757575; --texte: #212121; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -126,6 +126,10 @@
       50% { transform: translate(var(--dx), -55vh) rotate(10deg) scale(1.05); }
       100% { transform: translate(calc(var(--dx) * -1), -118vh) rotate(-10deg) scale(1); opacity: 0; }
     }
+    .bp-g { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; }
+    .bp-y { grid-template-columns: repeat(4, 1fr); } .bp-m { grid-template-columns: repeat(3, 1fr); } .bp-d { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .bp-c { border: 0; border-radius: 12px; padding: 11px 2px; font: 600 14px inherit; font-family: inherit; cursor: pointer; background: rgba(255,255,255,.1); color: inherit; }
+    .bp-c:active { background: var(--rose); color: #fff; }
   </style>
 </head>
 <body>
@@ -135,8 +139,9 @@
   <script src="config.js"></script>
   <script src="emoji.js?v=2"></script>
   <script src="chat.js?v=15"></script>
-  <script src="jeux.js?v=3"></script>
+  <script src="jeux.js?v=4"></script>
   <script src="support.js?v=3"></script>
-  <script src="app.js?v=12"></script>
+  <script src="rappels.js?v=1"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

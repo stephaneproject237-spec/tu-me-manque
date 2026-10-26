@@ -220,6 +220,8 @@
     if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--;
     return a;
   };
+const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const birthPretty = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? (+m[3]) + " " + MOIS[+m[2] - 1] + " " + m[1] : ""; };
   const birthOk = (v) => { const a = ageFrom(v); return a !== null && a >= 5 && a <= 120; };
   const pseudoOk = (v) => /^[a-z][a-z0-9_]{2,19}$/.test(v);
   const phoneDigits = (v) => String(v || "").replace(/\D/g, "");
@@ -524,6 +526,16 @@
     goWelcome: () => { S.auth = A0(); render(); },
     phoneStart: () => { S.auth.screen = "phone"; S.auth.msg = null; render(); },
     phoneBack: () => { S.auth.screen = S.auth.mode === "create" ? "create" : "login"; S.auth.msg = null; render(); },
+    pickBirth: () => { S.bp = { step: 0, year: 0, month: 0 }; render(); },
+    bpYear: (y) => { S.bp = { step: 1, year: +y, month: 0 }; render(); },
+    bpMonth: (m) => { S.bp = { step: 2, year: S.bp.year, month: +m }; render(); },
+    bpDay: (d) => {
+      const pad = (n) => String(n).padStart(2, "0");
+      S.auth.birth = S.bp.year + "-" + pad(S.bp.month) + "-" + pad(+d);
+      S.bp = null; render(); paintAuth();
+    },
+    bpBack: () => { if (S.bp && S.bp.step > 0) { S.bp.step--; render(); } },
+    bpClose: () => { S.bp = null; render(); },
     saveContact: () => act(async () => {
       const c = await saveContactRpc(S.auth.birth, S.auth.phone);
       if (c === "ok") { S.contactSkip = true; }
@@ -658,8 +670,8 @@
       ${contactFields()}`;
 
   const contactFields = () => `
-      <label for="f-birth">Ta date de naissance</label>
-      <div class="champ"><input id="f-birth" type="date" data-afield="birth" value="${esc(S.auth.birth)}" max="${new Date().toISOString().slice(0, 10)}" autocomplete="bday"></div>
+      <label>Ta date de naissance</label>
+      <button class="secondaire" data-action="pickBirth">🎂 ${S.auth.birth && birthOk(S.auth.birth) ? esc(birthPretty(S.auth.birth)) : "Choisir ma date de naissance"}</button>
       <label for="f-phone">Ton numéro de téléphone (avec l'indicatif)</label>
       <div class="champ"><input id="f-phone" data-afield="phone" value="${esc(S.auth.phone)}" inputmode="tel" autocomplete="tel" maxlength="20"></div>`;
 
@@ -817,8 +829,35 @@
       <div class="rangee"><button class="lien" data-action="closeSettings">Fermer</button></div></div></div>`;
   }
 
+  // Calendrier guidé : année, puis mois, puis jour.
+  function birthDialog() {
+    const b = S.bp;
+    if (!b) return "";
+    const thisYear = new Date().getFullYear();
+    let title, grid;
+    if (b.step === 0) {
+      title = "Choisis l'année";
+      let c = "";
+      for (let y = thisYear - 5; y >= thisYear - 100; y--) c += `<button class="bp-c" data-action="bpYear" data-id="${y}">${y}</button>`;
+      grid = `<div class="bp-g bp-y">${c}</div>`;
+    } else if (b.step === 1) {
+      title = "Année " + b.year + " · choisis le mois";
+      grid = '<div class="bp-g bp-m">' + MOIS.map((m, i) => `<button class="bp-c" data-action="bpMonth" data-id="${i + 1}">${esc(m.charAt(0).toUpperCase() + m.slice(1))}</button>`).join("") + "</div>";
+    } else {
+      title = MOIS[b.month - 1] + " " + b.year + " · choisis le jour";
+      const n = new Date(b.year, b.month, 0).getDate();
+      let c = "";
+      for (let d = 1; d <= n; d++) c += `<button class="bp-c" data-action="bpDay" data-id="${d}">${d}</button>`;
+      grid = `<div class="bp-g bp-d">${c}</div>`;
+    }
+    return `<div class="fond"><div class="boite" style="max-width:380px">
+      <div style="display:flex;align-items:center;gap:10px">${b.step > 0 ? '<button class="lien" data-action="bpBack" style="font-size:26px;padding:0 6px">‹</button>' : ""}<h2 style="font-size:18px;margin:0">${esc(title)}</h2></div>
+      ${grid}
+      <div class="rangee"><button class="lien" data-action="bpClose">Annuler</button></div></div></div>`;
+  }
+
   function dialogs() {
-    let html = settingsDialog();
+    let html = settingsDialog() + birthDialog();
     if (S.offerInvite) {
       html += `<div class="fond"><div class="boite">
         <h2 style="font-size:20px">Compte introuvable</h2>
@@ -895,6 +934,7 @@
 
   window.TMM_API = {
     CFG, session, authed, esc,
+    partner() { return S.partnerName || null; },
     setSupportHas(v) { if (S.supportHas !== v) { S.supportHas = v; lastSnapshotKey = ""; render(); } },
     setSupportUnread(n) { if (S.supportUnread !== n) { S.supportUnread = n; lastSnapshotKey = ""; render(); } },
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
