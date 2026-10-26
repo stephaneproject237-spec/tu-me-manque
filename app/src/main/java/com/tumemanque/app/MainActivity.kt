@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -136,6 +137,10 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatVm: ChatViewModel = viewModel()
     val supportVm: SupportViewModel = viewModel()
+    val updateVm: UpdateViewModel = viewModel()
+    val updState by updateVm.state.collectAsStateWithLifecycle()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) { updateVm.check(force = false) }
     var crash by remember { mutableStateOf(CrashLog.take(context)) }
     crash?.let { trace ->
         Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -206,7 +211,9 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
     }
 
-    if (showSupport) {
+    if (showSettings) {
+        SettingsScreen(updateVm) { showSettings = false }
+    } else if (showSupport) {
         SupportScreen(
             supportVm, onBack = { showSupport = false }, onRead = { vm.setSupportUnread(0) },
             onEnded = { showSupport = false; vm.setSupportHas(false) },
@@ -264,6 +271,13 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
                 TextButton(onClick = { vm.dismissInvite() }) { Text("Annuler") }
             },
         )
+    }
+
+    val onHome = !showSettings && !showSupport && !(showChat && state.partnerName != null)
+    if (onHome && !state.loading && !state.needAuth && state.error == null && state.username != null) {
+        Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), Alignment.TopEnd) {
+            SettingsGear(hasUpdate = updState.available != null) { showSettings = true }
+        }
     }
 
     FlutterOverlay(fxTrigger)
