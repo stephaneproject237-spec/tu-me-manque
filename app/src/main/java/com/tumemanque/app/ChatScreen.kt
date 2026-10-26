@@ -153,6 +153,9 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     var viewer by remember { mutableStateOf<ChatMsg?>(null) }
     var showWall by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(context.applicationContext) }
+    val gameScope = androidx.compose.runtime.rememberCoroutineScope()
+    val game = remember { GameCtl(gameScope, context.applicationContext) { vm.sendText(it) } }
+    LaunchedEffect(Unit) { while (true) { game.refresh(); delay(2500) } }
 
     DisposableEffect(Unit) {
         ChatVisibility.open = true
@@ -254,6 +257,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
+            if (!recording) GameChip(game, partner)
             if (state.typing && !recording) TypingBubble()
             state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
@@ -281,6 +285,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             }
         }
         StickerBurst(burstId, burstN)
+        if (game.overlay) GameOverlay(game, partner)
     }
 
     menuMsg?.let { mm ->

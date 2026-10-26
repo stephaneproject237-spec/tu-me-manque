@@ -162,6 +162,10 @@ object Backend {
         return runCatching { JSONObject(text).optString("status", "error") }.getOrDefault("error")
     }
 
+    /** Appel d'une fonction du jeu : renvoie la réponse JSON, ou null si le réseau a échoué. */
+    suspend fun gameCall(name: String, args: JSONObject = JSONObject()): JSONObject? =
+        runCatching { JSONObject(authed("POST", "/rest/v1/rpc/$name", args.toString())) }.getOrNull()
+
     suspend fun saveToken() {
         saveToken(FirebaseMessaging.getInstance().token.await())
     }
