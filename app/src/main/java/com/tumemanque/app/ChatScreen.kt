@@ -216,213 +216,36 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
             }
 
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
-                // ----- Messages -----
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    val items = remember(state.messages) { state.messages.asReversed() }
-                    val listState = rememberLazyListState()
+                MessagesArea(state, partner, vm) { viewer = it }
 
-                    LaunchedEffect(items.firstOrNull()?.key) {
-                        val first = items.firstOrNull()
-                        if (first != null && (first.mine || listState.firstVisibleItemIndex <= 2)) {
-                            listState.animateScrollToItem(0)
-                        }
-                    }
-                    LaunchedEffect(listState, items.size) {
-                        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
-                            .collect { if (items.isNotEmpty() && it >= items.size - 3) vm.loadOlder() }
-                    }
+                InputBar(
+                    recording = recording, recSecs = recSecs, panel = panel, text = text,
+                    onText = { text = it },
+                    onPanel = { panel = it },
+                    onCancelRec = { recorder.cancel(); recording = false },
+                    onStopRec = {
+                        val r = recorder.stop()
+                        recording = false
+                        if (r == null) vm.showToast("Vocal trop court.") else vm.sendVoice(r.first, r.second)
+                    },
+                    onMic = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            beginRecording()
+                        } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onPhoto = { photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    onSend = { vm.sendText(text); text = "" },
+                )
 
-                    when {
-                        state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-                        state.error -> Column(
-                            Modifier.fillMaxSize().padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Text("Impossible de charger la conversation.", textAlign = TextAlign.Center)
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick = { vm.retry() }) { Text("Réessayer") }
-                        }
-                        items.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                            Text("Dis quelque chose de gentil à $partner 💗", textAlign = TextAlign.Center, color = Color.Gray)
-                        }
-                        else -> LazyColumn(
-                            state = listState,
-                            reverseLayout = true,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
-                        ) {
-                            itemsIndexed(items, key = { _, m -> m.key }) { i, m ->
-                                val older = items.getOrNull(i + 1)
-                                Column(Modifier.fillMaxWidth()) {
-                                    if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
-                                    BubbleRow(m) { viewer = m }
-                                }
-                            }
-                        }
-                    }
-
-                    if (state.toast != null) {
-                        LaunchedEffect(state.toast) {
-                            delay(3500)
-                            vm.clearToast()
-                        }
-                        Box(Modifier.fillMaxSize().padding(bottom = 12.dp), Alignment.BottomCenter) {
-                            Text(
-                                state.toast!!, color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
-                                modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC000000)).padding(horizontal = 14.dp, vertical = 8.dp),
-                            )
-                        }
-                    }
-                }
-
-                // ----- Barre de saisie -----
-                if (recording) {
-                    Row(
-                        Modifier.fillMaxWidth().background(Color.White).padding(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "🗑", fontSize = 24.sp,
-                            modifier = Modifier.clickable { recorder.cancel(); recording = false }.padding(10.dp),
-                        )
-                        Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFFE53935)))
-                        Spacer(Modifier.width(8.dp))
-                        Text(mmss(recSecs), fontSize = 18.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Enregistrement…", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        RoundButton("➤", true) {
-                            val r = recorder.stop()
-                            recording = false
-                            if (r == null) vm.showToast("Vocal trop court.") else vm.sendVoice(r.first, r.second)
-                        }
-                    }
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 4.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        Text(
-                            if (panel != 0) "⌨️" else "😊", fontSize = 26.sp,
-                            modifier = Modifier.clickable {
-                                if (panel != 0) panel = 0
-                                else { keyboard?.hide(); focus.clearFocus(); panel = 1 }
-                            }.padding(horizontal = 8.dp, vertical = 8.dp),
-                        )
-                        TextField(
-                            value = text,
-                            onValueChange = { text = it },
-                            placeholder = { Text("Message") },
-                            maxLines = 5,
-                            modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) panel = 0 },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
-                        )
-                        Text(
-                            "📷", fontSize = 26.sp,
-                            modifier = Modifier.clickable {
-                                photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                            }.padding(horizontal = 8.dp, vertical = 8.dp),
-                        )
-                        if (text.isBlank()) {
-                            RoundButton("🎤", false) {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                    beginRecording()
-                                } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        } else {
-                            RoundButton("➤", true) {
-                                vm.sendText(text)
-                                text = ""
-                            }
-                        }
-                    }
-                }
-
-                // ----- Panneau emojis / stickers / GIF -----
                 if (panel != 0 && !recording) {
-                    Column(Modifier.fillMaxWidth().height(290.dp).background(Color.White)) {
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
-                            when (panel) {
-                                1 -> EmojiPanel { text += it }
-                                2 -> StickerPanel { vm.sendSticker(it); panel = 0 }
-                                else -> GifPanel(vm) { vm.sendGif(it); panel = 0 }
-                            }
-                        }
-                        Row(Modifier.fillMaxWidth()) {
-                            listOf("😊 Emojis", "💗 Stickers", "GIF").forEachIndexed { i, label ->
-                                TextButton(
-                                    onClick = { panel = i + 1 },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Text(
-                                        label,
-                                        color = if (panel == i + 1) Rose else Color.Gray,
-                                        fontWeight = if (panel == i + 1) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    PanelArea(panel, vm, onPanel = { panel = it }, onEmoji = { text += it })
                 }
             }
         }
     }
 
-    // ----- Aperçu d'une photo avant l'envoi -----
-    state.photo?.let { ph ->
-        var caption by remember { mutableStateOf("") }
-        Dialog(
-            onDismissRequest = { vm.cancelPhoto() },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        ) {
-            Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
-                Text(
-                    "✕", color = Color.White, fontSize = 26.sp,
-                    modifier = Modifier.clickable { vm.cancelPhoto() }.padding(16.dp),
-                )
-                AsyncImage(
-                    model = ph.bytes,
-                    contentDescription = "Photo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-                Row(Modifier.fillMaxWidth().background(Color(0xFF111111)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextField(
-                        value = caption,
-                        onValueChange = { caption = it.take(300) },
-                        placeholder = { Text("Ajouter une légende…") },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 3,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    RoundButton("➤", true) { vm.sendPhoto(caption) }
-                }
-            }
-        }
-    }
-
-    // ----- Photo en grand -----
-    viewer?.let { m ->
-        Dialog(
-            onDismissRequest = { viewer = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(Modifier.fillMaxSize().background(Color(0xEE000000)).clickable { viewer = null }, Alignment.Center) {
-                AsyncImage(
-                    model = m.localBytes ?: Backend.mediaUrl(m.media ?: ""),
-                    contentDescription = "Photo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-    }
+    state.photo?.let { ph -> PhotoPreview(ph, vm) }
+    viewer?.let { m -> PhotoViewer(m) { viewer = null } }
 }
 
 @Composable
@@ -707,4 +530,199 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
             }
         }
     }
+}
+
+
+@Composable
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, onOpenPhoto: (ChatMsg) -> Unit) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    val items = remember(state.messages) { state.messages.asReversed() }
+                    val listState = rememberLazyListState()
+
+                    LaunchedEffect(items.firstOrNull()?.key) {
+                        val first = items.firstOrNull()
+                        if (first != null && (first.mine || listState.firstVisibleItemIndex <= 2)) {
+                            listState.animateScrollToItem(0)
+                        }
+                    }
+                    LaunchedEffect(listState, items.size) {
+                        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+                            .collect { if (items.isNotEmpty() && it >= items.size - 3) vm.loadOlder() }
+                    }
+
+                    when {
+                        state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+                        state.error -> Column(
+                            Modifier.fillMaxSize().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text("Impossible de charger la conversation.", textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(12.dp))
+                            Button(onClick = { vm.retry() }) { Text("Réessayer") }
+                        }
+                        items.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+                            Text("Dis quelque chose de gentil à $partner 💗", textAlign = TextAlign.Center, color = Color.Gray)
+                        }
+                        else -> LazyColumn(
+                            state = listState,
+                            reverseLayout = true,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            itemsIndexed(items, key = { _, m -> m.key }) { i, m ->
+                                val older = items.getOrNull(i + 1)
+                                Column(Modifier.fillMaxWidth()) {
+                                    if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
+                                    BubbleRow(m) { onOpenPhoto(m) }
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.toast != null) {
+                        LaunchedEffect(state.toast) {
+                            delay(3500)
+                            vm.clearToast()
+                        }
+                        Box(Modifier.fillMaxSize().padding(bottom = 12.dp), Alignment.BottomCenter) {
+                            Text(
+                                state.toast!!, color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
+                                modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC000000)).padding(horizontal = 14.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                }
+
+}
+
+@Composable
+private fun InputBar(
+    recording: Boolean, recSecs: Int, panel: Int, text: String,
+    onText: (String) -> Unit, onPanel: (Int) -> Unit,
+    onCancelRec: () -> Unit, onStopRec: () -> Unit,
+    onMic: () -> Unit, onPhoto: () -> Unit, onSend: () -> Unit,
+) {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    if (recording) {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🗑", fontSize = 24.sp, modifier = Modifier.clickable { onCancelRec() }.padding(10.dp))
+            Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFFE53935)))
+            Spacer(Modifier.width(8.dp))
+            Text(mmss(recSecs), fontSize = 18.sp)
+            Spacer(Modifier.width(10.dp))
+            Text("Enregistrement…", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            RoundButton("➤", true) { onStopRec() }
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                if (panel != 0) "⌨️" else "😊", fontSize = 26.sp,
+                modifier = Modifier.clickable {
+                    if (panel != 0) onPanel(0)
+                    else { keyboard?.hide(); focus.clearFocus(); onPanel(1) }
+                }.padding(horizontal = 8.dp, vertical = 8.dp),
+            )
+            TextField(
+                value = text,
+                onValueChange = { onText(it) },
+                placeholder = { Text("Message") },
+                maxLines = 5,
+                modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) onPanel(0) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+            )
+            Text("📷", fontSize = 26.sp, modifier = Modifier.clickable { onPhoto() }.padding(horizontal = 8.dp, vertical = 8.dp))
+            if (text.isBlank()) RoundButton("🎤", false) { onMic() } else RoundButton("➤", true) { onSend() }
+        }
+    }
+}
+
+@Composable
+private fun PanelArea(panel: Int, vm: ChatViewModel, onPanel: (Int) -> Unit, onEmoji: (String) -> Unit) {
+                    Column(Modifier.fillMaxWidth().height(290.dp).background(Color.White)) {
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            when (panel) {
+                                1 -> EmojiPanel { onEmoji(it) }
+                                2 -> StickerPanel { vm.sendSticker(it); onPanel(0) }
+                                else -> GifPanel(vm) { vm.sendGif(it); onPanel(0) }
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth()) {
+                            listOf("😊 Emojis", "💗 Stickers", "GIF").forEachIndexed { i, label ->
+                                TextButton(
+                                    onClick = { onPanel(i + 1) },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text(
+                                        label,
+                                        color = if (panel == i + 1) Rose else Color.Gray,
+                                        fontWeight = if (panel == i + 1) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                }
+                            }
+                        }
+                    }
+}
+
+@Composable
+private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel) {
+        var caption by remember { mutableStateOf("") }
+        Dialog(
+            onDismissRequest = { vm.cancelPhoto() },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
+                Text(
+                    "✕", color = Color.White, fontSize = 26.sp,
+                    modifier = Modifier.clickable { vm.cancelPhoto() }.padding(16.dp),
+                )
+                AsyncImage(
+                    model = ph.bytes,
+                    contentDescription = "Photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth().background(Color(0xFF111111)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = caption,
+                        onValueChange = { caption = it.take(300) },
+                        placeholder = { Text("Ajouter une légende…") },
+                        modifier = Modifier.weight(1f),
+                        maxLines = 3,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    RoundButton("➤", true) { vm.sendPhoto(caption) }
+                }
+            }
+        }
+}
+
+@Composable
+private fun PhotoViewer(m: ChatMsg, onClose: () -> Unit) {
+        Dialog(
+            onDismissRequest = { onClose() },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(Modifier.fillMaxSize().background(Color(0xEE000000)).clickable { onClose() }, Alignment.Center) {
+                AsyncImage(
+                    model = m.localBytes ?: Backend.mediaUrl(m.media ?: ""),
+                    contentDescription = "Photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
 }
