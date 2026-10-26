@@ -217,6 +217,7 @@
     $("ch-input").addEventListener("focus", () => { if (panelTab) closePanel(); setTimeout(() => scrollBottom(true), 250); });
     $("ch-file").addEventListener("change", onFile);
     wireSwipe($("ch-list"));
+    ["touchstart", "click"].forEach((ev) => document.addEventListener(ev, unlockAudio, { once: true, passive: true }));
     $("ch-list").addEventListener("scroll", onScroll, { passive: true });
     const vv = window.visualViewport;
     if (vv) {
@@ -309,7 +310,7 @@
         if (addConfirmed(m)) {
           added.push(m);
           if (m.sender_id !== me) {
-            incoming = true; setTyping(false);
+            incoming = true; setTyping(false); bubbleSound(false);
             if (isLove(m)) love();
             if (m.kind === "sticker") burst(m.body);
           }
@@ -582,22 +583,24 @@
       if (actx && actx.state === "suspended") actx.resume();
     } catch (e) { /* ignoré */ }
   }
-  function popSound() {
+  // Petite « bulle » : glissando court et rond. up = monte (envoi), sinon descend (réception).
+  function bubbleSound(up) {
     try {
       unlockAudio();
       if (!actx) return;
       const t0 = actx.currentTime;
-      [[880, 0], [1318.5, 0.07]].forEach(([f, d]) => {
-        const o = actx.createOscillator(), g = actx.createGain();
-        o.type = "sine"; o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t0 + d);
-        g.gain.exponentialRampToValueAtTime(0.3, t0 + d + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.2);
-        o.connect(g); g.connect(actx.destination);
-        o.start(t0 + d); o.stop(t0 + d + 0.22);
-      });
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(up ? 500 : 1400, t0);
+      o.frequency.setTargetAtTime(up ? 1400 : 500, t0, 1 / 30);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.35, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t0); o.stop(t0 + 0.24);
     } catch (e) { /* ignoré */ }
   }
+  const popSound = () => bubbleSound(true);
 
   // ---------- Envoi ----------
   function addPending(p) {

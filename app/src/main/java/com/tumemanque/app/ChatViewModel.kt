@@ -153,6 +153,7 @@ class ChatViewModel : ViewModel() {
                     changed = true
                     if (m.mine) dropMatchingPending(m)
                     else {
+                        Sounds.receive()
                         if (_state.value.typing) _state.update { it.copy(typing = false) }
                         if (isLove(m)) onLove?.invoke()
                         if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }

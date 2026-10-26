@@ -11,30 +11,30 @@ import kotlin.math.sin
 object Sounds {
     private const val RATE = 44100
 
-    private fun pcm(): ShortArray {
-        // Deux notes rapides et montantes, avec une fin douce : un petit « pop » sympa.
-        val notes = listOf(880.0 to 0.0, 1318.5 to 0.07)
-        val total = (RATE * 0.26).toInt()
+    /** Petite « bulle » : un glissando court et rond. `up` = monte (envoi), sinon descend (réception). */
+    private fun bubble(up: Boolean): ShortArray {
+        val total = (RATE * 0.22).toInt()
         val out = ShortArray(total)
+        var phase = 0.0
         for (i in 0 until total) {
             val t = i.toDouble() / RATE
-            var v = 0.0
-            for ((f, start) in notes) {
-                val tt = t - start
-                if (tt < 0) continue
-                val env = (1 - exp(-tt * 400)) * exp(-tt * 18)
-                v += sin(2 * PI * f * tt) * env + 0.25 * sin(4 * PI * f * tt) * env
-            }
-            out[i] = (v * 0.35 * Short.MAX_VALUE).toInt().coerceIn(-32000, 32000).toShort()
+            val f = if (up) 500.0 + 900.0 * (1 - exp(-t * 30)) else 500.0 + 900.0 * exp(-t * 30)
+            phase += 2 * PI * f / RATE
+            val env = (1 - exp(-t * 600)) * exp(-t * 20)
+            out[i] = (sin(phase) * env * 0.5 * Short.MAX_VALUE).toInt().coerceIn(-32000, 32000).toShort()
         }
         return out
     }
 
-    private val data: ShortArray by lazy { pcm() }
+    private val sendData: ShortArray by lazy { bubble(true) }
+    private val recvData: ShortArray by lazy { bubble(false) }
 
-    fun send() {
+    fun send() = play(sendData)
+
+    fun receive() = play(recvData)
+
+    private fun play(d: ShortArray) {
         try {
-            val d = data
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
