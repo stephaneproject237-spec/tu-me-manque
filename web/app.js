@@ -528,7 +528,8 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       else {
         const r = await L.enable();
         if (r === "unsupported") S.lockMsg = "Ce navigateur ne permet pas la biométrie. Sur iPhone, ouvre l'appli depuis l'écran d'accueil et vérifie que Face ID / Touch ID est configuré.";
-        else if (r !== "ok") S.lockMsg = "Activation annulée.";
+        else if (r === "err:NotAllowedError") S.lockMsg = "Activation annulée, ou refusée par l'iPhone. Vérifie que Face ID est configuré et que le trousseau iCloud est activé (Réglages → ton nom → iCloud → Mots de passe et trousseau), puis réessaie.";
+        else if (r !== "ok") S.lockMsg = "Activation impossible (" + String(r).replace("err:", "") + "). Vérifie Face ID et le trousseau iCloud, puis réessaie.";
       }
       render();
     },

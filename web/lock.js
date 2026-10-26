@@ -27,7 +27,7 @@
   }
 
   async function enable() {
-    if (!(await supported())) return "unsupported";
+    if (!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create)) return "unsupported";
     try {
       const c = await navigator.credentials.create({ publicKey: {
         rp: { name: "Tu me manques" },
@@ -39,7 +39,7 @@
       if (!c) return "cancel";
       set(b64(c.rawId));
       return "ok";
-    } catch (e) { return "cancel"; }
+    } catch (e) { return "err:" + (e && e.name ? e.name : "?"); }
   }
 
   async function disable() {
