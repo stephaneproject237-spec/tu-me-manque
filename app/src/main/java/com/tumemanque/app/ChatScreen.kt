@@ -216,7 +216,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
             }
 
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
-                MessagesArea(state, partner, vm) { viewer = it }
+                MessagesArea(state, partner, vm, Modifier.weight(1f)) { viewer = it }
 
                 InputBar(
                     recording = recording, recSecs = recSecs, panel = panel, text = text,
@@ -534,8 +534,8 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
 
 
 @Composable
-private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, onOpenPhoto: (ChatMsg) -> Unit) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onOpenPhoto: (ChatMsg) -> Unit) {
+                Box(modifier.fillMaxWidth()) {
                     val items = remember(state.messages) { state.messages.asReversed() }
                     val listState = rememberLazyListState()
 
