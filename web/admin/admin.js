@@ -167,6 +167,25 @@
     }
   }
 
+  async function linkUser() {
+    const m = S.modal, u = m && m.user;
+    if (!u || S.busy) return;
+    const q = (document.getElementById("m-in").value || "").trim().replace(/^@/, "").toLowerCase();
+    const t = S.users.find((x) => x.username && x.username.toLowerCase() === q);
+    if (!t) { alert("Aucun compte avec ce pseudo."); return; }
+    if (t.id === u.id) { alert("Choisis un autre compte."); return; }
+    S.busy = true; renderModal();
+    try {
+      const r = await call("admin_link", { p_user: u.id, p_to: t.id });
+      if (!r || r.status !== "ok") throw new Error(r && r.status);
+      S.modal = null; S.busy = false;
+      await loadAll(); renderModal();
+    } catch (e) {
+      S.busy = false; renderModal();
+      alert("Impossible de relier : " + (e.message || e) + "\n(As-tu collé admin4.sql dans Supabase ?)");
+    }
+  }
+
   // ---------- Affichage ----------
   function render() {
     if (S.stage === "loading") { root.innerHTML = '<div class="center"><div class="spin"></div></div>'; return; }
@@ -249,6 +268,7 @@
       <div class="row">
         <button class="p" data-a="chat" data-id="${esc(u.id)}">💬 Chat</button>
         <button class="s" data-a="hist" data-id="${esc(u.id)}">📜 Amitiés</button>
+        <button class="s" data-a="link" data-id="${esc(u.id)}">🔗 Relier à…</button>
         <button class="d" data-a="del" data-id="${esc(u.id)}">🗑 Supprimer</button>
       </div></div>`;
   }
@@ -328,6 +348,13 @@
         <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="d" id="m-ok" data-a="mdel" disabled>${S.busy ? "Suppression…" : "Supprimer"}</button></div></div></div>`;
       const inp = document.getElementById("m-in");
       inp.addEventListener("input", () => { document.getElementById("m-ok").disabled = S.busy || inp.value.trim().toLowerCase() !== word.toLowerCase(); });
+    } else if (m.type === "link") {
+      el.innerHTML = `<div class="fond"><div class="box">
+        <h2 style="margin:0">Relier ${esc(name)} à…</h2>
+        <p class="v">${u.partner_name ? "Son partenaire actuel @" + esc(u.partner_name) + " sera libéré. " : ""}Si l'autre compte a déjà un partenaire, il sera libéré aussi. Les conversations, jeux et rappels de ces anciens liens seront effacés.</p>
+        <p class="k">Pseudo du compte à relier :</p>
+        <input class="mi" id="m-in" autocomplete="off" autocapitalize="none" placeholder="pseudo">
+        <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="p" data-a="mlink">${S.busy ? "…" : "Relier"}</button></div></div></div>`;
     } else {
       const rel = S.fr.current.concat(S.fr.history).filter((f) => f.a_id === u.id || f.b_id === u.id);
       el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amitiés de ${esc(name)}</h2>
@@ -366,6 +393,8 @@
       }
       case "hist": S.modal = { type: "history", user: user() }; renderModal(); break;
       case "del": S.modal = { type: "delete", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
+      case "link": S.modal = { type: "link", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
+      case "mlink": linkUser(); break;
       case "mclose": S.modal = null; renderModal(); break;
       case "mdel": deleteUser(); break;
     }
