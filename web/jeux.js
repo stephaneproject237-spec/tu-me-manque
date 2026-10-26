@@ -15,12 +15,12 @@
 
   function loadBank() {
     if (bank) return Promise.resolve(bank);
-    if (!bankP) bankP = fetch("questions.json?v=1").then((r) => r.json()).then((j) => {
+    if (!bankP) bankP = fetch("questions.json?v=2").then((r) => r.json()).then((j) => {
       bank = new Map(j.map((x) => [x.id, x])); bank.size_ = j.length; return bank;
     }).catch(() => { bankP = null; return null; });
     return bankP;
   }
-  const qOf = (i) => (bank && R && bank.get(R.qids[i])) || { q: "…", t: "t" };
+  const qOf = (i) => (bank && R && bank.get(R.qids[i])) || { q: "…", o: ["", "", "", ""] };
 
   // ---------- Pastille dans le chat ----------
   function chipHtml() {
@@ -136,6 +136,13 @@
     else if (a === "editAns") { editing = true; draft = []; (R.my_answer_list || []).forEach((x) => { draft[x.idx] = x.answer; }); lastKey = ""; render(); }
     else if (a === "guess") { sendGuess(); }
     else if (a === "next") { verdict = null; gIdx = null; render(); }
+    else if (a === "opt") {
+      const w = t.parentNode;
+      w.querySelectorAll(".gm-opt").forEach((b) => b.classList.remove("sel"));
+      t.classList.add("sel");
+      const ref = w.dataset.ref || "";
+      if (ref.indexOf("gma") === 0) draft[Number(ref.slice(3))] = t.dataset.o;
+    }
   }
 
   function openOverlay() {
@@ -152,43 +159,26 @@
     document.body.classList.remove("gm-open");
   }
 
-  // ---------- Saisie des réponses ----------
+  // ---------- Choix parmi 4 réponses ----------
+  const LET = ["A", "B", "C", "D"];
+  const optText = (i, v) => { const o = qOf(i).o; const k = Number(v); return o && o[k] != null ? o[k] : String(v == null ? "" : v); };
   function inputHtml(i, val, pre) {
-    const t = qOf(i).t, id = pre + i;
-    val = val || "";
-    if (t === "dm" || t === "dmy") {
-      const p = val.split("/");
-      const d = p[0] || "", m = p[1] || "", y = p[2] || "";
-      let h = `<div class="gm-date" data-ref="${id}"><select data-part="d"><option value="">Jour</option>`;
-      for (let k = 1; k <= 31; k++) { const v = String(k).padStart(2, "0"); h += `<option value="${v}"${v === d ? " selected" : ""}>${k}</option>`; }
-      h += '</select><select data-part="m"><option value="">Mois</option>';
-      MOIS.forEach((n, k) => { const v = String(k + 1).padStart(2, "0"); h += `<option value="${v}"${v === m ? " selected" : ""}>${n}</option>`; });
-      h += "</select>";
-      if (t === "dmy") h += `<input data-part="y" inputmode="numeric" maxlength="4" placeholder="Année" value="${esc(y)}">`;
-      return h + "</div>";
-    }
-    return `<input class="gm-in" id="${id}" maxlength="120" ${t === "n" ? 'inputmode="numeric"' : ""} placeholder="Ta réponse…" value="${esc(val)}" autocomplete="off">`;
+    const o = qOf(i).o || [];
+    let h = `<div class="gm-opts" data-ref="${pre}${i}">`;
+    o.forEach((t, k) => { h += `<button type="button" class="gm-opt${String(k) === String(val) ? " sel" : ""}" data-g="opt" data-o="${k}"><i>${LET[k]}</i><span>${esc(t)}</span></button>`; });
+    return h + "</div>";
   }
   function readInput(i, pre) {
-    const t = qOf(i).t;
-    if (t === "dm" || t === "dmy") {
-      const w = document.querySelector('[data-ref="' + pre + i + '"]');
-      if (!w) return "";
-      const d = w.querySelector('[data-part="d"]').value, m = w.querySelector('[data-part="m"]').value;
-      if (!d || !m) return "";
-      if (t === "dm") return d + "/" + m;
-      const y = (w.querySelector('[data-part="y"]').value || "").trim();
-      return y.length === 4 ? d + "/" + m + "/" + y : "";
-    }
-    const el = $(pre + i);
-    return el ? el.value.trim() : "";
+    const w = document.querySelector('[data-ref="' + pre + i + '"]');
+    const b = w && w.querySelector(".gm-opt.sel");
+    return b ? b.dataset.o : "";
   }
 
   async function saveAnswers() {
     const list = [];
     for (let i = 0; i < 10; i++) list.push(readInput(i, "gma"));
     draft = list;
-    if (list.some((x) => !x)) { toast("Réponds aux 10 questions."); return; }
+    if (list.some((x) => x === "")) { toast("Choisis une réponse à chaque question."); return; }
     const j = await act(() => rpc("game_save_answers", { p_round: R.id, p_answers: list }));
     if (j && j.status === "locked") toast("@" + partner + " a déjà commencé à deviner : tes réponses sont figées.");
     else if (j && j.status === "ok") { editing = false; toast("Tes réponses sont enregistrées 💗"); lastKey = ""; render(); }
@@ -197,7 +187,7 @@
   async function sendGuess() {
     const i = R.my_guesses;
     const v = readInput(i, "gmg");
-    if (!v) { toast("Écris une réponse."); return; }
+    if (v === "") { toast("Choisis une réponse."); return; }
     const j = await act(() => rpc("game_guess", { p_round: R.id, p_idx: i, p_guess: v }));
     if (j && j.status === "ok") {
       verdict = { ok: j.ok, answer: j.answer, guess: v, idx: i };
@@ -259,7 +249,7 @@
   function playHtml() {
     const mine = R.my_answers, theirs = R.their_answers;
     if (mine < 10 || editing) {
-      let h = `<div class="gm-step">Étape 1 sur 2</div><h3>Tes réponses</h3><p class="gm-sub">Réponds à ces 10 questions. @${esc(partner)} devra les deviner, il ne les verra pas avant.</p>`;
+      let h = `<div class="gm-step">Étape 1 sur 2</div><h3>Tes réponses</h3><p class="gm-sub">Choisis la réponse qui te correspond. @${esc(partner)} devra deviner laquelle tu as choisie, il/elle ne la verra pas avant.</p>`;
       const saved = {};
       (R.my_answer_list || []).forEach((a) => { saved[a.idx] = a.answer; });
       for (let i = 0; i < 10; i++) {
@@ -278,7 +268,7 @@
     }
     return `<div class="gm-step">Étape 2 sur 2 · Question ${i + 1} / 10</div>${bar(i, 10)}
       <div class="gm-guesscard"><div class="gm-from">@${esc(partner)} a répondu à :</div><div class="gm-qt">« ${esc(qOf(i).q)} »</div>
-      <div class="gm-from">Que penses-tu qu'il/elle a répondu ?</div>${inputHtml(i, "", "gmg")}</div>
+      <div class="gm-from">Que penses-tu qu'il/elle a choisi ?</div>${inputHtml(i, "", "gmg")}</div>
       <button class="gm-btn wide" data-g="guess">Valider</button>`;
   }
 
@@ -288,8 +278,8 @@
       <div class="gm-verdict ${v.ok ? "ok" : "ko"}"><div class="gm-mark">${v.ok ? "✓" : "✗"}</div>
       <h3>${v.ok ? "Bravo, c'est vrai !" : "Raté… c'est faux"}</h3>
       <div class="gm-qt small">« ${esc(qOf(i).q)} »</div>
-      <div class="gm-cmp"><span>Ta réponse</span><b>${esc(v.guess)}</b></div>
-      ${v.ok ? "" : `<div class="gm-cmp good"><span>La bonne réponse</span><b>${esc(v.answer)}</b></div>`}</div>
+      <div class="gm-cmp"><span>Ta réponse</span><b>${esc(optText(i, v.guess))}</b></div>
+      ${v.ok ? "" : `<div class="gm-cmp good"><span>La bonne réponse</span><b>${esc(optText(i, v.answer))}</b></div>`}</div>
       <button class="gm-btn wide" data-g="next">${last ? "Voir mon score" : "Question suivante"}</button>`;
   }
 
@@ -298,7 +288,7 @@
     const ms = mine.filter((x) => x.ok).length, ts = their.filter((x) => x.ok).length;
     const msg = ms > ts ? "Tu connais @" + esc(partner) + " mieux qu'il/elle ne te connaît 😏" : ms < ts ? "@" + esc(partner) + " te connaît mieux 💗" : "Égalité parfaite, vous êtes faits l'un pour l'autre 💞";
     const rows = (list, title) => `<h4>${title}</h4>` + list.map((x) => `<div class="gm-row ${x.ok ? "ok" : "ko"}"><span class="gm-ic">${x.ok ? "✓" : "✗"}</span>
-        <div><div class="gm-rq">${esc(qOf(x.idx).q)}</div><div class="gm-ra">${x.ok ? esc(x.answer) : `<s>${esc(x.guess)}</s> → <b>${esc(x.answer)}</b>`}</div></div></div>`).join("");
+        <div><div class="gm-rq">${esc(qOf(x.idx).q)}</div><div class="gm-ra">${x.ok ? esc(optText(x.idx, x.answer)) : `<s>${esc(optText(x.idx, x.guess))}</s> → <b>${esc(optText(x.idx, x.answer))}</b>`}</div></div></div>`).join("");
     return `<div class="gm-center"><div class="gm-trophy">🏆</div><h3>Résultats</h3>
       <div class="gm-score"><div><b>${ms}</b><span>/10</span><small>Toi</small></div><div><b>${ts}</b><span>/10</span><small>@${esc(partner)}</small></div></div>
       <p>${msg}</p></div>

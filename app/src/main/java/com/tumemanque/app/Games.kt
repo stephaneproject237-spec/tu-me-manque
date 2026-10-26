@@ -28,10 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +47,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -65,7 +61,7 @@ import kotlin.random.Random
 
 /** Jeux à deux dans le chat. Premier jeu : « Me connais-tu ? ». */
 
-data class GQ(val id: Int, val q: String, val t: String)
+data class GQ(val id: Int, val q: String, val o: List<String>)
 data class GRes(val idx: Int, val guess: String, val ok: Boolean, val answer: String)
 data class GVerdict(val ok: Boolean, val answer: String, val guess: String, val idx: Int)
 data class GRound(
@@ -103,27 +99,6 @@ private fun parseRound(o: JSONObject?): GRound? {
     )
 }
 
-/** Nettoie une réponse selon le type de question (dates jj/mm, nombres…). Renvoie null si elle est invalide. */
-fun gNorm(t: String, raw: String): String? {
-    val s = raw.trim()
-    if (s.isEmpty()) return null
-    if (t != "dm" && t != "dmy") return s
-    var parts = s.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
-    if (parts.size == 1) {
-        val d = parts[0]
-        parts = if (d.length == 4 && t == "dm") listOf(d.take(2), d.drop(2))
-        else if (d.length == 8 && t == "dmy") listOf(d.take(2), d.substring(2, 4), d.drop(4))
-        else return null
-    }
-    if (parts.size != (if (t == "dm") 2 else 3)) return null
-    val dd = parts[0].toIntOrNull() ?: return null
-    val mm = parts[1].toIntOrNull() ?: return null
-    if (dd !in 1..31 || mm !in 1..12) return null
-    var out = "%02d/%02d".format(dd, mm)
-    if (t == "dmy") { if (parts[2].length != 4) return null; out += "/" + parts[2] }
-    return out
-}
-
 class GameCtl(private val scope: CoroutineScope, private val ctx: Context, private val chatSay: (String) -> Unit) {
     var round by mutableStateOf<GRound?>(null)
     var bank by mutableStateOf<Map<Int, GQ>>(emptyMap())
@@ -146,14 +121,18 @@ class GameCtl(private val scope: CoroutineScope, private val ctx: Context, priva
                 val m = HashMap<Int, GQ>()
                 for (i in 0 until a.length()) {
                     val o = a.getJSONObject(i)
-                    m[o.getInt("id")] = GQ(o.getInt("id"), o.getString("q"), o.optString("t", "t"))
+                    val oa = o.getJSONArray("o")
+                    m[o.getInt("id")] = GQ(o.getInt("id"), o.getString("q"), List(oa.length()) { k -> oa.getString(k) })
                 }
                 bank = m
             } catch (e: Exception) { /* les questions s'afficheront en « … » */ }
         }
     }
 
-    fun q(i: Int): GQ = bank[round?.qids?.getOrNull(i) ?: -1] ?: GQ(0, "…", "t")
+    fun q(i: Int): GQ = bank[round?.qids?.getOrNull(i) ?: -1] ?: GQ(0, "…", listOf("", "", "", ""))
+
+    /** Texte de la réponse numéro [v] (0 à 3) de la question [i]. */
+    fun opt(i: Int, v: String): String = q(i).o.getOrNull(v.toIntOrNull() ?: -1) ?: v
 
     suspend fun refresh() {
         if (busy) return
@@ -222,9 +201,8 @@ class GameCtl(private val scope: CoroutineScope, private val ctx: Context, priva
         val r = round ?: return
         val arr = JSONArray()
         for (i in 0 until 10) {
-            val v = gNorm(q(i).t, draft[i])
-            if (v == null) { toast = if (draft[i].isBlank()) "Réponds aux 10 questions." else "Vérifie la question ${i + 1} (date : jj/mm)."; return }
-            arr.put(v)
+            if (draft[i].isBlank()) { toast = "Choisis une réponse à chaque question."; return }
+            arr.put(draft[i])
         }
         call("game_save_answers", JSONObject().put("p_round", r.id).put("p_answers", arr)) { j ->
             when (j.optString("status")) {
@@ -236,8 +214,8 @@ class GameCtl(private val scope: CoroutineScope, private val ctx: Context, priva
     fun guess(raw: String) {
         val r = round ?: return
         val i = r.myGuesses
-        val v = gNorm(q(i).t, raw)
-        if (v == null) { toast = if (raw.isBlank()) "Écris une réponse." else "Format attendu : jj/mm"; return }
+        val v = raw
+        if (v.isBlank()) { toast = "Choisis une réponse."; return }
         call("game_guess", JSONObject().put("p_round", r.id).put("p_idx", i).put("p_guess", v)) { j ->
             if (j.optString("status") == "ok") {
                 val ok = j.optBoolean("ok")
@@ -333,19 +311,25 @@ private fun GBtn(text: String, ghost: Boolean = false, wide: Boolean = false, on
 }
 
 @Composable
-private fun GField(value: String, onChange: (String) -> Unit, type: String, onDone: (() -> Unit)? = null) {
-    OutlinedTextField(
-        value = value, onValueChange = { if (it.length <= 120) onChange(it) },
-        modifier = Modifier.fillMaxWidth(), singleLine = true,
-        placeholder = { Text(if (type == "dm") "jj/mm (ex. 14/03)" else if (type == "dmy") "jj/mm/aaaa" else "Ta réponse…", color = GSub) },
-        keyboardOptions = KeyboardOptions(keyboardType = if (type == "n") KeyboardType.Number else if (type == "dm" || type == "dmy") KeyboardType.Phone else KeyboardType.Text),
-        shape = RoundedCornerShape(14.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = GTxt, unfocusedTextColor = GTxt, cursorColor = GPink,
-            focusedBorderColor = GPink, unfocusedBorderColor = Color(0x33FFFFFF),
-            focusedContainerColor = Color(0x14FFFFFF), unfocusedContainerColor = Color(0x14FFFFFF),
-        ),
-    )
+private fun GOptions(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEachIndexed { k, t ->
+            val on = selected == k.toString()
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(if (on) Brush.linearGradient(listOf(Color(0x59FF4886), Color(0x4DD6185C))) else Brush.linearGradient(listOf(Color(0x0FFFFFFF), Color(0x0FFFFFFF))))
+                    .border(1.dp, if (on) Color(0xFFFF4F86) else Color(0x1FFFFFFF), RoundedCornerShape(14.dp))
+                    .clickable { onSelect(k.toString()) }.padding(horizontal = 12.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(26.dp).clip(CircleShape).background(if (on) GPink else Color(0x1AFFFFFF)), Alignment.Center) {
+                    Text("ABCD"[k % 4].toString(), color = if (on) Color.White else GSoft, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(t, color = GTxt, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            }
+        }
+    }
 }
 
 @Composable
@@ -424,7 +408,7 @@ private fun GPlay(ctl: GameCtl, r: GRound, partner: String) {
     if (r.myAnswers < 10 || ctl.editing) {
         Text("Étape 1 sur 2", color = GSoft, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         Text("Tes réponses", color = GTxt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text("Réponds à ces 10 questions. @$partner devra les deviner, il/elle ne les verra pas avant.", color = GSub, fontSize = 14.sp)
+        Text("Choisis la réponse qui te correspond. @$partner devra deviner laquelle tu as choisie, il/elle ne la verra pas avant.", color = GSub, fontSize = 14.sp)
         for (i in 0 until 10) {
             val q = ctl.q(i)
             Spacer(Modifier.height(14.dp))
@@ -436,7 +420,7 @@ private fun GPlay(ctl: GameCtl, r: GRound, partner: String) {
                 Column(Modifier.weight(1f)) {
                     Text(q.q, color = GTxt, fontSize = 15.sp)
                     Spacer(Modifier.height(6.dp))
-                    GField(ctl.draft[i], { ctl.draft[i] = it }, q.t)
+                    GOptions(q.o, ctl.draft[i]) { ctl.draft[i] = it }
                 }
             }
         }
@@ -464,9 +448,9 @@ private fun GPlay(ctl: GameCtl, r: GRound, partner: String) {
         Spacer(Modifier.height(8.dp))
         Text("« ${ctl.q(i).q} »", color = GTxt, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
-        Text("Que penses-tu qu'il/elle a répondu ?", color = GSub, fontSize = 13.sp)
+        Text("Que penses-tu qu'il/elle a choisi ?", color = GSub, fontSize = 13.sp)
         Spacer(Modifier.height(8.dp))
-        GField(text, { text = it }, ctl.q(i).t)
+        GOptions(ctl.q(i).o, text) { text = it }
     }
     Spacer(Modifier.height(18.dp))
     GBtn("Valider", wide = true) { ctl.guess(text) }
@@ -508,8 +492,8 @@ private fun GVerdictView(ctl: GameCtl, v: GVerdict) {
         Spacer(Modifier.height(6.dp))
         Text("« ${ctl.q(v.idx).q} »", color = Color(0xFFE3D6DD), fontSize = 15.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
-        GCmp("Ta réponse", v.guess, GTxt)
-        if (!v.ok) { Spacer(Modifier.height(8.dp)); GCmp("La bonne réponse", v.answer, Color(0xFF7BE0A3)) }
+        GCmp("Ta réponse", ctl.opt(v.idx, v.guess), GTxt)
+        if (!v.ok) { Spacer(Modifier.height(8.dp)); GCmp("La bonne réponse", ctl.opt(v.idx, v.answer), Color(0xFF7BE0A3)) }
     }
     Spacer(Modifier.height(18.dp))
     GBtn(if (last) "Voir mon score" else "Question suivante", wide = true) { ctl.next() }
@@ -575,7 +559,7 @@ private fun GRecap(ctl: GameCtl, title: String, list: List<GRes>) {
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(ctl.q(x.idx).q, color = GSub, fontSize = 13.sp)
-                Text(if (x.ok) x.answer else "${x.guess} → ${x.answer}", color = GTxt, fontSize = 15.sp)
+                Text(if (x.ok) ctl.opt(x.idx, x.answer) else "${ctl.opt(x.idx, x.guess)} → ${ctl.opt(x.idx, x.answer)}", color = GTxt, fontSize = 15.sp)
             }
         }
     }
