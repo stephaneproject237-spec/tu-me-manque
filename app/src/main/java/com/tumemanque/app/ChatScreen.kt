@@ -219,6 +219,9 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     }
     var showCam by remember { mutableStateOf(false) }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
+    var selected by remember { mutableStateOf(setOf<Long>()) }
+    var confirmDel by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var camPath by rememberSaveable { mutableStateOf("") }
     fun newCamFile(ext: String): Pair<File, Uri> {
@@ -252,11 +255,14 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 state, partner, vm, Modifier.fillMaxSize(),
                 padTop = (topPx / dens).dp, padBottom = (botPx / dens).dp,
                 onReply = { vm.setReply(it) }, onMenu = { menuMsg = it },
+                selected = selected,
+                onToggle = { m -> selected = if (m.id in selected) selected - m.id else selected + m.id },
             ) { viewer = it }
         }
 
         Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { topPx = it.height }) {
-            ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
+            if (selected.isEmpty()) ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
+            else SelectionBar(selected.size, onClose = { selected = emptySet() }, onDelete = { confirmDel = true })
         }
 
         Column(
@@ -301,8 +307,26 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             onDismiss = { menuMsg = null },
             onReply = { menuMsg = null; vm.setReply(mm) },
             onCopy = { menuMsg = null; clipboard.setText(androidx.compose.ui.text.AnnotatedString(mm.body ?: "")); vm.showToast("Copié.") },
+            onSelect = { menuMsg = null; if (mm.id != 0L) selected = setOf(mm.id) },
             onDelMe = { menuMsg = null; vm.deleteMessage(mm, false) },
             onDelAll = { menuMsg = null; vm.deleteMessage(mm, true) },
+        )
+    }
+    if (confirmDel) {
+        val chosen = state.messages.filter { it.id in selected }
+        val canAll = chosen.isNotEmpty() && chosen.all { it.mine && !it.deleted }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDel = false },
+            containerColor = Color(0xF2261820),
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Supprimer ${chosen.size} message${if (chosen.size > 1) "s" else ""} ?", color = Color(0xFFF5EEF2)) },
+            text = {
+                Column {
+                    MenuRow(R.drawable.ic_trash, "Supprimer pour moi", Rose) { confirmDel = false; selected = emptySet(); vm.deleteMessages(chosen, false) }
+                    if (canAll) MenuRow(R.drawable.ic_trash, "Supprimer pour tout le monde", Color(0xFFD32F2F)) { confirmDel = false; selected = emptySet(); vm.deleteMessages(chosen, true) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { confirmDel = false }) { Text("Annuler", color = Color.Gray) } },
         )
     }
     if (showCam) {
@@ -368,7 +392,7 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
     }
     val label = androidx.compose.ui.text.buildAnnotatedString {
         append(hhmm(m.createdAt))
-        if (readNow) withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF2FB8FF), fontWeight = FontWeight.ExtraBold)) { append(tick) }
+        if (readNow) { append(" "); withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF1E9BFF), fontWeight = FontWeight.ExtraBold, background = Color(0xF2FFFFFF))) { append(" ✓✓ ") } }
         else append(tick)
     }
     Text(
@@ -622,7 +646,7 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
 
 
 @Composable
-private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, padTop: androidx.compose.ui.unit.Dp, padBottom: androidx.compose.ui.unit.Dp, onReply: (ChatMsg) -> Unit, onMenu: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, padTop: androidx.compose.ui.unit.Dp, padBottom: androidx.compose.ui.unit.Dp, onReply: (ChatMsg) -> Unit, onMenu: (ChatMsg) -> Unit, selected: Set<Long>, onToggle: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
                 Box(modifier.fillMaxWidth()) {
                     val items = remember(state.messages) { state.messages.asReversed() }
                     val listState = rememberLazyListState()
@@ -663,7 +687,13 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                                 val older = items.getOrNull(i + 1)
                                 Column(Modifier.fillMaxWidth()) {
                                     if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
-                                    BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) }, { onMenu(m) })
+                                    val canSel = selected.isNotEmpty() && m.id != 0L && !m.pending && m.kind != "game"
+                                    Box(Modifier.fillMaxWidth().then(if (m.id in selected) Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x40E91E63)) else Modifier)) {
+                                        BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) }, { onMenu(m) })
+                                        if (canSel) Box(Modifier.matchParentSize().clickable { onToggle(m) })
+                                        if (m.id in selected) Text("✔", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                            modifier = Modifier.align(Alignment.CenterStart).padding(start = 2.dp).clip(CircleShape).background(Rose).padding(horizontal = 5.dp, vertical = 1.dp))
+                                    }
                                 }
                             }
                         }
@@ -859,7 +889,7 @@ private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
+private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit, onSelect: () -> Unit, onDelMe: () -> Unit, onDelAll: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xF2261820),
@@ -869,6 +899,7 @@ private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, 
             Column {
                 if (!m.deleted) MenuRow(null, "↩  Répondre", Rose, onReply)
                 if (!m.deleted && m.kind == "text" && !m.body.isNullOrEmpty()) MenuRow(null, "⧉  Copier", Rose, onCopy)
+                MenuRow(null, "☑  Sélectionner", Rose, onSelect)
                 MenuRow(R.drawable.ic_trash, "Supprimer pour moi", Rose, onDelMe)
                 if (m.mine && !m.deleted) MenuRow(R.drawable.ic_trash, "Supprimer pour tout le monde", Color(0xFFD32F2F), onDelAll)
             }
@@ -895,3 +926,19 @@ private fun Modifier.softGlow(shape: androidx.compose.ui.graphics.Shape, mine: B
         val c = if (mine) Color(0x66FF4886) else Color(0x40FFB3CC)
         this.shadow(9.dp, shape, clip = false, ambientColor = c, spotColor = c)
     } else this
+
+
+/** Barre du haut pendant la sélection de plusieurs messages. */
+@Composable
+private fun SelectionBar(count: Int, onClose: () -> Unit, onDelete: () -> Unit) {
+    val glass = Color(0xE6281C24)
+    Row(
+        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(26.dp)).background(glass).padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(44.dp).clip(CircleShape).clickable { onClose() }, contentAlignment = Alignment.Center) { Ico(R.drawable.ic_close, Rose, 24.dp) }
+        Text("$count sélectionné${if (count > 1) "s" else ""}", color = Color(0xFFF5EEF2), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+        Box(Modifier.size(44.dp).clip(CircleShape).clickable { onDelete() }, contentAlignment = Alignment.Center) { Ico(R.drawable.ic_trash, Color(0xFFFF5A6E), 24.dp) }
+    }
+}

@@ -56,6 +56,7 @@ class App : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         Backend.init(this)
+        Outbox.init(this)
         createNotificationChannel(this)
         CrashLog.install(this)
     }

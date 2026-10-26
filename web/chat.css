@@ -428,3 +428,17 @@ body.chat-open { overflow: hidden; }
 @keyframes hgflip { 0%, 25% { transform: rotate(0); } 43%, 75% { transform: rotate(180deg); } 93%, 100% { transform: rotate(360deg); } }
 
 .ch-tick.read { color: #2FB8FF !important; opacity: 1 !important; font-weight: 800; }
+
+/* Coches de lecture bleues bien visibles */
+.ch-tick.read { color: #1E9BFF !important; background: rgba(255,255,255,.93); border-radius: 8px; padding: 0 5px; opacity: 1 !important; font-weight: 800; }
+
+/* Sélection de plusieurs messages */
+.ch-selbar { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 10px; right: 10px; z-index: 6; display: flex; align-items: center; gap: 8px; padding: 4px 6px;
+  border-radius: 26px; background: rgba(40,28,36,.92); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: #F5EEF2; }
+.ch-selbar[hidden] { display: none; }
+.ch-selbar b { flex: 1; font-size: 17px; }
+.ch-selbar .ch-icon { color: #FF8FB4; } .ch-selbar .ch-seldel { color: #FF5A6E; }
+.selecting .ch-head { visibility: hidden; }
+.selecting .ch-row[data-id] { cursor: pointer; }
+.ch-row.sel { background: rgba(233,30,99,.25); border-radius: 14px; }
+.ch-row.sel::before { content: "✔"; align-self: center; flex: none; width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 50%; background: #E91E63; color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; order: -1; }

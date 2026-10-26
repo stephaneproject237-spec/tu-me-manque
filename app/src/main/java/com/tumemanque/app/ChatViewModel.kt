@@ -131,6 +131,7 @@ class ChatViewModel : ViewModel() {
                 val latest = Backend.latestMessages()
                 latest.forEach { addConfirmed(it) }
                 noMore = latest.size < 40
+                restoreOutbox()
                 publish()
                 markReadIfNeeded()
             } catch (e: Exception) {
@@ -218,6 +219,28 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    /** Supprime plusieurs messages d'un coup (pour moi, ou pour tout le monde si ce sont les miens). */
+    fun deleteMessages(list: List<ChatMsg>, all: Boolean) {
+        val targets = list.filter { !it.pending && it.id != 0L }
+        if (targets.isEmpty()) return
+        viewModelScope.launch {
+            var failed = 0
+            for (m in targets) {
+                val ok = try { Backend.deleteMessage(m.id, all && m.mine && !m.deleted) } catch (e: Exception) { false }
+                if (!ok) { failed++; continue }
+                if (all && m.mine && !m.deleted) {
+                    val i = confirmed.indexOfFirst { it.id == m.id }
+                    if (i >= 0) markDeletedAt(i)
+                } else {
+                    confirmed.removeAll { it.id == m.id }
+                    unreadOwn.remove(m.id)
+                }
+            }
+            publish()
+            if (failed > 0) showToast(if (failed == targets.size) "Impossible de supprimer. Vérifie ta connexion." else "$failed message(s) n'ont pas pu être supprimés.")
+        }
+    }
+
     private suspend fun markReadIfNeeded() {
         if (confirmed.none { !it.mine && !it.read }) return
         try {
@@ -301,10 +324,47 @@ class ChatViewModel : ViewModel() {
             publish()
             return true
         } catch (e: Exception) {
-            removePending(p)
-            showToast("Message non envoyé. Vérifie ta connexion.")
+            queueOffline(p, media)
             return false
         }
+    }
+
+    /** Pas de réseau : le message reste dans le fil (🕓) et partira tout seul dès le retour de la connexion. */
+    private fun queueOffline(p: ChatMsg, media: String?, src: File? = null, ext: String = "", mime: String = "", bytes: ByteArray? = null) {
+        try {
+            val file = when {
+                media != null -> null
+                bytes != null -> Outbox.stash(bytes, ext)
+                src != null -> Outbox.stashCopy(src, ext)
+                else -> null
+            }
+            if (media == null && file == null && (p.kind == "image" || p.kind == "voice" || p.kind == "video")) {
+                removePending(p); showToast("Message non envoyé."); return
+            }
+            val reply = p.reply?.let { JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text).toString() }
+            Outbox.add(OutMsg(java.util.UUID.randomUUID().toString(), p.kind, p.body, media, file, ext, mime, p.w, p.h, p.dur, reply, p.createdAt))
+            Outbox.schedule()
+            showToast("Pas de réseau : ton message partira dès que la connexion reviendra. 🕓")
+        } catch (e: Exception) {
+            removePending(p)
+            showToast("Message non envoyé. Vérifie ta connexion.")
+        }
+    }
+
+    /** Messages écrits hors connexion, pas encore partis : on les remet dans le fil. */
+    private fun restoreOutbox() {
+        if (pendings.isNotEmpty()) return
+        try {
+            for (o in Outbox.all()) {
+                val reply = o.reply?.let { r -> runCatching { JSONObject(r).let { Reply(it.optLong("id"), it.optBoolean("by_me"), it.optString("kind"), it.optString("text")) } }.getOrNull() }
+                val bytes = if (o.kind == "image" && o.file != null) runCatching { File(o.file).readBytes() }.getOrNull() else null
+                pendings.add(ChatMsg(
+                    id = 0, tmp = ++tmpCounter, mine = true, kind = o.kind, body = o.body, media = if (o.kind == "gif") o.media else null,
+                    w = o.w, h = o.h, dur = o.dur, createdAt = o.createdAt, pending = true,
+                    localBytes = bytes, localFile = if (o.kind == "voice" || o.kind == "video") o.file else null, reply = reply,
+                ))
+            }
+        } catch (e: Exception) { /* ignoré */ }
     }
 
     private fun blank(kind: String, body: String? = null, media: String? = null, w: Int = 0, h: Int = 0, dur: Int = 0) =
@@ -350,8 +410,7 @@ class ChatViewModel : ViewModel() {
                 val path = Backend.upload(ph.bytes, "jpg", "image/jpeg")
                 deliver(p, path)
             } catch (e: Exception) {
-                removePending(p)
-                showToast("Photo non envoyée. Vérifie ta connexion.")
+                queueOffline(p, null, bytes = ph.bytes, ext = "jpg", mime = "image/jpeg")
             }
         }
     }
@@ -395,8 +454,7 @@ class ChatViewModel : ViewModel() {
                 val path = Backend.uploadFile(file, ext, type)
                 deliver(p, path)
             } catch (e: Exception) {
-                removePending(p)
-                showToast("Vidéo non envoyée. Vérifie ta connexion.")
+                queueOffline(p, null, src = file, ext = ext, mime = type)
             }
         }
     }
@@ -426,8 +484,7 @@ class ChatViewModel : ViewModel() {
                 val path = Backend.upload(bytes, "m4a", "audio/mp4")
                 deliver(p, path)
             } catch (e: Exception) {
-                removePending(p)
-                showToast("Vocal non envoyé. Vérifie ta connexion.")
+                queueOffline(p, null, src = file, ext = "m4a", mime = "audio/mp4")
             }
         }
     }

@@ -176,6 +176,11 @@
         </div>
         <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Réglages">${ic("settings", 22)}</button>
       </div>
+      <div class="ch-selbar" id="ch-selbar" hidden>
+        <button class="ch-icon" data-c="selClose" aria-label="Annuler la sélection">${ic("close", 22)}</button>
+        <b id="ch-selcount"></b>
+        <button class="ch-icon ch-seldel" data-c="selDel" aria-label="Supprimer">${ic("trash", 22)}</button>
+      </div>
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
       <div class="ch-toast" id="ch-toast" hidden></div>
@@ -303,6 +308,7 @@
       renderAll();
       scrollBottom(true);
     }
+    restoreQ();
     markRead();
     startPolling();
     if (window.TMM_GAMES) window.TMM_GAMES.attach(partner);
@@ -677,6 +683,77 @@
     if (el) el.remove();
   }
 
+  // Messages écrits sans réseau : gardés sur l'appareil, envoyés dès que la connexion revient.
+  const QKEY = "tmm_outbox";
+  const loadQ = () => { try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); } catch (e) { return []; } };
+  const saveQ = (q) => { try { localStorage.setItem(QKEY, JSON.stringify(q)); } catch (e) { /* ignoré */ } };
+  const dropQ = (qid) => saveQ(loadQ().filter((x) => x.qid !== qid));
+  const queueable = (payload) => payload.p_kind === "text" || payload.p_kind === "sticker" || payload.p_kind === "gif";
+
+  function queueOffline(p, payload) {
+    if (!queueable(payload)) {
+      removePending(p);
+      toast("Message non envoyé. Vérifie ta connexion.");
+      return false;
+    }
+    p.qid = p.qid || ("q" + Date.now() + Math.random().toString(36).slice(2, 6));
+    const q = loadQ();
+    if (!q.some((x) => x.qid === p.qid)) {
+      q.push({ qid: p.qid, payload, kind: p.kind, body: p.body || null, media: p.media || null, meta: p.meta || null, created_at: p.created_at });
+      saveQ(q);
+    }
+    toast("Pas de réseau : ton message partira dès que la connexion reviendra. 🕓");
+    return false;
+  }
+
+  // Remet dans le fil les messages en attente (appli fermée puis rouverte).
+  function restoreQ() {
+    loadQ().forEach((e) => {
+      if (pendings.some((x) => x.qid === e.qid)) return;
+      const p = { kind: e.kind, body: e.body, media: e.media, meta: e.meta, qid: e.qid, pending: true, sender_id: me,
+        created_at: e.created_at, tmp: "t" + (++tmpCount) };
+      pendings.push(p);
+      appendMessages([p], false);
+    });
+  }
+
+  let flushing = false;
+  async function flushOutbox() {
+    if (flushing) return;
+    const q = loadQ();
+    if (!q.length) return;
+    flushing = true;
+    try {
+      for (const e of q) {
+        let j;
+        try { j = await A().authed("POST", "/rest/v1/rpc/send_message", e.payload); } catch (err) { break; }
+        const p = pendings.find((x) => x.qid === e.qid);
+        dropQ(e.qid);
+        if (!j || j.status !== "ok") { if (p) removePending(p); continue; }
+        if (p) settle(p, e.payload, j);
+      }
+    } finally { flushing = false; }
+  }
+  window.addEventListener("online", () => setTimeout(flushOutbox, 500));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) flushOutbox(); });
+  setInterval(flushOutbox, 6000);
+  setTimeout(flushOutbox, 3000);
+
+  // Le serveur a enregistré le message : on remplace la bulle « en cours » par la vraie.
+  function settle(p, payload, j) {
+    popSound();
+    if (byId.has(j.id)) { removePending(p); return; }
+    const m = { id: j.id, sender_id: me, kind: payload.p_kind, body: payload.p_body || null, media: payload.p_media || null,
+      meta: payload.p_meta || null, created_at: p.created_at, read_at: null, localUrl: p.localUrl };
+    pendings = pendings.filter((x) => x !== p);
+    byId.set(m.id, m);
+    msgs.push(m);
+    msgs.sort((x, y) => x.id - y.id);
+    unreadOwn.add(m.id);
+    const el = host.querySelector('.ch-row[data-tmp="' + p.tmp + '"]');
+    if (el) el.replaceWith(rowEl(m));
+  }
+
   async function deliver(p, payload) {
     stopTyping();
     if (p.meta && p.meta.reply) payload = Object.assign({}, payload, { p_meta: Object.assign({}, payload.p_meta || {}, { reply: p.meta.reply }) });
@@ -688,26 +765,10 @@
         else toast("Message non envoyé.");
         return false;
       }
-      popSound();
-      if (byId.has(j.id)) { removePending(p); return true; }
-      // Le message a bien été enregistré : on le remplace par la version du serveur.
-      const m = { id: j.id, sender_id: me, kind: payload.p_kind, body: payload.p_body || null, media: payload.p_media || null,
-        meta: payload.p_meta || null, created_at: p.created_at, read_at: null, localUrl: p.localUrl };
-      pendings = pendings.filter((x) => x !== p);
-      byId.set(m.id, m);
-      msgs.push(m);
-      msgs.sort((a, b) => a.id - b.id);
-      unreadOwn.add(m.id);
-      const el = host.querySelector('.ch-row[data-tmp="' + p.tmp + '"]');
-      if (el) {
-        const fresh = rowEl(m);
-        el.replaceWith(fresh);
-      }
+      settle(p, payload, j);
       return true;
     } catch (e) {
-      removePending(p);
-      toast("Message non envoyé. Vérifie ta connexion.");
-      return false;
+      return queueOffline(p, payload);
     }
   }
 
@@ -823,6 +884,7 @@
     if (!gone) h += '<button class="ch-wpbtn ch-opt" data-c="mReply">↩ Répondre</button>';
     if (m.kind === "game") { h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>'; $("ch-mmbox").innerHTML = h; $("ch-mm").hidden = false; return; }
     if (!gone && m.kind === "text" && m.body) h += '<button class="ch-wpbtn ch-opt" data-c="mCopy">⧉ Copier</button>';
+    h += '<button class="ch-wpbtn ch-opt" data-c="mSel">☑ Sélectionner</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
     if (mine && !gone) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="mDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
     h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>';
@@ -830,6 +892,35 @@
     $("ch-mm").hidden = false;
   }
   function closeMsgMenu() { $("ch-mm").hidden = true; menuId = null; }
+
+  // ---------- Sélection de plusieurs messages ----------
+  const sel = new Set();
+  function updateSel() {
+    host.querySelectorAll(".ch-row.sel").forEach((r) => { if (!sel.has(Number(r.dataset.id))) r.classList.remove("sel"); });
+    sel.forEach((id) => { const r = host.querySelector('.ch-row[data-id="' + id + '"]'); if (r) r.classList.add("sel"); });
+    host.classList.toggle("selecting", sel.size > 0);
+    const bar = $("ch-selbar");
+    bar.hidden = sel.size === 0;
+    $("ch-selcount").textContent = sel.size + " sélectionné" + (sel.size > 1 ? "s" : "");
+  }
+  function toggleSel(id) { if (sel.has(id)) sel.delete(id); else sel.add(id); updateSel(); }
+  function clearSel() { sel.clear(); updateSel(); }
+  function openSelDelete() {
+    const chosen = [...sel].map((id) => byId.get(id)).filter(Boolean);
+    if (!chosen.length) return;
+    const canAll = chosen.every((m) => m.sender_id === me && !m.deleted_at);
+    let h = "<b>Supprimer " + chosen.length + " message" + (chosen.length > 1 ? "s" : "") + " ?</b>";
+    h += '<button class="ch-wpbtn ch-opt" data-c="sDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
+    if (canAll) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="sDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
+    h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>';
+    $("ch-mmbox").innerHTML = h;
+    $("ch-mm").hidden = false;
+  }
+  async function deleteSelected(all) {
+    const ids = [...sel];
+    clearSel();
+    for (const id of ids) await deleteMsg(id, all);
+  }
   function applyDeleted(m) {
     m.deleted_at = m.deleted_at || new Date().toISOString();
     m.body = null; m.media = null; m.meta = null; m.localUrl = null;
@@ -1203,6 +1294,15 @@
 
   function onClick(ev) {
     unlockAudio();
+    if (sel.size) {
+      const r = ev.target.closest(".ch-row[data-id]");
+      if (r && !ev.target.closest('.ch-selbar, .ch-wp')) {
+        const mm = byId.get(Number(r.dataset.id));
+        if (mm && mm.kind !== "game") toggleSel(mm.id);
+        ev.preventDefault(); ev.stopPropagation();
+        return;
+      }
+    }
     const t = ev.target.closest("[data-c]");
     if (!t) return;
     const c = t.dataset.c;
@@ -1243,6 +1343,11 @@
       case "viewClose": $("ch-view").hidden = true; break;
       case "quote": jumpTo(t.dataset.id); break;
       case "mClose": if (ev.target === t || t.classList.contains("ch-wpclose")) closeMsgMenu(); break;
+      case "mSel": { const id = menuId; closeMsgMenu(); if (id) { sel.clear(); sel.add(id); updateSel(); } ev.stopPropagation(); break; }
+      case "selClose": clearSel(); break;
+      case "selDel": openSelDelete(); break;
+      case "sDelMe": closeMsgMenu(); deleteSelected(false); ev.stopPropagation(); break;
+      case "sDelAll": closeMsgMenu(); deleteSelected(true); ev.stopPropagation(); break;
       case "mReply": { const m = byId.get(menuId); closeMsgMenu(); if (m) setReply(m); ev.stopPropagation(); break; }
       case "mCopy": {
         const m = byId.get(menuId); closeMsgMenu();
