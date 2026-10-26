@@ -152,7 +152,7 @@
     ev.target.value = "";
     if (!f) return;
     try {
-      const img = await resizeImage(f, 1080, 0.78);
+      const img = await resizeImage(f, 2000, 0.92);
       const path = await uploadFile(img.blob, "jpg", "image/jpeg");
       await chooseWall("photo:" + path);
     } catch (e) {

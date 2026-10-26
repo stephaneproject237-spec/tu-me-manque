@@ -25,7 +25,7 @@ class PreparedPhoto(val bytes: ByteArray, val w: Int, val h: Int)
 
 /** Redimensionne une photo (1280 px max, JPEG) en tenant compte de son orientation. */
 object ImageUtil {
-    fun prepare(context: Context, uri: Uri, maxSide: Int = 1280): PreparedPhoto? {
+    fun prepare(context: Context, uri: Uri, maxSide: Int = 1280, quality: Int = 82): PreparedPhoto? {
         val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
@@ -65,7 +65,7 @@ object ImageUtil {
             drawBitmap(moved, 0f, 0f, null)
         }
         val out = ByteArrayOutputStream()
-        flat.compress(Bitmap.CompressFormat.JPEG, 82, out)
+        flat.compress(Bitmap.CompressFormat.JPEG, quality, out)
         return PreparedPhoto(out.toByteArray(), flat.width, flat.height)
     }
 }

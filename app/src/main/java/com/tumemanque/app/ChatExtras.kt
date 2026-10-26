@@ -75,7 +75,7 @@ fun WallpaperLayer(value: String?) {
                 model = Backend.mediaUrl(v.removePrefix("photo:")), contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
             )
-            Box(Modifier.fillMaxSize().background(Color(0x55000000)))
+            Box(Modifier.fillMaxSize().background(Color(0x0F000000)))
         }
         v.startsWith("preset:") -> {
             val i = v.removePrefix("preset:").toIntOrNull() ?: 0
@@ -135,7 +135,7 @@ fun WallpaperMenu(show: Boolean, onDismiss: () -> Unit, onChanged: (String?) -> 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
             try {
-                val p = withContext(Dispatchers.IO) { ImageUtil.prepare(context.applicationContext, uri, 1600) }
+                val p = withContext(Dispatchers.IO) { ImageUtil.prepare(context.applicationContext, uri, 2400, 93) }
                 if (p == null) { onToast("Photo illisible."); return@launch }
                 val path = Backend.upload(p.bytes, "jpg", "image/jpeg")
                 val value = "photo:$path"
