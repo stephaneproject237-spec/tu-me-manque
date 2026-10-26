@@ -20,6 +20,8 @@
   let pollTimer = null;
   let polling = false;
   let tmpCount = 0;
+  let replyTo = null;       // message auquel on répond : {id, by_me, kind, text}
+  let typTimer = null, lastTypSent = 0;
   let panelTab = null;      // null | "emoji" | "sticker" | "gif"
   let stickers = [];
 
@@ -156,13 +158,18 @@
         <button class="ch-icon ch-back" data-c="back" aria-label="Retour">‹</button>
         <div class="ch-who">
           <div class="ch-avatar">💗</div>
-          <div class="ch-title"><b id="ch-name"></b><small>Ton partenaire ›</small></div>
+          <div class="ch-title"><b id="ch-name"></b><small id="ch-sub">Ton partenaire ›</small></div>
         </div>
         <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Fond d'écran">🎨</button>
       </div>
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
       <div class="ch-toast" id="ch-toast" hidden></div>
+      <div class="ch-typing" id="ch-typing" hidden><span><i></i><i></i><i></i></span></div>
+      <div class="ch-replybar" id="ch-replybar" hidden>
+        <div class="ch-rbody"><b id="ch-rname"></b><span id="ch-rtext"></span></div>
+        <button class="ch-icon" data-c="replyCancel" aria-label="Annuler la réponse">✕</button>
+      </div>
       <div class="ch-panel" id="ch-panel" hidden></div>
       <div class="ch-bar" id="ch-bar">
         <button class="ch-plus" data-c="emoji" id="ch-emojibtn" aria-label="Stickers et GIF">+</button>
@@ -209,6 +216,7 @@
     });
     $("ch-input").addEventListener("focus", () => { if (panelTab) closePanel(); setTimeout(() => scrollBottom(true), 250); });
     $("ch-file").addEventListener("change", onFile);
+    wireSwipe($("ch-list"));
     $("ch-list").addEventListener("scroll", onScroll, { passive: true });
     const vv = window.visualViewport;
     if (vv) {
@@ -265,15 +273,19 @@
     host.hidden = true;
     document.body.classList.remove("chat-open");
     clearInterval(pollTimer); pollTimer = null;
+    clearInterval(typTimer); typTimer = null;
+    setTyping(false);
   }
 
   function reset() {
-    msgs = []; byId.clear(); unreadOwn.clear(); pendings = []; noMore = false;
+    msgs = []; byId.clear(); unreadOwn.clear(); pendings = []; noMore = false; clearReply();
   }
 
   function startPolling() {
     clearInterval(pollTimer);
     pollTimer = setInterval(poll, 2500);
+    clearInterval(typTimer);
+    typTimer = setInterval(pollTyping, 1500);
   }
 
   // ---------- Données ----------
@@ -296,7 +308,11 @@
       fresh.forEach((m) => {
         if (addConfirmed(m)) {
           added.push(m);
-          if (m.sender_id !== me) { incoming = true; if (isLove(m)) love(); }
+          if (m.sender_id !== me) {
+            incoming = true; setTyping(false);
+            if (isLove(m)) love();
+            if (m.kind === "sticker") burst(m.body);
+          }
           else dropMatchingPending(m);
         }
       });
@@ -502,7 +518,7 @@
     row.className = "ch-row " + (mine ? "mine" : "theirs") + (m.pending ? " pending" : "");
     row.dataset.day = dayKey(m.created_at);
     if (m.pending) row.dataset.tmp = m.tmp; else row.dataset.id = m.id;
-    row.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + b.html + "</div>";
+    row.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + quoteHtml(m) + b.html + "</div>";
     wireAudio(row);
     row.querySelectorAll("img").forEach((img) => img.addEventListener("load", () => { if (nearBottomFlag) scrollBottom(true); }));
     return row;
@@ -561,6 +577,7 @@
   // ---------- Envoi ----------
   function addPending(p) {
     p.pending = true;
+    if (replyTo) { p.meta = Object.assign({}, p.meta || {}, { reply: replyTo }); clearReply(); }
     p.tmp = "t" + (++tmpCount);
     p.sender_id = me;
     p.created_at = new Date().toISOString();
@@ -576,6 +593,8 @@
   }
 
   async function deliver(p, payload) {
+    stopTyping();
+    if (p.meta && p.meta.reply) payload = Object.assign({}, payload, { p_meta: Object.assign({}, payload.p_meta || {}, { reply: p.meta.reply }) });
     try {
       const j = await A().authed("POST", "/rest/v1/rpc/send_message", payload);
       if (!j || j.status !== "ok") {
@@ -606,6 +625,107 @@
     }
   }
 
+  // ---------- « Est en train d'écrire… » ----------
+  function setTyping(on) {
+    const t = $("ch-typing"), s = $("ch-sub");
+    if (!t || !s) return;
+    const was = !t.hidden;
+    t.hidden = !on;
+    s.textContent = on ? "est en train d'écrire…" : "Ton partenaire ›";
+    if (on && !was && nearBottomFlag) scrollBottom(true);
+  }
+  async function pollTyping() {
+    if (!opened || document.visibilityState !== "visible") return;
+    try {
+      const r = await A().authed("POST", "/rest/v1/rpc/partner_typing", {});
+      if (opened) setTyping(!!(r && r.typing));
+    } catch (e) { /* le serveur n'a pas encore cette fonction : on ignore */ }
+  }
+  function sendTyping() {
+    const now = Date.now();
+    if (now - lastTypSent < 2500) return;
+    lastTypSent = now;
+    A().authed("POST", "/rest/v1/rpc/set_typing", {}).catch(() => {});
+  }
+  function stopTyping() {
+    if (!lastTypSent) return;
+    lastTypSent = 0;
+    A().authed("POST", "/rest/v1/rpc/stop_typing", {}).catch(() => {});
+  }
+
+  // ---------- Répondre à un message ----------
+  function snippet(m) {
+    switch (m.kind) {
+      case "text": return (m.body || "").replace(/\s+/g, " ").slice(0, 80);
+      case "sticker": return "💗 Sticker";
+      case "gif": return "🎞️ GIF";
+      case "image": return "📷 " + (m.body ? m.body.slice(0, 60) : "Photo");
+      case "voice": return "🎤 Message vocal";
+      default: return "";
+    }
+  }
+  function setReply(m) {
+    if (!m || !m.id) return;
+    replyTo = { id: m.id, by_me: m.sender_id === me, kind: m.kind, text: snippet(m) };
+    $("ch-rname").textContent = replyTo.by_me ? "Toi" : "@" + partner;
+    $("ch-rtext").textContent = replyTo.text;
+    $("ch-replybar").hidden = false;
+    $("ch-input").focus();
+  }
+  function clearReply() {
+    replyTo = null;
+    const b = $("ch-replybar");
+    if (b) b.hidden = true;
+  }
+  function quoteHtml(m) {
+    const r = m.meta && m.meta.reply;
+    if (!r) return "";
+    const byMe = m.sender_id === me ? !!r.by_me : !r.by_me;
+    return '<div class="ch-quote" data-c="quote" data-id="' + esc(String(r.id)) + '"><b>' + (byMe ? "Toi" : "@" + esc(partner)) + "</b><span>" + esc(r.text || "") + "</span></div>";
+  }
+  function jumpTo(id) {
+    const el = list().querySelector('.ch-row[data-id="' + id + '"]');
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1400);
+  }
+  // Glisser un message vers la droite = répondre (double-clic sur ordinateur).
+  function wireSwipe(l) {
+    let sx = 0, sy = 0, row = null, bub = null, dx = 0, lock = false;
+    l.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      row = e.target.closest(".ch-row[data-id]");
+      bub = row && row.querySelector(".ch-bubble");
+      sx = t.clientX; sy = t.clientY; dx = 0; lock = false;
+    }, { passive: true });
+    l.addEventListener("touchmove", (e) => {
+      if (!bub) return;
+      const t = e.touches[0];
+      const x = t.clientX - sx, y = t.clientY - sy;
+      if (!lock && Math.abs(y) > Math.abs(x) && Math.abs(y) > 8) { bub = null; return; }
+      if (x > 8) lock = true;
+      if (!lock) return;
+      dx = Math.max(0, Math.min(x, 90));
+      bub.style.transition = "none";
+      bub.style.transform = "translateX(" + dx + "px)";
+    }, { passive: true });
+    const end = () => {
+      if (!bub) return;
+      bub.style.transition = "transform .2s";
+      bub.style.transform = "";
+      if (dx > 55 && row) setReply(byId.get(Number(row.dataset.id)));
+      bub = null; row = null; dx = 0;
+    };
+    l.addEventListener("touchend", end);
+    l.addEventListener("touchcancel", end);
+    l.addEventListener("dblclick", (e) => {
+      const r = e.target.closest(".ch-row[data-id]");
+      if (r) setReply(byId.get(Number(r.dataset.id)));
+    });
+  }
+  function burst(id) { try { window.TMM_API && window.TMM_API.burst && window.TMM_API.burst(id); } catch (e) { /* ignoré */ } }
+
   const LOVE_RE = /\bje\s*t['’ ]?\s*aime\b|\bjtm\b/i;
   const isLove = (m) => m.kind === "text" && m.body && LOVE_RE.test(m.body);
   function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
@@ -624,6 +744,7 @@
 
   async function sendSticker(id) {
     closePanel();
+    burst(id);
     const p = addPending({ kind: "sticker", body: id });
     await deliver(p, { p_kind: "sticker", p_body: id, p_media: null, p_meta: null });
   }
@@ -670,6 +791,7 @@
     btn.textContent = has ? "➤" : "🎤";
     btn.classList.toggle("on", has);
     btn.dataset.c = has ? "send" : "mic";
+    if (has) sendTyping();
   }
 
   // ---------- Photos ----------
@@ -916,6 +1038,8 @@
       }
       case "view": $("ch-viewimg").src = t.src; $("ch-view").hidden = false; break;
       case "viewClose": $("ch-view").hidden = true; break;
+      case "quote": jumpTo(t.dataset.id); break;
+      case "replyCancel": clearReply(); break;
       case "play": if (row) togglePlay(row); break;
       case "seek": if (row) seek(row, ev); break;
       default: break;

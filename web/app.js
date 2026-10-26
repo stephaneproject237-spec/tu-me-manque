@@ -404,6 +404,26 @@
     } catch (e) { /* ignoré */ }
   }
 
+  // Pluie du même sticker : il s'envole en plusieurs exemplaires (comme les papillons).
+  function stickerBurst(id) {
+    if (!/^[a-z0-9_]{1,40}$/.test(id || "")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "fx";
+    for (let i = 0; i < 16; i++) {
+      const s = document.createElement("img");
+      s.src = "stickers/" + id + ".png";
+      s.alt = "";
+      s.style.left = (Math.random() * 84 + 2) + "vw";
+      s.style.width = (44 + Math.random() * 56) + "px";
+      s.style.setProperty("--dx", (Math.random() * 100 - 50) + "px");
+      s.style.animationDuration = (3 + Math.random() * 2) + "s";
+      s.style.animationDelay = (Math.random() * 1.4) + "s";
+      wrap.appendChild(s);
+    }
+    document.body.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 7200);
+  }
+
   function flutter(heartsOnly) {
     const glyphs = heartsOnly ? ["❤️", "💗", "💖", "💕", "💞", "💘"] : ["💗", "💖", "💕", "🦋", "🦋", "💞", "🦋"];
     const wrap = document.createElement("div");
@@ -775,6 +795,7 @@
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },
     love() { haptic(); flutter(true); },
+    burst(id) { stickerBurst(id); },
   };
 
   // ---------- Démarrage ----------
