@@ -43,6 +43,9 @@ data class Gif(val id: String, val url: String, val preview: String, val w: Int,
 
 data class GifPage(val items: List<Gif>, val next: Int)
 
+/** Message auquel on répond (`fromMe` : écrit par moi). */
+data class Reply(val id: Long, val fromMe: Boolean, val kind: String, val text: String)
+
 /** Un message du chat. `kind` : text, gif, sticker, image ou voice. */
 data class ChatMsg(
     val id: Long,
@@ -59,6 +62,7 @@ data class ChatMsg(
     val pending: Boolean = false,
     val localBytes: ByteArray? = null,
     val localFile: String? = null,
+    val reply: Reply? = null,
 ) {
     val key: String get() = if (pending) "t$tmp" else "m$id"
 }
@@ -378,9 +382,18 @@ object Backend {
 
     private fun parseMsg(o: JSONObject, uid: String): ChatMsg {
         val meta = o.optJSONObject("meta")
+        val isMine = o.str("sender_id") == uid
+        val rj = meta?.optJSONObject("reply")
+        val reply = if (rj == null) null else Reply(
+            id = rj.optLong("id", 0),
+            fromMe = if (isMine) rj.optBoolean("by_me", false) else !rj.optBoolean("by_me", false),
+            kind = rj.optString("kind", "text"),
+            text = rj.optString("text", ""),
+        )
         return ChatMsg(
             id = o.getLong("id"),
-            mine = o.str("sender_id") == uid,
+            reply = reply,
+            mine = isMine,
             kind = o.getString("kind"),
             body = o.str("body"),
             media = o.str("media"),
@@ -428,6 +441,15 @@ object Backend {
     }
 
     suspend fun markRead() { rpc("mark_read") }
+
+    /** « Est en train d'écrire » : tout est silencieux si la fonction n'existe pas encore côté serveur. */
+    suspend fun partnerTyping(): Boolean = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/partner_typing", "{}")).optBoolean("typing", false)
+    }.getOrDefault(false)
+
+    suspend fun setTyping() { runCatching { rpc("set_typing") } }
+
+    suspend fun stopTyping() { runCatching { rpc("stop_typing") } }
 
     /** Change le fond d'écran de la conversation pour les deux partenaires (null = fond d'origine). */
     suspend fun setWallpaper(value: String?): Boolean =

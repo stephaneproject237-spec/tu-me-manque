@@ -170,6 +170,17 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             }
         }
     }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                vm.pollTyping()
+                delay(1500)
+            }
+        }
+    }
+    var burstId by remember { mutableStateOf("") }
+    var burstN by remember { mutableIntStateOf(0) }
+    LaunchedEffect(vm) { vm.onSticker = { burstId = it; burstN++ } }
     LaunchedEffect(recording) {
         while (recording) {
             recSecs = recorder.elapsedSeconds()
@@ -202,14 +213,17 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     Box(Modifier.fillMaxSize()) {
         WallpaperLayer(wall)
         Column(Modifier.fillMaxSize()) {
-            ChatHeader(partner, onBack, onMenu = { showWall = true })
+            ChatHeader(partner, state.typing, onBack, onMenu = { showWall = true })
 
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
-                MessagesArea(state, partner, vm, Modifier.weight(1f)) { viewer = it }
+                MessagesArea(state, partner, vm, Modifier.weight(1f), onReply = { vm.setReply(it) }) { viewer = it }
+
+                if (state.typing && !recording) TypingBubble()
+                state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
                 InputBar(
                     recording = recording, recSecs = recSecs, panel = panel, text = text,
-                    onText = { text = it },
+                    onText = { text = it; vm.onTextChanged(it.isNotBlank()) },
                     onPanel = { panel = it },
                     onCancelRec = { recorder.cancel(); recording = false },
                     onStopRec = {
@@ -231,6 +245,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 }
             }
         }
+        StickerBurst(burstId, burstN)
     }
 
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
@@ -256,9 +271,17 @@ private fun DayChip(t: Long) {
 }
 
 @Composable
-private fun BubbleRow(m: ChatMsg, onOpenPhoto: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
-        Bubble(m, onOpenPhoto)
+private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onReply: () -> Unit) {
+    SwipeToReply(!m.pending, onReply) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
+            Column(horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start) {
+                m.reply?.let {
+                    QuoteChip(it, partner)
+                    Spacer(Modifier.height(2.dp))
+                }
+                Bubble(m, onOpenPhoto)
+            }
+        }
     }
 }
 
@@ -515,7 +538,7 @@ private fun GifPanel(vm: ChatViewModel, onPick: (Gif) -> Unit) {
 
 
 @Composable
-private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onOpenPhoto: (ChatMsg) -> Unit) {
+private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, modifier: Modifier, onReply: (ChatMsg) -> Unit, onOpenPhoto: (ChatMsg) -> Unit) {
                 Box(modifier.fillMaxWidth()) {
                     val items = remember(state.messages) { state.messages.asReversed() }
                     val listState = rememberLazyListState()
@@ -556,7 +579,7 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                                 val older = items.getOrNull(i + 1)
                                 Column(Modifier.fillMaxWidth()) {
                                     if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
-                                    BubbleRow(m) { onOpenPhoto(m) }
+                                    BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) })
                                 }
                             }
                         }

@@ -87,7 +87,7 @@ fun WallpaperLayer(value: String?) {
 }
 
 @Composable
-fun ChatHeader(partner: String, onBack: () -> Unit, onMenu: () -> Unit) {
+fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () -> Unit) {
     val glass = Color(0x99FFFFFF)
     val edge = Color(0xB3FFFFFF)
     Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -109,7 +109,7 @@ fun ChatHeader(partner: String, onBack: () -> Unit, onMenu: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(partner, color = Color(0xFF3B1A28), fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
-                Text("Ton partenaire ›", color = Color(0x993B1A28), fontSize = 12.sp)
+                Text(if (typing) "est en train d'écrire…" else "Ton partenaire ›", color = if (typing) RoseChat else Color(0x993B1A28), fontSize = 12.sp)
             }
         }
         Box(

@@ -29,6 +29,8 @@ data class ChatState(
     val gifs: List<Gif> = emptyList(),
     val gifLoading: Boolean = false,
     val gifError: Boolean = false,
+    val typing: Boolean = false,
+    val replyTo: Reply? = null,
 )
 
 class ChatViewModel : ViewModel() {
@@ -40,6 +42,45 @@ class ChatViewModel : ViewModel() {
 
     /** Appelé quand un message contient « je t'aime » / « jtm » (envoyé ou reçu) : des cœurs s'envolent. */
     var onLove: (() -> Unit)? = null
+
+    /** Un sticker vient d'être envoyé ou reçu : il s'envole en plusieurs exemplaires. */
+    var onSticker: ((String) -> Unit)? = null
+    private var lastTyping = 0L
+
+    fun setReply(m: ChatMsg) {
+        if (m.pending || m.id == 0L) return
+        val text = when (m.kind) {
+            "text" -> (m.body ?: "").replace(Regex("\\s+"), " ").take(80)
+            "sticker" -> "💗 Sticker"
+            "gif" -> "🎞️ GIF"
+            "image" -> "📷 " + (m.body?.take(60) ?: "Photo")
+            "voice" -> "🎤 Message vocal"
+            else -> ""
+        }
+        _state.update { it.copy(replyTo = Reply(m.id, m.mine, m.kind, text)) }
+    }
+
+    fun clearReply() = _state.update { it.copy(replyTo = null) }
+
+    /** Appelé à chaque modification du texte : prévient le partenaire (au plus toutes les 2,5 s). */
+    fun onTextChanged(hasText: Boolean) {
+        if (!hasText) return
+        val now = System.currentTimeMillis()
+        if (now - lastTyping < 2500) return
+        lastTyping = now
+        viewModelScope.launch { Backend.setTyping() }
+    }
+
+    private fun stopTyping() {
+        if (lastTyping == 0L) return
+        lastTyping = 0L
+        viewModelScope.launch { Backend.stopTyping() }
+    }
+
+    suspend fun pollTyping() {
+        val t = Backend.partnerTyping()
+        if (t != _state.value.typing) _state.update { it.copy(typing = t) }
+    }
     private val loveRegex = Regex("\\bje\\s*t['’ ]?\\s*aime\\b|\\bjtm\\b", RegexOption.IGNORE_CASE)
     private fun isLove(m: ChatMsg) = m.kind == "text" && m.body?.let { loveRegex.containsMatchIn(it) } == true
 
@@ -111,7 +152,11 @@ class ChatViewModel : ViewModel() {
                 if (addConfirmed(m)) {
                     changed = true
                     if (m.mine) dropMatchingPending(m)
-                    else if (isLove(m)) onLove?.invoke()
+                    else {
+                        if (_state.value.typing) _state.update { it.copy(typing = false) }
+                        if (isLove(m)) onLove?.invoke()
+                        if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }
+                    }
                 }
             }
             if (changed) publish()
@@ -167,7 +212,8 @@ class ChatViewModel : ViewModel() {
     // ---------- Envoi ----------
 
     private fun addPending(m: ChatMsg): ChatMsg {
-        val p = m.copy(tmp = ++tmpCounter, pending = true, mine = true, createdAt = System.currentTimeMillis())
+        val p = m.copy(tmp = ++tmpCounter, pending = true, mine = true, createdAt = System.currentTimeMillis(), reply = _state.value.replyTo)
+        _state.update { it.copy(replyTo = null) }
         pendings.add(p)
         publish()
         return p
@@ -195,6 +241,10 @@ class ChatViewModel : ViewModel() {
             if (p.w > 0) meta.put("w", p.w)
             if (p.h > 0) meta.put("h", p.h)
             if (p.dur > 0) meta.put("d", p.dur)
+            p.reply?.let {
+                meta.put("reply", JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text))
+            }
+            stopTyping()
             val r = Backend.sendMessage(p.kind, p.body, media, if (meta.length() == 0) null else meta)
             if (r.status != "ok") {
                 removePending(p)
@@ -227,6 +277,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun sendSticker(id: String) {
+        onSticker?.invoke(id)
         viewModelScope.launch { deliver(addPending(blank("sticker", body = id)), null) }
     }
 
