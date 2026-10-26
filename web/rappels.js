@@ -47,18 +47,21 @@
     } catch (e) { /* pas de son */ }
   }
   ["click", "touchstart", "keydown"].forEach((ev) => document.addEventListener(ev, unlock, { passive: true }));
-  function pop(at, f0, f1) {
-    const o = ac.createOscillator(), g = ac.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + 0.12);
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.7, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.14);
-    o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + 0.16);
+  function bell(at, f, vol) {
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(vol, at + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);
+    g.connect(ac.destination);
+    [[1, 1], [2, 0.25], [3, 0.08]].forEach(([m, a2]) => {
+      const o = ac.createOscillator(), h = ac.createGain();
+      o.type = "sine"; o.frequency.value = f * m; h.gain.value = a2;
+      o.connect(h); h.connect(g); o.start(at); o.stop(at + 1.15);
+    });
   }
   function ring() {
     try {
-      if (ac) { const t = ac.currentTime; pop(t, 900, 520); pop(t + 0.24, 900, 520); pop(t + 0.6, 1200, 700); pop(t + 0.84, 1200, 700); }
+      if (ac) { const t = ac.currentTime; [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => bell(t + k * 0.22, f, 0.35)); bell(t + 1.0, 783.99, 0.2); }
     } catch (e) { /* ignoré */ }
-    try { if (navigator.vibrate) navigator.vibrate([180, 120, 180, 300, 180, 120, 180]); } catch (e) { /* ignoré */ }
+    try { if (navigator.vibrate) navigator.vibrate([200, 150, 200]); } catch (e) { /* ignoré */ }
   }
   function dueList() { const n = Date.now(); return items.filter((r) => new Date(r.due_at).getTime() <= n); }
   function checkAlarm() {
@@ -81,7 +84,7 @@
     el.innerHTML = `<div class="rp-box"><div style="font-size:54px">⏰</div><h2>Rappel !</h2>` +
       due.map((r) => `<div class="rp-task"><b>${esc(r.title)}</b><small>${esc(target(r))}${r.by_me ? "" : " · de @" + esc(r.by_name)}</small></div>`).join("") +
       `<button class="rp-ok" data-rp="ok">OK</button></div>`;
-    if (!alarmTimer) { ring(); alarmTimer = setInterval(ring, 2400); }
+    if (!alarmTimer) { ring(); alarmTimer = setInterval(ring, 3600); }
   }
   async function ack(list) {
     const ids = list.map((r) => r.id);

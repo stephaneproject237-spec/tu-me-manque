@@ -80,12 +80,15 @@ object Sounds {
 
     /** Alarme de rappel : « pop pop » puis « pop pop » plus aigu. */
     private val alarmData: ShortArray by lazy {
-        mix(listOf(
-            Part(0.00, 0.12, 900.0, 520.0, 0.55, 0),
-            Part(0.24, 0.12, 900.0, 520.0, 0.55, 0),
-            Part(0.60, 0.12, 1200.0, 700.0, 0.55, 0),
-            Part(0.84, 0.12, 1200.0, 700.0, 0.55, 0),
-        ))
+        val notes = doubleArrayOf(523.25, 659.25, 783.99, 1046.5)
+        val parts = ArrayList<Part>()
+        notes.forEachIndexed { k, f ->
+            parts.add(Part(k * 0.22, 0.9, f, f, 0.22, 0))
+            parts.add(Part(k * 0.22, 0.5, f * 2, f * 2, 0.05, 0))
+        }
+        parts.add(Part(1.0, 1.0, 783.99, 783.99, 0.14, 0))
+        parts.add(Part(1.0, 1.0, 1046.5, 1046.5, 0.08, 0))
+        mix(parts)
     }
 
     /** Petit « ding » doux et affectueux quand les fonctions sortent de l'éclair. */

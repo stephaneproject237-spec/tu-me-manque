@@ -3,6 +3,11 @@ package com.tumemanque.app
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.Spring
@@ -674,6 +679,7 @@ fun GameBotRow(m: ChatMsg, partner: String) {
     val me = m.myUid
     val pn = "@$partner"
     val bank = ctl.bank
+    var open by remember(m.id) { mutableStateOf(false) }
     var bg = Brush.linearGradient(listOf(Color(0xDB3A2834), Color(0xD1241822)))
     var res: GRes? = null
     if (t == "card") {
@@ -704,8 +710,14 @@ fun GameBotRow(m: ChatMsg, partner: String) {
                     else {
                         Text(if (mineTurn) "Qu'a choisi $pn ?" else "$pn doit deviner ce que tu as choisi :", color = GSub, fontSize = 13.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text("« ${q.q} »", color = GTxt, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("« ${q.q} »", color = GTxt, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                            modifier = if (res != null) Modifier.fillMaxWidth().clickable { open = !open } else Modifier)
                         Spacer(Modifier.height(10.dp))
+                        AnimatedVisibility(
+                            visible = res == null || open,
+                            enter = expandVertically(tween(420)) + fadeIn(tween(420)),
+                            exit = shrinkVertically(tween(380)) + fadeOut(tween(250)),
+                        ) {
                         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             q.o.forEachIndexed { k, txt ->
                                 val right = res != null && res.answer == k.toString()
@@ -732,8 +744,15 @@ fun GameBotRow(m: ChatMsg, partner: String) {
                                 }
                             }
                         }
+                        }
                         Spacer(Modifier.height(8.dp))
-                        if (res != null) Text(if (res.ok) "✅ Bonne réponse !" else "❌ Raté…", color = if (res.ok) Color(0xFF7BE0A3) else Color(0xFFFF8A9A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        if (res != null) {
+                            Text((if (res.ok) "✅ Bonne réponse !" else "❌ Raté…") + (if (open) "  ▴" else "  ▾"), color = if (res.ok) Color(0xFF7BE0A3) else Color(0xFFFF8A9A), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                modifier = Modifier.clickable { open = !open })
+                            val other = msgs.firstOrNull { it.kind == "game" && it.meta?.optString("t") == "card" && it.meta!!.optLong("round") == mt.optLong("round") && it.meta!!.optInt("idx") == mt.optInt("idx") && it.meta!!.optString("who") != mt.optString("who") }
+                            if (other != null && findRes(ctl, msgs, gKey(other.meta!!)) == null)
+                                Row(verticalAlignment = Alignment.CenterVertically) { Hourglass(13.sp); Text(" En attente de $pn pour passer à la suite…", color = GSub, fontSize = 13.sp) }
+                        }
                         else if (!mineTurn) Row(verticalAlignment = Alignment.CenterVertically) { Hourglass(13.sp); Text(" $pn réfléchit…", color = GSub, fontSize = 13.sp) }
                     }
                 }

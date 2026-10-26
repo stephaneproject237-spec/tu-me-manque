@@ -183,7 +183,7 @@ fun ReminderAlarmHost(vm: ReminderViewModel, active: Boolean, partner: String) {
         while (true) {
             Sounds.alarm()
             vibrateAlarm(context)
-            delay(2400)
+            delay(3600)
         }
     }
     Dialog(

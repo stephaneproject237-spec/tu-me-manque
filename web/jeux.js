@@ -140,6 +140,15 @@
     ev.stopPropagation();
     const a = t.dataset.g;
     if (a === "pick") { pick(t); }
+    else if (a === "qtoggle") {
+      const k = t.dataset.k, rowEl = t.closest(".ch-row");
+      const fold = rowEl && rowEl.querySelector(".gm-fold");
+      if (!fold) return;
+      const o = !fold.classList.contains("open");
+      if (o) openCards.add(k); else openCards.delete(k);
+      fold.classList.toggle("open", o);
+      const ch = rowEl.querySelector(".gm-chev"); if (ch) ch.textContent = o ? "▴" : "▾";
+    }
     else if (a === "bolt") { boltOpen = !boltOpen; if (boltOpen) chime(); paintChip(); }
     else if (a === "open") { boltOpen = false; paintChip(); openOverlay(); }
     else if (a === "rp") { boltOpen = false; paintChip(); if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
@@ -396,6 +405,8 @@
     return null;
   }
 
+  const openCards = new Set();
+
   function botHtml(m, env) {
     const mt = m.meta || {};
     const pn = "@" + esc(env.partner);
@@ -410,18 +421,23 @@
         const mineTurn = mt.who === env.me;
         let h = head("Question " + (mt.idx + 1) + "/10");
         if (!q) return { cls: "gm-b", html: h + '<div class="ch-text">…</div>' + time };
-        h += mineTurn ? `<div class="gm-bq"><small>Qu'a choisi ${pn} ?</small><b>« ${esc(q.q)} »</b></div>`
-          : `<div class="gm-bq"><small>${pn} doit deviner ce que <u>tu</u> as choisi :</small><b>« ${esc(q.q)} »</b></div>`;
-        h += '<div class="gm-bopts">';
+        h += mineTurn ? `<div class="gm-bq" ${res ? 'data-g="qtoggle" data-k="'+key+'" style="cursor:pointer"' : ''}><small>Qu'a choisi ${pn} ?</small><b>« ${esc(q.q)} »</b></div>`
+          : `<div class="gm-bq" ${res ? 'data-g="qtoggle" data-k="'+key+'" style="cursor:pointer"' : ''}><small>${pn} doit deviner ce que <u>tu</u> as choisi :</small><b>« ${esc(q.q)} »</b></div>`;
+        const isOpen = !res || openCards.has(key);
+        h += '<div class="gm-fold' + (isOpen ? " open" : "") + '"><div class="gm-foldin"><div class="gm-bopts">';
         q.o.forEach((t, k) => {
           let c = "gm-bo";
           if (res) { if (String(k) === String(res.answer)) c += " right"; else if (String(k) === String(res.guess)) c += " wrong"; else c += " dim"; }
           const can = !res && mineTurn;
           h += `<button type="button" class="${c}" ${can ? `data-g="pick" data-round="${mt.round}" data-idx="${mt.idx}" data-o="${k}" data-who="${esc(mt.who)}" data-qid="${mt.qid}"` : "disabled"}><i>${LET[k]}</i><span>${esc(t)}</span>${res && String(k) === String(res.answer) ? "<em>✓</em>" : res && String(k) === String(res.guess) ? "<em>✗</em>" : ""}</button>`;
         });
-        h += "</div>";
-        if (res) h += `<div class="gm-bres ${res.ok ? "ok" : "ko"}">${res.ok ? "✅ Bonne réponse !" : "❌ Raté…"}</div>`;
-        else if (!mineTurn) h += `<div class="gm-bwait"><span class="hg">⏳</span> ${pn} réfléchit…</div>`;
+        h += "</div></div></div>";
+        if (res) {
+          h += `<div class="gm-bres ${res.ok ? "ok" : "ko"}">${res.ok ? "✅ Bonne réponse !" : "❌ Raté…"} <span class="gm-chev">${isOpen ? "▴" : "▾"}</span></div>`;
+          const all = envLast ? envLast.msgs() : [];
+          const other = all.find((x) => x.kind === "game" && x.meta && x.meta.t === "card" && x.meta.round === mt.round && x.meta.idx === mt.idx && x.meta.who !== mt.who);
+          if (other && !resultFor(gkey(other.meta), env)) h += `<div class="gm-bwait"><span class="hg">⏳</span> En attente de ${pn} pour passer à la suite…</div>`;
+        } else if (!mineTurn) h += `<div class="gm-bwait"><span class="hg">⏳</span> ${pn} réfléchit…</div>`;
         return { cls: "gm-b gm-card" + (res ? (res.ok ? " done ok" : " done ko") : ""), html: h + time };
       }
       case "result": {
@@ -464,10 +480,14 @@
   function refreshCard(key) {
     if (!envLast) return;
     const host = document.getElementById("chat");
-    const el = host && host.querySelector('.ch-row[data-gk="' + key + '"]');
-    if (!el) return;
-    const m = envLast.msgs().find((x) => x.kind === "game" && x.meta && x.meta.t === "card" && gkey(x.meta) === key);
-    if (m) el.replaceWith(row(m, envLast));
+    if (!host) return;
+    const pre = key.split(":").slice(0, 2).join(":") + ":";
+    host.querySelectorAll(".ch-row[data-gk]").forEach((el) => {
+      if (el.dataset.gk.indexOf(pre) !== 0) return;
+      const k = el.dataset.gk;
+      const m = envLast.msgs().find((x) => x.kind === "game" && x.meta && x.meta.t === "card" && gkey(x.meta) === k);
+      if (m) el.replaceWith(row(m, envLast));
+    });
   }
 
   // Nouveaux messages reçus : on met à jour la carte concernée, et on joue le petit bruit si c'est l'autre qui a répondu.

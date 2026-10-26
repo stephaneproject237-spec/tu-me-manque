@@ -467,3 +467,8 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .ch-pvact { display: flex; gap: 10px; padding: 4px 10px calc(12px + env(safe-area-inset-bottom)); }
 .ch-pvbtn { flex: 1; border: 0; border-radius: 26px; padding: 14px 10px; font: 600 16px inherit; font-family: inherit; background: #2A1B24; color: #F5EEF2; cursor: pointer; }
 .ch-pvbtn.ok { flex: 1.4; background: #E91E63; color: #fff; font-weight: 700; }
+
+.gm-fold { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s cubic-bezier(.4,0,.2,1), opacity .35s ease; }
+.gm-fold.open { grid-template-rows: 1fr; opacity: 1; }
+.gm-foldin { overflow: hidden; min-height: 0; }
+.gm-chev { color: #B7A3AE; font-weight: 400; margin-left: 6px; }
