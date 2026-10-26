@@ -200,7 +200,7 @@ fun SupportScreen(vm: SupportViewModel, onBack: () -> Unit, onRead: () -> Unit, 
                         Modifier.size(44.dp).clip(CircleShape).background(if (text.isBlank()) Color(0xFFF3F3F3) else RoseS)
                             .clickable(enabled = text.isNotBlank()) { vm.send(text) { text = "" } },
                         contentAlignment = Alignment.Center,
-                    ) { Text("➤", fontSize = 20.sp, color = if (text.isBlank()) Color.Gray else Color.White) }
+                    ) { Ico(R.drawable.ic_send, if (text.isBlank()) Color.Gray else Color.White, 20.dp) }
                 }
             }
         }

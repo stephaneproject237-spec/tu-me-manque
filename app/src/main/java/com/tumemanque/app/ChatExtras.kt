@@ -94,7 +94,7 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
         Box(
             Modifier.align(Alignment.TopStart).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onBack() },
             contentAlignment = Alignment.Center,
-        ) { Text("‹", color = RoseChat, fontSize = 30.sp) }
+        ) { Ico(R.drawable.ic_chevron, RoseChat, 30.dp) }
         Column(Modifier.align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier.size(56.dp).clip(CircleShape)
@@ -115,7 +115,7 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
         Box(
             Modifier.align(Alignment.TopEnd).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onMenu() },
             contentAlignment = Alignment.Center,
-        ) { Text("🎨", fontSize = 20.sp) }
+        ) { Ico(R.drawable.ic_settings, RoseChat, 22.dp) }
     }
 }
 

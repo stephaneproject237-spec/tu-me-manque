@@ -6,6 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
@@ -206,8 +209,26 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) beginRecording() else vm.showToast("Micro refusé. Autorise-le dans les réglages pour envoyer des vocaux.")
     }
+    var showCam by remember { mutableStateOf(false) }
+    var camPath by rememberSaveable { mutableStateOf("") }
+    fun newCamFile(ext: String): Pair<File, Uri> {
+        val dir = File(context.cacheDir, "cam").apply { mkdirs() }
+        val f = File.createTempFile("cap", ext, dir)
+        camPath = f.absolutePath
+        return f to FileProvider.getUriForFile(context, context.packageName + ".files", f)
+    }
     val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) vm.onPhotoPicked(context.applicationContext, uri)
+        if (uri != null) {
+            val mime = context.contentResolver.getType(uri) ?: ""
+            if (mime.startsWith("video/")) vm.onVideoPicked(context.applicationContext, uri, mime)
+            else vm.onPhotoPicked(context.applicationContext, uri)
+        }
+    }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok && camPath.isNotEmpty()) vm.onPhotoPicked(context.applicationContext, Uri.fromFile(File(camPath)))
+    }
+    val captureVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { ok ->
+        if (ok && camPath.isNotEmpty()) vm.sendVideoFile(File(camPath))
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -236,7 +257,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                             beginRecording()
                         } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
-                    onPhoto = { photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    onPhoto = { showCam = true },
                     onSend = { vm.sendText(text); text = "" },
                 )
 
@@ -248,17 +269,25 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         StickerBurst(burstId, burstN)
     }
 
+    if (showCam) {
+        CameraChoice(
+            onDismiss = { showCam = false },
+            onPhoto = { showCam = false; takePicture.launch(newCamFile(".jpg").second) },
+            onVideo = { showCam = false; captureVideo.launch(newCamFile(".mp4").second) },
+            onGallery = { showCam = false; photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+        )
+    }
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm) }
-    viewer?.let { m -> PhotoViewer(m) { viewer = null } }
+    viewer?.let { m -> if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }
 }
 
 @Composable
-private fun RoundButton(label: String, active: Boolean, onClick: () -> Unit) {
+private fun RoundButton(icon: Int, active: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.size(44.dp).clip(CircleShape).background(if (active) Rose else Color(0xFFF3F3F3)).clickable { onClick() },
         contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = 20.sp, color = if (active) Color.White else Color.Black) }
+    ) { Ico(icon, if (active) Color.White else Color.Black, 22.dp) }
 }
 
 @Composable
@@ -357,6 +386,12 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 if (!m.body.isNullOrEmpty()) {
                     Text(m.body, color = fg, fontSize = 16.sp, modifier = Modifier.widthIn(max = 240.dp).padding(horizontal = 6.dp, vertical = 4.dp))
                 }
+                Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
+            }
+        }
+        "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
+            Column(Modifier.padding(3.dp)) {
+                VideoTile(m, onOpenPhoto)
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
@@ -615,13 +650,13 @@ private fun InputBar(
             Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.7f)).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("🗑", fontSize = 24.sp, modifier = Modifier.clickable { onCancelRec() }.padding(10.dp))
+            Box(Modifier.clickable { onCancelRec() }.padding(10.dp)) { Ico(R.drawable.ic_trash, Color(0xFFE53935), 26.dp) }
             Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFFE53935)))
             Spacer(Modifier.width(8.dp))
             Text(mmss(recSecs), fontSize = 18.sp)
             Spacer(Modifier.width(10.dp))
             Text("Enregistrement…", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            RoundButton("➤", true) { onStopRec() }
+            RoundButton(R.drawable.ic_send, true) { onStopRec() }
         }
     } else {
         Row(
@@ -636,7 +671,7 @@ private fun InputBar(
                         else { keyboard?.hide(); focus.clearFocus(); onPanel(2) }
                     },
                 contentAlignment = Alignment.Center,
-            ) { Text(if (panel != 0) "⌨" else "+", fontSize = 28.sp, color = Rose) }
+            ) { Ico(if (panel != 0) R.drawable.ic_close else R.drawable.ic_add, Rose, 28.dp) }
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(24.dp))
@@ -658,13 +693,13 @@ private fun InputBar(
                         unfocusedIndicatorColor = Color.Transparent,
                     ),
                 )
-                Text("📷", fontSize = 22.sp, modifier = Modifier.clickable { onPhoto() }.padding(horizontal = 6.dp, vertical = 10.dp))
+                Box(Modifier.clickable { onPhoto() }.padding(horizontal = 8.dp, vertical = 10.dp)) { Ico(R.drawable.ic_camera, Rose, 24.dp) }
                 Box(Modifier.padding(end = 4.dp, bottom = 5.dp)) {
-                    if (text.isBlank()) Text("🎤", fontSize = 22.sp, modifier = Modifier.clickable { onMic() }.padding(horizontal = 6.dp, vertical = 3.dp))
+                    if (text.isBlank()) Box(Modifier.clickable { onMic() }.padding(horizontal = 6.dp, vertical = 3.dp)) { Ico(R.drawable.ic_mic, Rose, 24.dp) }
                     else Box(
                         Modifier.size(34.dp).clip(CircleShape).background(Rose).clickable { onSend() },
                         contentAlignment = Alignment.Center,
-                    ) { Text("➤", fontSize = 17.sp, color = Color.White) }
+                    ) { Ico(R.drawable.ic_send, Color.White, 18.dp) }
                 }
             }
         }
@@ -705,10 +740,7 @@ private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel) {
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         ) {
             Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
-                Text(
-                    "✕", color = Color.White, fontSize = 26.sp,
-                    modifier = Modifier.clickable { vm.cancelPhoto() }.padding(16.dp),
-                )
+                Box(Modifier.clickable { vm.cancelPhoto() }.padding(16.dp)) { Ico(R.drawable.ic_close, Color.White, 26.dp) }
                 AsyncImage(
                     model = ph.bytes,
                     contentDescription = "Photo",
@@ -724,7 +756,7 @@ private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel) {
                         maxLines = 3,
                     )
                     Spacer(Modifier.width(8.dp))
-                    RoundButton("➤", true) { vm.sendPhoto(caption) }
+                    RoundButton(R.drawable.ic_send, true) { vm.sendPhoto(caption) }
                 }
             }
         }
@@ -745,4 +777,34 @@ private fun PhotoViewer(m: ChatMsg, onClose: () -> Unit) {
                 )
             }
         }
+}
+
+@Composable
+private fun CameraChoice(onDismiss: () -> Unit, onPhoto: () -> Unit, onVideo: () -> Unit, onGallery: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White.copy(alpha = 0.95f),
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("Appareil photo", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                CamOption(R.drawable.ic_camera, "Prendre une photo", onPhoto)
+                CamOption(R.drawable.ic_videocam, "Filmer une vidéo", onVideo)
+                CamOption(R.drawable.ic_image, "Choisir dans la galerie", onGallery)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Annuler", color = Color.Gray) } },
+    )
+}
+
+@Composable
+private fun CamOption(icon: Int, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x14E91E63)).clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Ico(icon, Rose, 24.dp)
+        Spacer(Modifier.width(14.dp))
+        Text(label, color = Rose, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+    }
 }

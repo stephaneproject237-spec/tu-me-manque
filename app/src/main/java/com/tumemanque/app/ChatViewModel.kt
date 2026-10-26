@@ -55,6 +55,7 @@ class ChatViewModel : ViewModel() {
             "gif" -> "🎞️ GIF"
             "image" -> "📷 " + (m.body?.take(60) ?: "Photo")
             "voice" -> "🎤 Message vocal"
+            "video" -> "🎥 Vidéo"
             else -> ""
         }
         _state.update { it.copy(replyTo = Reply(m.id, m.mine, m.kind, text)) }
@@ -314,6 +315,66 @@ class ChatViewModel : ViewModel() {
                 removePending(p)
                 showToast("Photo non envoyée. Vérifie ta connexion.")
             }
+        }
+    }
+
+    // ---------- Vidéos ----------
+
+    private val maxVideo = 50L * 1024 * 1024
+
+    private fun videoInfo(file: File): Triple<Int, Int, Int> {
+        val r = android.media.MediaMetadataRetriever()
+        return try {
+            r.setDataSource(file.absolutePath)
+            var w = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            var h = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            val rot = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            if (rot == 90 || rot == 270) { val t = w; w = h; h = t }
+            val d = ((r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000).toInt()
+            Triple(w, h, d)
+        } catch (e: Exception) {
+            Triple(0, 0, 0)
+        } finally {
+            try { r.release() } catch (e: Exception) { /* ignoré */ }
+        }
+    }
+
+    /** Envoie une vidéo déjà enregistrée dans un fichier (caméra ou galerie). */
+    fun sendVideoFile(file: File, mime: String = "video/mp4") {
+        viewModelScope.launch {
+            if (!file.exists() || file.length() == 0L) { showToast("Vidéo illisible."); return@launch }
+            if (file.length() > maxVideo) { showToast("Vidéo trop lourde (50 Mo maximum)."); return@launch }
+            val (w, h, d) = withContext(Dispatchers.IO) { videoInfo(file) }
+            val ext = when {
+                mime.contains("quicktime") -> "mov"
+                mime.contains("webm") -> "webm"
+                mime.contains("3gpp") -> "3gp"
+                else -> "mp4"
+            }
+            val type = when (ext) { "mov" -> "video/quicktime"; "webm" -> "video/webm"; "3gp" -> "video/3gpp"; else -> "video/mp4" }
+            val p = addPending(blank("video", w = w, h = h, dur = d).copy(localFile = file.absolutePath))
+            try {
+                val path = Backend.uploadFile(file, ext, type)
+                deliver(p, path)
+            } catch (e: Exception) {
+                removePending(p)
+                showToast("Vidéo non envoyée. Vérifie ta connexion.")
+            }
+        }
+    }
+
+    /** Vidéo choisie dans la galerie : on la copie d'abord dans le cache de l'appli. */
+    fun onVideoPicked(context: Context, uri: Uri, mime: String) {
+        viewModelScope.launch {
+            val f = withContext(Dispatchers.IO) {
+                try {
+                    val dir = File(context.cacheDir, "cam").apply { mkdirs() }
+                    val out = File.createTempFile("vid", ".bin", dir)
+                    context.contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+                    out
+                } catch (e: Exception) { null }
+            }
+            if (f == null) showToast("Impossible de lire cette vidéo.") else sendVideoFile(f, mime)
         }
     }
 

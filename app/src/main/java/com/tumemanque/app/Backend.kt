@@ -485,6 +485,34 @@ object Backend {
         return path
     }
 
+    /** Comme [upload], mais lit le fichier par morceaux (vidéos lourdes : rien n'est chargé en mémoire). */
+    suspend fun uploadFile(file: java.io.File, ext: String, mime: String): String {
+        val uid = ensureSession()
+        val path = "$uid/${UUID.randomUUID().toString().replace("-", "")}.$ext"
+        suspend fun attempt(token: String): Int = withContext(Dispatchers.IO) {
+            val conn = URL("${Config.SUPABASE_URL}/storage/v1/object/chat/$path").openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 15000
+                conn.readTimeout = 180000
+                conn.doOutput = true
+                conn.setFixedLengthStreamingMode(file.length())
+                conn.setRequestProperty("apikey", Config.SUPABASE_ANON_KEY)
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", mime)
+                conn.setRequestProperty("x-upsert", "false")
+                file.inputStream().use { input -> conn.outputStream.use { out -> input.copyTo(out) } }
+                conn.responseCode
+            } finally {
+                conn.disconnect()
+            }
+        }
+        var code = attempt(session().first)
+        if (code == 401) code = attempt(session(force = true).first)
+        if (code !in 200..299) throw IOException("Envoi de la vidéo refusé ($code)")
+        return path
+    }
+
     suspend fun searchGifs(query: String, offset: Int): GifPage {
         val text = authed("GET", "/functions/v1/gifs?q=${URLEncoder.encode(query, "UTF-8")}&offset=$offset")
         val j = JSONObject(text)
