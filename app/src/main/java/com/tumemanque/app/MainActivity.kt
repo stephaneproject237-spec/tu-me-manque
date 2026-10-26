@@ -63,7 +63,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
+    private var locked by androidx.compose.runtime.mutableStateOf(false)
+    private var stoppedAt = 0L
     private val viewModel: AppViewModel by viewModels()
     private val authViewModel: AuthViewModel by viewModels()
 
@@ -81,8 +83,20 @@ class MainActivity : ComponentActivity() {
         handleLink(intent)
     }
 
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = System.currentTimeMillis()
+    }
+
+    /** Verrouillage : au lancement, et au retour dans l'appli après plus de 30 secondes d'absence. */
+    override fun onStart() {
+        super.onStart()
+        if (AppLock.enabled(this) && stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 30_000) locked = true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        locked = AppLock.enabled(this)
         handleLink(intent)
         setContent {
             MaterialTheme(
@@ -109,6 +123,7 @@ class MainActivity : ComponentActivity() {
                     AppBackground()
                     NotificationPermission()
                     Root(viewModel, authViewModel)
+                    if (locked) LockScreen { locked = false }
                 }
             }
         }

@@ -80,6 +80,7 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
             }
         }
         Spacer(Modifier.height(14.dp))
+        LockCard()
 
         GlassCard(Modifier.fillMaxWidth()) {
             Row(
@@ -136,5 +137,43 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
             Spacer(Modifier.height(10.dp))
             GlassButton(if (supportUnread > 0) "🛟 Contacter le SAV ($supportUnread)" else "🛟 Contacter le SAV", Modifier.fillMaxWidth()) { onSupport() }
         }
+    }
+}
+
+
+/** Réglage « Verrouillage biométrique ». */
+@Composable
+private fun LockCard() {
+    val context = LocalContext.current
+    var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppLock.enabled(context)) }
+    var msg by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    GlassCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("🔒 Verrouillage biométrique", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text(
+                    "Protège l'appli avec l'empreinte, le visage ou le code de ton téléphone. Elle se verrouille quand tu la quittes plus de 30 secondes.",
+                    color = Color(0xFFB7A3AE), fontSize = 13.sp,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            androidx.compose.material3.Switch(
+                checked = on,
+                onCheckedChange = { want ->
+                    val act = context.findFragmentActivity()
+                    msg = null
+                    if (act == null) { msg = "Impossible d'ouvrir la vérification sur cet appareil." }
+                    else if (want && !AppLock.available(context)) {
+                        msg = "Aucune empreinte, aucun visage ni code n'est configuré sur ce téléphone. Ajoutes-en un dans les réglages du téléphone, puis réessaie."
+                    } else {
+                        AppLock.prompt(
+                            act, if (want) "Activer le verrouillage" else "Désactiver le verrouillage",
+                            onOk = { AppLock.set(context, want); on = want },
+                        )
+                    }
+                },
+            )
+        }
+        msg?.let { Spacer(Modifier.height(6.dp)); Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp) }
     }
 }
