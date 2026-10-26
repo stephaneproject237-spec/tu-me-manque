@@ -145,6 +145,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     val lifecycleOwner = LocalLifecycleOwner.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val remVm: ReminderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 
     var text by rememberSaveable { mutableStateOf("") }
     var panel by rememberSaveable { mutableIntStateOf(0) } // 0 aucun, 1 emojis, 2 stickers, 3 GIF
@@ -260,7 +261,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
-            if (!recording) GameChip(game, partner)
+            if (!recording) GameChip(game, partner) { ReminderPill(remVm) }
             if (state.typing && !recording) TypingBubble()
             state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
@@ -289,6 +290,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         }
         StickerBurst(burstId, burstN)
         if (game.overlay) GameOverlay(game, partner)
+        if (remVm.overlay) RemindersOverlay(remVm, partner)
     }
 
     menuMsg?.let { mm ->

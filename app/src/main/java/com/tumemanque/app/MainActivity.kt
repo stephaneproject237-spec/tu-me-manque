@@ -145,6 +145,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val chatVm: ChatViewModel = viewModel()
     val supportVm: SupportViewModel = viewModel()
     val updateVm: UpdateViewModel = viewModel()
+    val remVm: ReminderViewModel = viewModel()
     val updState by updateVm.state.collectAsStateWithLifecycle()
     var showSettings by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { updateVm.check(force = false) }
@@ -261,6 +262,8 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         Spacer(Modifier.height(24.dp))
         Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = Color.LightGray)
     }
+
+    ReminderAlarmHost(remVm, state.partnerName != null, partnerLabel(state))
 
     state.offerInvite?.let { name ->
         AlertDialog(

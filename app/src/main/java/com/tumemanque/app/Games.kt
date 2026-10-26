@@ -275,12 +275,12 @@ private fun GPill(text: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun GameChip(ctl: GameCtl, partner: String) {
+fun GameChip(ctl: GameCtl, partner: String, extra: @Composable () -> Unit = {}) {
     ctl.partner = partner
     val r = ctl.round
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (r == null) GPill("🎮 Veux-tu jouer ?", false) { ctl.openOverlay() }
-        else if (r.state == "invite" && r.byMe) GPill("⏳ Invitation envoyée…", false) { ctl.openOverlay() }
+        if (r == null) { GPill("🎮 Veux-tu jouer ?", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
+        else if (r.state == "invite" && r.byMe) { GPill("⏳ Invitation envoyée…", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
         else if (r.state == "invite") {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xCC281C24))
@@ -293,8 +293,8 @@ fun GameChip(ctl: GameCtl, partner: String) {
                 Spacer(Modifier.width(6.dp))
                 GPill("Non", false) { ctl.respond(false) }
             }
-        } else if (r.state == "playing") GPill("🎮 Partie en cours — continuer", true) { ctl.openOverlay() }
-        else GPill("🎮 Voir les résultats", false) { ctl.openOverlay() }
+        } else if (r.state == "playing") { GPill("🎮 Partie en cours — continuer", true) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
+        else { GPill("🎮 Voir les résultats", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
     }
 }
 

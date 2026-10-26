@@ -78,6 +78,18 @@ object Sounds {
         ))
     }
 
+    /** Alarme de rappel : « pop pop » puis « pop pop » plus aigu. */
+    private val alarmData: ShortArray by lazy {
+        mix(listOf(
+            Part(0.00, 0.12, 900.0, 520.0, 0.55, 0),
+            Part(0.24, 0.12, 900.0, 520.0, 0.55, 0),
+            Part(0.60, 0.12, 1200.0, 700.0, 0.55, 0),
+            Part(0.84, 0.12, 1200.0, 700.0, 0.55, 0),
+        ))
+    }
+
+    fun alarm() = play(alarmData)
+
     fun joy() = play(joyData)
 
     fun sad() = play(sadData)

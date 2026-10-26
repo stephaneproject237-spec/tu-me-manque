@@ -345,6 +345,30 @@ object Backend {
     suspend fun saveContact(birthIso: String, phone: String): String =
         rpc("save_contact", JSONObject().put("p_birth", birthIso).put("p_phone", phone))
 
+    // ====================== Rappels ======================
+
+    /** Mes rappels en cours (pas encore validés avec « OK »). null si le serveur ne répond pas ou n'est pas à jour. */
+    suspend fun reminderList(): List<Reminder>? {
+        val arr = runCatching { JSONArray(authed("POST", "/rest/v1/rpc/reminder_list", "{}")) }.getOrNull() ?: return null
+        return List(arr.length()) {
+            val o = arr.getJSONObject(it)
+            Reminder(o.optLong("id"), o.optString("title", ""), parseTime(o.str("due_at")), o.optBoolean("by_me", false), o.str("by_name") ?: "", o.optString("target", "me"))
+        }
+    }
+
+    suspend fun reminderCreate(title: String, who: String, dueMillis: Long): String {
+        val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+        f.timeZone = TimeZone.getTimeZone("UTC")
+        return runCatching {
+            rpc("reminder_create", JSONObject().put("p_title", title).put("p_who", who).put("p_due", f.format(java.util.Date(dueMillis))))
+        }.getOrDefault("error")
+    }
+
+    suspend fun reminderAck(id: Long) { runCatching { rpc("reminder_ack", JSONObject().put("p_id", id)) } }
+
+    suspend fun reminderCancel(id: Long): String =
+        runCatching { rpc("reminder_cancel", JSONObject().put("p_id", id)) }.getOrDefault("error")
+
     // ====================== Messagerie avec @admin ======================
 
     suspend fun supportList(): List<SupportMsg> {

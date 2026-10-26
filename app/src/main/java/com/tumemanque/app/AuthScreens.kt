@@ -62,14 +62,11 @@ fun PseudoAgeFields(s: AuthState, vm: AuthViewModel) {
 
 @Composable
 fun ContactFields(s: AuthState, vm: AuthViewModel) {
-    OutlinedTextField(
-        value = s.birth,
-        onValueChange = { vm.setBirth(it) },
-        label = { Text("Ta date de naissance (jj/mm/aaaa)") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    var picker by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    OutlinedButton(onClick = { picker = true }, modifier = Modifier.fillMaxWidth()) {
+        Text(if (s.birthOk) "🎂 " + birthPretty(s.birth) else "🎂 Choisir ma date de naissance")
+    }
+    if (picker) BirthPickerDialog(onPick = { vm.setBirth(it); picker = false }, onDismiss = { picker = false })
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
         value = s.phone,
