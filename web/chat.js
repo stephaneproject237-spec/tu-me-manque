@@ -174,7 +174,11 @@
           <div class="ch-avatar">💗</div>
           <div class="ch-title"><b id="ch-name"></b><small id="ch-sub">Ton partenaire ›</small></div>
         </div>
-        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Réglages">${ic("settings", 22)}</button>
+        <div class="ch-right">
+          <button class="ch-icon ch-callbtn" data-c="callAudio" aria-label="Appel audio">📞</button>
+          <button class="ch-icon ch-callbtn" data-c="callVideo" aria-label="Appel vidéo">📹</button>
+          <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Réglages">${ic("settings", 22)}</button>
+        </div>
       </div>
       <div class="ch-selbar" id="ch-selbar" hidden>
         <button class="ch-icon" data-c="selClose" aria-label="Annuler la sélection">${ic("close", 22)}</button>
@@ -1419,6 +1423,8 @@
       }
       case "mDelMe": { const id = menuId; closeMsgMenu(); deleteMsg(id, false); ev.stopPropagation(); break; }
       case "mDelAll": { const id = menuId; closeMsgMenu(); deleteMsg(id, true); ev.stopPropagation(); break; }
+      case "callAudio": if (window.TMM_CALL) window.TMM_CALL.start(false); break;
+      case "callVideo": if (window.TMM_CALL) window.TMM_CALL.start(true); break;
       case "mEdit": { const m = byId.get(menuId); closeMsgMenu(); if (m) startEdit(m); ev.stopPropagation(); break; }
       case "replyCancel": if (editingId) cancelEdit(); else clearReply(); break;
       case "play": if (row) togglePlay(row); break;
@@ -1435,6 +1441,7 @@
   window.TMM_CHAT = {
     sendRaw,
     poll,
+    toast,
     open,
     close,
     isOpen: () => opened,
