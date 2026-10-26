@@ -251,6 +251,7 @@ class ChatViewModel : ViewModel() {
                 showToast(if (r.status == "no_partner") "Vous n'êtes plus partenaires." else "Message non envoyé.")
                 return false
             }
+            Sounds.send()
             pendings.removeAll { it.tmp == p.tmp }
             if (ids.add(r.id)) {
                 confirmed.add(p.copy(id = r.id, pending = false, media = media))

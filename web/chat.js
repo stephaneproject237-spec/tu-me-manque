@@ -574,6 +574,31 @@
     if (a.paused) togglePlay(row);
   }
 
+  // ---------- Petit son à l'envoi (généré, aucun fichier) ----------
+  let actx = null;
+  function unlockAudio() {
+    try {
+      if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); }
+      if (actx && actx.state === "suspended") actx.resume();
+    } catch (e) { /* ignoré */ }
+  }
+  function popSound() {
+    try {
+      unlockAudio();
+      if (!actx) return;
+      const t0 = actx.currentTime;
+      [[880, 0], [1318.5, 0.07]].forEach(([f, d]) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + d);
+        g.gain.exponentialRampToValueAtTime(0.3, t0 + d + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.2);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t0 + d); o.stop(t0 + d + 0.22);
+      });
+    } catch (e) { /* ignoré */ }
+  }
+
   // ---------- Envoi ----------
   function addPending(p) {
     p.pending = true;
@@ -603,6 +628,7 @@
         else toast("Message non envoyé.");
         return false;
       }
+      popSound();
       if (byId.has(j.id)) { removePending(p); return true; }
       // Le message a bien été enregistré : on le remplace par la version du serveur.
       const m = { id: j.id, sender_id: me, kind: payload.p_kind, body: payload.p_body || null, media: payload.p_media || null,
@@ -1004,6 +1030,7 @@
   }
 
   function onClick(ev) {
+    unlockAudio();
     const t = ev.target.closest("[data-c]");
     if (!t) return;
     const c = t.dataset.c;
