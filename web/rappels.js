@@ -21,8 +21,9 @@
 
   // ---------- Bouton à côté du jeu ----------
   function chipHtml() {
-    return `<button class="gm-chip rp-chip${items.length ? " on-green" : ""}" data-g="rp">⏰ Rappels${items.length ? " (" + items.length + ")" : ""}</button>`;
+    return `<button class="gm-chip rp-chip on-green" data-g="rp">⏰ Rappels (${items.length})</button>`;
   }
+  const count = () => items.length;
   const repaintChip = () => { if (window.TMM_GAMES && window.TMM_GAMES.paintChip) window.TMM_GAMES.paintChip(); };
 
   // ---------- Données ----------
@@ -169,5 +170,5 @@
   function openScreen() { build(); open = true; $("rp").hidden = false; paint(); refresh(); }
   function close() { open = false; const e = $("rp"); if (e) e.hidden = true; }
 
-  window.TMM_RAPPELS = { chipHtml, open: openScreen, close, refresh };
+  window.TMM_RAPPELS = { count, chipHtml, open: openScreen, close, refresh };
 })();

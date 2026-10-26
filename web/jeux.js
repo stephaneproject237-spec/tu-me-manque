@@ -23,16 +23,27 @@
   const qOf = (i) => (bank && R && bank.get(R.qids[i])) || { q: "…", o: ["", "", "", ""] };
 
   // ---------- Pastille dans le chat ----------
+  let boltOpen = false;
   function chipHtml() {
-    const rp = () => (window.TMM_RAPPELS ? window.TMM_RAPPELS.chipHtml() : "");
-    if (!R) return '<button class="gm-chip" data-g="open">🎮 Veux-tu jouer ?</button>' + rp();
-    if (R.state === "invite") {
-      if (R.by_me) return '<button class="gm-chip" data-g="open">⏳ Invitation envoyée…</button>' + rp();
-      return `<div class="gm-invite"><span>🎮 <b>@${esc(partner)}</b> te propose « Me connais-tu ? »</span>
+    const remN = window.TMM_RAPPELS ? window.TMM_RAPPELS.count() : 0;
+    const gameActive = !!R && (R.state === "invite" || R.state === "playing");
+    const remActive = remN > 0;
+    let h = "";
+    // L'éclair ouvre le menu des fonctions ; il disparaît si tout est déjà en cours.
+    if (!(gameActive && remActive)) h += `<button class="gm-bolt${boltOpen ? " open" : ""}" data-g="bolt" aria-label="Fonctions">⚡</button>`;
+    // Une fonction reste dehors uniquement si elle est en cours.
+    if (R && R.state === "invite" && !R.by_me) {
+      h += `<div class="gm-invite"><span>🎮 <b>@${esc(partner)}</b> te propose « Me connais-tu ? »</span>
         <button class="gm-yes" data-g="yes">Oui</button><button class="gm-no" data-g="no">Non</button></div>`;
+    } else if (R && R.state === "invite") h += '<button class="gm-chip" data-g="open">⏳ Invitation envoyée…</button>';
+    else if (R && R.state === "playing") h += '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>';
+    if (remActive) h += window.TMM_RAPPELS.chipHtml();
+    if (boltOpen) {
+      let i = 0;
+      if (!gameActive) h += `<button class="gm-chip gm-pop" style="animation-delay:${(i++) * 70}ms" data-g="open">🎮 Jeux</button>`;
+      if (!remActive) h += `<button class="gm-chip gm-pop" style="animation-delay:${(i++) * 70}ms" data-g="rp">⏰ Rappels</button>`;
     }
-    if (R.state === "playing") return '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>' + rp();
-    return '<button class="gm-chip" data-g="open">🎮 Voir les résultats</button>' + rp();
+    return h;
   }
   function paintChip() {
     const el = $("gm-chip");
@@ -129,8 +140,9 @@
     ev.stopPropagation();
     const a = t.dataset.g;
     if (a === "pick") { pick(t); }
-    else if (a === "open") { openOverlay(); }
-    else if (a === "rp") { if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
+    else if (a === "bolt") { boltOpen = !boltOpen; if (boltOpen) chime(); paintChip(); }
+    else if (a === "open") { boltOpen = false; paintChip(); openOverlay(); }
+    else if (a === "rp") { boltOpen = false; paintChip(); if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
     else if (a === "close") { closeOverlay(); }
     else if (a === "yes") { act(() => rpc("game_respond", { p_round: R.id, p_accept: true })).then(openOverlay); }
     else if (a === "no") { act(() => rpc("game_respond", { p_round: R.id, p_accept: false })); }
@@ -340,6 +352,16 @@
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(actx.destination);
     o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  // Petit « ding » doux et affectueux quand les fonctions sortent de l'éclair.
+  function chime() {
+    try {
+      if (!audio()) return;
+      const t = actx.currentTime;
+      tone(659.25, t, 0.28, "sine", 0.16);
+      tone(880, t + 0.08, 0.32, "sine", 0.13);
+      tone(1318.5, t + 0.16, 0.45, "sine", 0.08);
+    } catch (e) { /* pas de son */ }
   }
   function sfx(ok) {
     try {

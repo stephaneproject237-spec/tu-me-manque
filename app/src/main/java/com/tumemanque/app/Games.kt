@@ -275,15 +275,28 @@ private fun GPill(text: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun GameChip(ctl: GameCtl, partner: String, extra: @Composable () -> Unit = {}) {
+fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
     ctl.partner = partner
     val r = ctl.round
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val gameActive = r != null && (r.state == "invite" || r.state == "playing")
+    val remActive = rem.items.isNotEmpty()
+    // Une fonction reste hors de l'éclair uniquement si elle est en cours.
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (r == null) { GPill("🎮 Veux-tu jouer ?", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
-        else if (r.state == "invite" && r.byMe) { GPill("⏳ Invitation envoyée…", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
-        else if (r.state == "invite") {
+        if (!(gameActive && remActive)) {
+            val scale by androidx.compose.animation.core.animateFloatAsState(if (open) 1.12f else 1f, spring(0.45f, 500f), label = "bolt")
+            Box(
+                Modifier.graphicsLayer { scaleX = scale; scaleY = scale }.size(38.dp).clip(CircleShape)
+                    .background(if (open) Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))) else Brush.linearGradient(listOf(Color(0xB3281C24), Color(0xB3281C24))))
+                    .border(1.dp, Color(0x1FFFFFFF), CircleShape)
+                    .clickable { open = !open; if (open) Sounds.menu() },
+                contentAlignment = Alignment.Center,
+            ) { Text("⚡", fontSize = 17.sp) }
+            Spacer(Modifier.width(8.dp))
+        }
+        if (r != null && r.state == "invite" && !r.byMe) {
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xCC281C24))
+                Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(Color(0xCC281C24))
                     .border(1.dp, Color(0x73E91E63), RoundedCornerShape(18.dp)).padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -293,8 +306,34 @@ fun GameChip(ctl: GameCtl, partner: String, extra: @Composable () -> Unit = {}) 
                 Spacer(Modifier.width(6.dp))
                 GPill("Non", false) { ctl.respond(false) }
             }
-        } else if (r.state == "playing") { GPill("🎮 Partie en cours — continuer", true) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
-        else { GPill("🎮 Voir les résultats", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)); extra() }
+        } else if (r != null && r.state == "invite") { GPill("⏳ Invitation envoyée…", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)) }
+        else if (r != null && r.state == "playing") { GPill("🎮 Partie en cours — continuer", true) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)) }
+        if (remActive) ReminderPill(rem)
+        // Les fonctions sortent de l'éclair avec une petite animation fluide.
+        var idx = 0
+        if (!gameActive) {
+            val d = (idx++) * 70
+            BoltItem(open, d) { GPill("🎮 Jeux", false) { open = false; ctl.openOverlay() } }
+        }
+        if (!remActive) {
+            val d = (idx++) * 70
+            BoltItem(open, d) { GPill("⏰ Rappels", false) { open = false; rem.overlay = true } }
+        }
+    }
+}
+
+@Composable
+private fun BoltItem(visible: Boolean, delayMs: Int, content: @Composable () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(tween(220, delayMillis = delayMs)) +
+            androidx.compose.animation.scaleIn(
+                tween(420, delayMillis = delayMs, easing = androidx.compose.animation.core.CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)),
+                initialScale = 0.3f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f),
+            ) + androidx.compose.animation.expandHorizontally(tween(320, delayMillis = delayMs), expandFrom = Alignment.Start),
+        exit = androidx.compose.animation.fadeOut(tween(150)) + androidx.compose.animation.shrinkHorizontally(tween(200), shrinkTowards = Alignment.Start),
+    ) {
+        Row { content(); Spacer(Modifier.width(8.dp)) }
     }
 }
 

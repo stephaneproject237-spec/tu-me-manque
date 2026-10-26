@@ -88,6 +88,17 @@ object Sounds {
         ))
     }
 
+    /** Petit « ding » doux et affectueux quand les fonctions sortent de l'éclair. */
+    private val menuData: ShortArray by lazy {
+        mix(listOf(
+            Part(0.00, 0.28, 659.25, 659.25, 0.22, 0),
+            Part(0.08, 0.32, 880.0, 880.0, 0.18, 0),
+            Part(0.16, 0.45, 1318.5, 1318.5, 0.10, 0),
+        ))
+    }
+
+    fun menu() = play(menuData)
+
     fun alarm() = play(alarmData)
 
     fun joy() = play(joyData)

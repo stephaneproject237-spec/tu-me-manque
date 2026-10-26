@@ -261,7 +261,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
-            if (!recording) GameChip(game, partner) { ReminderPill(remVm) }
+            if (!recording) GameChip(game, partner, remVm)
             if (state.typing && !recording) TypingBubble()
             state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
