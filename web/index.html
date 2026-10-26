@@ -130,6 +130,8 @@
     .bp-y { grid-template-columns: repeat(4, 1fr); } .bp-m { grid-template-columns: repeat(3, 1fr); } .bp-d { grid-template-columns: repeat(7, 1fr); gap: 4px; }
     .bp-c { border: 0; border-radius: 12px; padding: 11px 2px; font: 600 14px inherit; font-family: inherit; cursor: pointer; background: rgba(255,255,255,.1); color: inherit; }
     .bp-c:active { background: var(--rose); color: #fff; }
+    /* La grosse bille « Tu me manques » : bien centrée (le sélecteur .col .principal l'étirait vers la gauche) */
+    .col .gros { align-self: center; flex: none; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 24px; box-sizing: border-box; }
   </style>
 </head>
 <body>
