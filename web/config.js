@@ -6,5 +6,5 @@ window.TMM_CONFIG = {
   APK_URL: "https://github.com/stephaneproject237-spec/tu-me-manque/releases/latest/download/tu-me-manque.apk",
   WEB_URL: "https://stephaneproject237-spec.github.io/tu-me-manque/",
   APPLE_LOGIN: false, // passe à true quand « Se connecter avec Apple » est configuré
-  VERSION: "web 3.5"
+  VERSION: "web 3.6"
 };

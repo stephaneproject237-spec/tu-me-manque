@@ -292,7 +292,7 @@
       fresh.forEach((m) => {
         if (addConfirmed(m)) {
           added.push(m);
-          if (m.sender_id !== me) incoming = true;
+          if (m.sender_id !== me) { incoming = true; if (isLove(m)) love(); }
           else dropMatchingPending(m);
         }
       });
@@ -602,12 +602,17 @@
     }
   }
 
+  const LOVE_RE = /\bje\s*t['’ ]?\s*aime\b|\bjtm\b/i;
+  const isLove = (m) => m.kind === "text" && m.body && LOVE_RE.test(m.body);
+  function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
+
   async function sendText() {
     const inp = $("ch-input");
     const text = inp.value.trim();
     if (!text) return;
     inp.value = "";
     onInput();
+    if (LOVE_RE.test(text)) love();
     const p = addPending({ kind: "text", body: text });
     const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
     if (!ok && !inp.value) { inp.value = text; onInput(); }

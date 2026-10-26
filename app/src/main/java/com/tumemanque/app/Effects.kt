@@ -174,11 +174,11 @@ private class Particle(
 
 /** Des cœurs et des papillons qui s'envolent depuis le bas de l'écran. `trigger` > 0 relance l'animation. */
 @Composable
-fun FlutterOverlay(trigger: Int) {
+fun FlutterOverlay(trigger: Int, heartsOnly: Boolean = false) {
     if (trigger == 0) return
     val progress = remember(trigger) { Animatable(0f) }
     val particles = remember(trigger) {
-        val glyphs = listOf("💗", "💖", "💕", "🦋", "🦋", "💞", "🦋")
+        val glyphs = if (heartsOnly) listOf("❤️", "💗", "💖", "💕", "💞", "💘") else listOf("💗", "💖", "💕", "🦋", "🦋", "💞", "🦋")
         List(26) {
             Particle(
                 glyphs.random(), Random.nextFloat(), 22f + Random.nextFloat() * 22f,

@@ -38,6 +38,11 @@ class ChatViewModel : ViewModel() {
     /** Appelé quand les messages reçus viennent d'être marqués comme lus. */
     var onRead: (() -> Unit)? = null
 
+    /** Appelé quand un message contient « je t'aime » / « jtm » (envoyé ou reçu) : des cœurs s'envolent. */
+    var onLove: (() -> Unit)? = null
+    private val loveRegex = Regex("\\bje\\s*t['’ ]?\\s*aime\\b|\\bjtm\\b", RegexOption.IGNORE_CASE)
+    private fun isLove(m: ChatMsg) = m.kind == "text" && m.body?.let { loveRegex.containsMatchIn(it) } == true
+
     private val confirmed = mutableListOf<ChatMsg>()
     private val pendings = mutableListOf<ChatMsg>()
     private val ids = HashSet<Long>()
@@ -106,6 +111,7 @@ class ChatViewModel : ViewModel() {
                 if (addConfirmed(m)) {
                     changed = true
                     if (m.mine) dropMatchingPending(m)
+                    else if (isLove(m)) onLove?.invoke()
                 }
             }
             if (changed) publish()
@@ -216,6 +222,7 @@ class ChatViewModel : ViewModel() {
     fun sendText(raw: String) {
         val text = raw.trim()
         if (text.isEmpty()) return
+        if (loveRegex.containsMatchIn(text)) onLove?.invoke()
         viewModelScope.launch { deliver(addPending(blank("text", body = text)), null) }
     }
 

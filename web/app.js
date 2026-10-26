@@ -404,8 +404,8 @@
     } catch (e) { /* ignoré */ }
   }
 
-  function flutter() {
-    const glyphs = ["💗", "💖", "💕", "🦋", "🦋", "💞", "🦋"];
+  function flutter(heartsOnly) {
+    const glyphs = heartsOnly ? ["❤️", "💗", "💖", "💕", "💞", "💘"] : ["💗", "💖", "💕", "🦋", "🦋", "💞", "🦋"];
     const wrap = document.createElement("div");
     wrap.className = "fx";
     for (let i = 0; i < 26; i++) {
@@ -774,6 +774,7 @@
     setSupportUnread(n) { if (S.supportUnread !== n) { S.supportUnread = n; lastSnapshotKey = ""; render(); } },
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },
+    love() { haptic(); flutter(true); },
   };
 
   // ---------- Démarrage ----------

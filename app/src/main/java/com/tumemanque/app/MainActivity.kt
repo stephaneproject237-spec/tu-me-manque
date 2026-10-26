@@ -164,6 +164,8 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
     }
     var fxTrigger by remember { mutableIntStateOf(0) }
+    var loveTrigger by remember { mutableIntStateOf(0) }
+    LaunchedEffect(chatVm) { chatVm.onLove = { loveTrigger++ } }
     LaunchedEffect(state.lastMiss?.at) {
         val at = state.lastMiss?.at
         if (!at.isNullOrEmpty()) {
@@ -265,6 +267,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     FlutterOverlay(fxTrigger)
+    FlutterOverlay(loveTrigger, heartsOnly = true)
 }
 
 private fun filterTarget(input: String): String =
