@@ -7,6 +7,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -246,8 +250,7 @@ private fun RoundButton(label: String, active: Boolean, onClick: () -> Unit) {
 private fun DayChip(t: Long) {
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), Alignment.Center) {
         Text(
-            dayLabel(t), color = Color.White, fontSize = 12.sp,
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x44000000)).padding(horizontal = 10.dp, vertical = 3.dp),
+            dayLabel(t), color = Color(0xFF7A5566), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -279,10 +282,10 @@ private fun Meta(m: ChatMsg, color: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
     val mine = m.mine
-    val bg = if (mine) Rose else Color.White
-    val fg = if (mine) Color.White else Color(0xFF212121)
-    val sub = if (mine) Color(0xCCFFFFFF) else Color.Gray
-    val shape = RoundedCornerShape(16.dp, 16.dp, if (mine) 5.dp else 16.dp, if (mine) 16.dp else 5.dp)
+    val bg = if (mine) Rose.copy(alpha = 0.86f) else Color.White.copy(alpha = 0.6f)
+    val fg = if (mine) Color.White else Color(0xFF231319)
+    val sub = if (mine) Color(0xB3FFFFFF) else Color(0x99231319)
+    val shape = RoundedCornerShape(21.dp, 21.dp, if (mine) 6.dp else 21.dp, if (mine) 21.dp else 6.dp)
 
     when (m.kind) {
         "sticker" -> Column(horizontalAlignment = Alignment.End) {
@@ -295,14 +298,14 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, Color.Gray)
             }
         } else {
-            Surface(color = bg, shape = shape, shadowElevation = 1.dp, modifier = Modifier.widthIn(max = 290.dp)) {
-                Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    Text(m.body ?: "", color = fg, fontSize = 16.sp)
+            Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)), modifier = Modifier.widthIn(max = 290.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) {
+                    Text(m.body ?: "", color = fg, fontSize = 17.sp)
                     Meta(m, sub, Modifier.align(Alignment.End))
                 }
             }
         }
-        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 1.dp) {
+        "gif" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.media,
@@ -316,7 +319,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "image" -> Surface(color = bg, shape = shape, shadowElevation = 1.dp) {
+        "image" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
             Column(Modifier.padding(3.dp)) {
                 AsyncImage(
                     model = m.localBytes ?: Backend.mediaUrl(m.media ?: ""),
@@ -358,7 +361,7 @@ private fun VoiceBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: Rou
         }
     }
 
-    Surface(color = bg, shape = shape, shadowElevation = 1.dp) {
+    Surface(color = bg, shape = shape, shadowElevation = 0.dp, border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Row(Modifier.width(230.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -586,7 +589,7 @@ private fun InputBar(
     val keyboard = LocalSoftwareKeyboardController.current
     if (recording) {
         Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(6.dp),
+            Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.7f)).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("🗑", fontSize = 24.sp, modifier = Modifier.clickable { onCancelRec() }.padding(10.dp))
@@ -599,31 +602,48 @@ private fun InputBar(
         }
     } else {
         Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 4.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            Text(
-                if (panel != 0) "⌨️" else "💗", fontSize = 26.sp,
-                modifier = Modifier.clickable {
-                    if (panel != 0) onPanel(0)
-                    else { keyboard?.hide(); focus.clearFocus(); onPanel(2) }
-                }.padding(horizontal = 8.dp, vertical = 8.dp),
-            )
-            TextField(
-                value = text,
-                onValueChange = { onText(it) },
-                placeholder = { Text("Message") },
-                maxLines = 5,
-                modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) onPanel(0) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-            )
-            Text("📷", fontSize = 26.sp, modifier = Modifier.clickable { onPhoto() }.padding(horizontal = 8.dp, vertical = 8.dp))
-            if (text.isBlank()) RoundButton("🎤", false) { onMic() } else RoundButton("➤", true) { onSend() }
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.62f))
+                    .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                    .clickable {
+                        if (panel != 0) onPanel(0)
+                        else { keyboard?.hide(); focus.clearFocus(); onPanel(2) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { Text(if (panel != 0) "⌨" else "+", fontSize = 28.sp, color = Rose) }
+            Spacer(Modifier.width(8.dp))
+            Row(
+                Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.62f))
+                    .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                TextField(
+                    value = text,
+                    onValueChange = { onText(it) },
+                    placeholder = { Text("Message") },
+                    maxLines = 5,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) onPanel(0) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                )
+                Text("📷", fontSize = 22.sp, modifier = Modifier.clickable { onPhoto() }.padding(horizontal = 6.dp, vertical = 10.dp))
+                Box(Modifier.padding(end = 4.dp, bottom = 5.dp)) {
+                    if (text.isBlank()) Text("🎤", fontSize = 22.sp, modifier = Modifier.clickable { onMic() }.padding(horizontal = 6.dp, vertical = 3.dp))
+                    else Box(
+                        Modifier.size(34.dp).clip(CircleShape).background(Rose).clickable { onSend() },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("➤", fontSize = 17.sp, color = Color.White) }
+                }
+            }
         }
     }
 }

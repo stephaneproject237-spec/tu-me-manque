@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,23 +88,34 @@ fun WallpaperLayer(value: String?) {
 
 @Composable
 fun ChatHeader(partner: String, onBack: () -> Unit, onMenu: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .background(Brush.horizontalGradient(listOf(Color(0xFFFF6A9C), RoseChat)))
-            .statusBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("‹", color = Color.White, fontSize = 34.sp, modifier = Modifier.clickable { onBack() }.padding(horizontal = 12.dp))
+    val glass = Color(0x99FFFFFF)
+    val edge = Color(0xB3FFFFFF)
+    Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Box(
-            Modifier.size(40.dp).clip(CircleShape).background(Color(0x33FFFFFF)),
+            Modifier.align(Alignment.TopStart).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onBack() },
             contentAlignment = Alignment.Center,
-        ) { Text("💗", fontSize = 22.sp) }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(partner, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text("Ton partenaire", color = Color(0xCCFFFFFF), fontSize = 12.sp)
+        ) { Text("‹", color = RoseChat, fontSize = 30.sp) }
+        Column(Modifier.align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(56.dp).clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFFFFB3CC), Color(0xFFFF6A9C))))
+                    .border(2.dp, Color(0xDDFFFFFF), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Text("💗", fontSize = 28.sp) }
+            Spacer(Modifier.height(4.dp))
+            Column(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(glass).border(1.dp, edge, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(partner, color = Color(0xFF3B1A28), fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
+                Text("Ton partenaire ›", color = Color(0x993B1A28), fontSize = 12.sp)
+            }
         }
-        Text("⋮", color = Color.White, fontSize = 28.sp, modifier = Modifier.clickable { onMenu() }.padding(horizontal = 14.dp, vertical = 4.dp))
+        Box(
+            Modifier.align(Alignment.TopEnd).size(44.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onMenu() },
+            contentAlignment = Alignment.Center,
+        ) { Text("🎨", fontSize = 20.sp) }
     }
 }
 
