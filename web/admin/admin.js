@@ -55,7 +55,7 @@
     email: "",
     tab: "users",
     users: [], fr: { current: [], history: [] }, threads: [],
-    q: "", loaded: false, err: null,
+    q: "", sort: (function(){try{return localStorage.getItem("tmm_sort")||"created"}catch(e){return "created"}})(), loaded: false, err: null,
     thread: null,          // { id, name, msgs }
     modal: null,           // { type: "delete" | "history", user }
     busy: false,
@@ -216,14 +216,19 @@
 
   function filteredUsers() {
     const q = S.q.trim().toLowerCase().replace(/^@/, "");
-    if (!q) return S.users;
-    return S.users.filter((u) => [u.username, u.email, u.phone, u.device, u.partner_name].some((x) => x && String(x).toLowerCase().includes(q)));
+    const base = S.users.slice().sort((a, b) => S.sort === "alpha"
+      ? String(a.username || "~").toLowerCase().localeCompare(String(b.username || "~").toLowerCase(), "fr")
+      : S.sort === "login" ? (new Date(b.last_sign_in_at || 0) - new Date(a.last_sign_in_at || 0))
+      : (new Date(b.created_at || 0) - new Date(a.created_at || 0)));
+    if (!q) return base;
+    return base.filter((u) => [u.username, u.email, u.phone, u.device, u.partner_name].some((x) => x && String(x).toLowerCase().includes(q)));
   }
 
   function usersHtml() {
     const list = filteredUsers();
     return `<input class="q" id="q" placeholder="Rechercher (pseudo, e-mail, numéro, appareil)…" value="${esc(S.q)}" autocomplete="off">
-      <p class="k" style="margin:8px 4px">${list.length} compte${list.length > 1 ? "s" : ""}</p>` +
+      <div class="row" style="margin:8px 0"><span class="k grow">${list.length} compte${list.length > 1 ? "s" : ""}</span>
+        ${[["created", "🕒 Création"], ["alpha", "🔤 A→Z"], ["login", "🔑 Connexion"]].map(([k, l]) => `<button class="${S.sort === k ? "p" : "s"}" data-a="sort" data-k="${k}">${l}</button>`).join("")}</div>` +
       (list.map(userCard).join("") || '<p class="muted">Aucun compte.</p>');
   }
 
@@ -237,6 +242,7 @@
         <span class="k">Téléphone</span><span class="v">${esc(phone(u.phone))}</span>
         <span class="k">Âge</span><span class="v">${u.age != null ? esc(u.age) + " ans" : "—"}</span>
         <span class="k">Appareil</span><span class="v">${esc(u.device || "inconnu (compte ancien)")}</span>
+        <span class="k">Dernière connexion</span><span class="v">${u.last_sign_in_at ? esc(fdate(u.last_sign_in_at)) : "jamais"}</span>
         <span class="k">Créé le</span><span class="v">${esc(fdate(u.created_at))}</span>
         <span class="k">Partenaire</span><span class="v">${u.partner_name ? "💗 @" + esc(u.partner_name) + (u.linked_at ? " · depuis " + esc(fdate(u.linked_at)) : "") : "aucun"}</span>
       </div>
@@ -347,6 +353,7 @@
       case "login": login(); break;
       case "logout": store.clear(); clearInterval(pollT); S.stage = "login"; S.thread = null; S.loaded = false; render(); break;
       case "refresh": loadAll(); break;
+      case "sort": S.sort = t.dataset.k; try { localStorage.setItem("tmm_sort", S.sort); } catch (e) {} renderContent(); break;
       case "tab": S.tab = t.dataset.t; renderContent(); break;
       case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }
       case "tback": S.thread = null; renderThread(); loadAll(); break;
