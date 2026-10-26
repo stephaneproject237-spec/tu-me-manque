@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -81,7 +82,7 @@ fun SwipeToReply(enabled: Boolean, onReply: () -> Unit, onLongPress: () -> Unit,
             .offset { IntOffset(off.roundToInt(), 0) }
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
-                androidx.compose.foundation.gestures.detectTapGestures(onLongPress = {
+                detectTapGestures(onLongPress = {
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     onLongPress()
                 })
