@@ -67,3 +67,26 @@ body.chat-open { overflow: hidden; }
 .ch-view img { max-width: 100%; max-height: 100%; }
 .badge { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 11px; background: var(--rose); color: #fff; font-size: 13px; margin-left: 6px; }
 .chatbtn { align-self: stretch; }
+
+.ch-menu { margin-left: auto; font-weight: 700; }
+.ch-wp { position: absolute; inset: 0; z-index: 30; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; }
+.ch-wp[hidden] { display: none; }
+.ch-wpbox { width: 100%; background: rgba(255,255,255,.88); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+  border-radius: 26px 26px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
+.ch-wpbox small { color: var(--gris); }
+.ch-sws { display: flex; gap: 10px; flex-wrap: wrap; }
+.ch-sw { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 2px 8px #0002; }
+.ch-wpbtn { background: #fff; color: var(--rose); border: 1px solid #FFD9E4; font-size: 15px; }
+.ch-wpclose { background: none; border: 0; color: var(--gris); }
+/* ---- Stickers animés ---- */
+.stk0 { animation: stk-beat .9s ease-in-out infinite; }
+.stk1 { animation: stk-wiggle 1.4s ease-in-out infinite; }
+.stk2 { animation: stk-bounce 1s ease-in-out infinite; transform-origin: 50% 100%; }
+.stk3 { animation: stk-float 2.6s ease-in-out infinite; }
+.stk4 { animation: stk-sway 1.6s ease-in-out infinite; }
+@keyframes stk-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@keyframes stk-wiggle { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+@keyframes stk-bounce { 0%, 100% { transform: translateY(0) scaleY(.95); } 50% { transform: translateY(-12px) scaleY(1); } }
+@keyframes stk-float { 0%, 100% { transform: translateY(-5px) rotate(-3deg); } 50% { transform: translateY(5px) rotate(3deg); } }
+@keyframes stk-sway { 0%, 100% { transform: scale(.96) rotate(-5deg); } 50% { transform: scale(1.06) rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) { .stk0, .stk1, .stk2, .stk3, .stk4 { animation: none; } }

@@ -143,6 +143,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
     var recording by remember { mutableStateOf(false) }
     var recSecs by remember { mutableIntStateOf(0) }
     var viewer by remember { mutableStateOf<ChatMsg?>(null) }
+    var wall by remember { mutableStateOf(Wallpaper.current(context)) }
+    var showWall by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(context.applicationContext) }
 
     DisposableEffect(Unit) {
@@ -194,27 +196,10 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
         if (uri != null) vm.onPhotoPicked(context.applicationContext, uri)
     }
 
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFE3EC), Color(0xFFF3E5FF), Color(0xFFFFEFE0))))) {
+    Box(Modifier.fillMaxSize()) {
+        WallpaperLayer(wall)
         Column(Modifier.fillMaxSize()) {
-            // ----- En-tête -----
-            Row(
-                Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFFFF6A9C), Rose))).statusBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "‹", color = Color.White, fontSize = 34.sp,
-                    modifier = Modifier.clickable { onBack() }.padding(horizontal = 12.dp),
-                )
-                Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(Color(0x33FFFFFF)),
-                    contentAlignment = Alignment.Center,
-                ) { Text("💗", fontSize = 22.sp) }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(partner, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text("Ton partenaire", color = Color(0xCCFFFFFF), fontSize = 12.sp)
-                }
-            }
+            ChatHeader(partner, onBack, onMenu = { showWall = true })
 
             Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().imePadding()) {
                 MessagesArea(state, partner, vm, Modifier.weight(1f)) { viewer = it }
@@ -245,6 +230,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, onBack: () -> Unit, onRead: (
         }
     }
 
+    WallpaperMenu(showWall, { showWall = false }, { wall = it }, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm) }
     viewer?.let { m -> PhotoViewer(m) { viewer = null } }
 }
@@ -301,11 +287,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
 
     when (m.kind) {
         "sticker" -> Column(horizontalAlignment = Alignment.End) {
-            AsyncImage(
-                model = "file:///android_asset/stickers/${m.body}.png",
-                contentDescription = "Sticker",
-                modifier = Modifier.size(150.dp),
-            )
+            AnimatedSticker(m.body ?: "", Modifier.size(150.dp))
             Meta(m, Color.Gray)
         }
         "text" -> if (isBigEmoji(m.body)) {
@@ -459,11 +441,7 @@ private fun StickerPanel(onPick: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items(ids) { id ->
-            AsyncImage(
-                model = "file:///android_asset/stickers/$id.png",
-                contentDescription = id,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable { onPick(id) },
-            )
+            AnimatedSticker(id, Modifier.fillMaxWidth().aspectRatio(1f).clickable { onPick(id) })
         }
     }
 }

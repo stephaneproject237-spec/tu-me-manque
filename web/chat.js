@@ -95,6 +95,44 @@
     return path;
   }
 
+  function stkClass(id) {
+    const n = parseInt(String(id || "").slice(1, 3), 10) || 0;
+    return "stk" + (n % 5);
+  }
+
+  // ---------- Fond d'écran de la conversation (local à cet appareil) ----------
+  const WALL_PRESETS = [
+    "linear-gradient(160deg,#FFD6E0,#FFB3C7)", "linear-gradient(160deg,#E0D4FF,#B9A6FF)",
+    "linear-gradient(160deg,#D4F1FF,#A6DCFF)", "linear-gradient(160deg,#D8F5E4,#A9E5C4)",
+    "linear-gradient(160deg,#FFE9C7,#FFC98A)", "linear-gradient(160deg,#2B2140,#4B2A5E)",
+  ];
+  function wallGet() { try { return JSON.parse(localStorage.getItem("tmm_wall") || "null"); } catch (e) { return null; } }
+  function wallSet(v) {
+    try { if (v) localStorage.setItem("tmm_wall", JSON.stringify(v)); else localStorage.removeItem("tmm_wall"); return true; } catch (e) { return false; }
+  }
+  function applyWall() {
+    const w = wallGet();
+    if (w && w.t === "photo" && w.d) host.style.background = 'center / cover no-repeat url("' + w.d + '")';
+    else if (w && w.t === "preset" && WALL_PRESETS[w.i]) host.style.background = WALL_PRESETS[w.i];
+    else host.style.background = "";
+  }
+  async function onWpFile(ev) {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    try {
+      let img = await resizeImage(f, 1080, 0.75);
+      const toUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+      let d = await toUrl(img.blob);
+      if (d.length > 3500000) { img = await resizeImage(f, 800, 0.6); d = await toUrl(img.blob); }
+      if (!wallSet({ t: "photo", d })) { toast("Photo trop lourde pour ce téléphone."); return; }
+      applyWall();
+      $("ch-wp").hidden = true;
+    } catch (e) {
+      console.error("wp", e); toast("Impossible de lire cette photo.");
+    }
+  }
+
   // ---------- Construction de l'écran ----------
   function build() {
     if (built) return;
@@ -104,6 +142,7 @@
         <button class="ch-icon" data-c="back" aria-label="Retour">‹</button>
         <div class="ch-avatar">💗</div>
         <div class="ch-title"><b id="ch-name"></b><small>Ton partenaire</small></div>
+        <button class="ch-icon ch-menu" data-c="wpOpen" aria-label="Fond d'écran">⋮</button>
       </div>
       <div class="ch-list" id="ch-list"></div>
       <button class="ch-down" id="ch-down" data-c="down" hidden>⌄<span id="ch-downn"></span></button>
@@ -130,7 +169,20 @@
         <button class="ch-pvx" data-c="pvCancel" aria-label="Fermer">✕</button>
       </div>
       <div class="ch-view" id="ch-view" hidden data-c="viewClose"><img id="ch-viewimg" alt=""></div>
-      <input type="file" id="ch-file" accept="image/*" hidden>`;
+      <input type="file" id="ch-file" accept="image/*" hidden>
+      <input type="file" id="ch-wpfile" accept="image/*" hidden>
+      <div class="ch-wp" id="ch-wp" hidden data-c="wpClose">
+        <div class="ch-wpbox">
+          <b>Fond d'écran</b>
+          <small>Couleurs</small>
+          <div class="ch-sws">${WALL_PRESETS.map((g, i) => '<button class="ch-sw" data-c="wpPreset" data-i="' + i + '" style="background:' + g + '" aria-label="Couleur ' + (i + 1) + '"></button>').join("")}</div>
+          <button class="ch-wpbtn" data-c="wpGallery">📷 Choisir une photo dans la galerie</button>
+          <button class="ch-wpbtn" data-c="wpReset">↺ Fond d'origine</button>
+          <button class="ch-wpbtn ch-wpclose" data-c="wpClose">Fermer</button>
+        </div>
+      </div>`;
+    $("ch-wpfile").addEventListener("change", onWpFile);
+    applyWall();
 
     host.addEventListener("click", onClick);
     $("ch-input").addEventListener("input", onInput);
@@ -376,7 +428,7 @@
         const ok = stickers.some((s) => s.id === m.body) || /^s\d\d_/.test(m.body || "");
         return {
           cls: "sticker",
-          html: ok ? '<img class="ch-sticker" src="stickers/' + esc(m.body) + '.png" alt="sticker" onerror="this.replaceWith(document.createTextNode(\'💗\'))">' + t
+          html: ok ? '<img class="ch-sticker ' + stkClass(m.body) + '" src="stickers/' + esc(m.body) + '.png" alt="sticker" onerror="this.replaceWith(document.createTextNode(\'💗\'))">' + t
             : '<div class="ch-bigemoji">💗</div>' + t,
         };
       }
@@ -736,7 +788,7 @@
     }
     if (panelTab !== "sticker") return;
     body.innerHTML = '<div class="ch-grid stick">' + stickers.map((s) =>
-      '<button data-c="stk" data-id="' + esc(s.id) + '" title="' + esc(s.label) + '"><img src="stickers/' + esc(s.id) + '.png" alt="' + esc(s.label) + '" loading="lazy"></button>').join("") + "</div>";
+      '<button data-c="stk" data-id="' + esc(s.id) + '" title="' + esc(s.label) + '"><img class="' + stkClass(s.id) + '" src="stickers/' + esc(s.id) + '.png" alt="' + esc(s.label) + '" loading="lazy"></button>').join("") + "</div>";
   }
 
   let gifQ = "", gifOffset = 0, gifBusy = false, gifDone = false, gifTimer = null, gifSeq = 0;
@@ -826,6 +878,11 @@
       case "recCancel": stopRec(false); break;
       case "recSend": stopRec(true); break;
       case "attach": $("ch-file").click(); break;
+      case "wpOpen": $("ch-wp").hidden = false; break;
+      case "wpClose": if (ev.target === t || t.classList.contains("ch-wpclose")) $("ch-wp").hidden = true; break;
+      case "wpPreset": wallSet({ t: "preset", i: Number(t.dataset.i) }); applyWall(); $("ch-wp").hidden = true; ev.stopPropagation(); break;
+      case "wpGallery": $("ch-wpfile").click(); ev.stopPropagation(); break;
+      case "wpReset": wallSet(null); applyWall(); $("ch-wp").hidden = true; ev.stopPropagation(); break;
       case "pvCancel": $("ch-pv").hidden = true; pendingPhoto = null; break;
       case "pvSend": {
         if (!pendingPhoto) break;
