@@ -135,7 +135,13 @@
       const w = await authed("GET", "/rest/v1/profiles?select=wall&id=eq." + uid);
       wall = (w && w[0] && w[0].wall) || null;
     } catch (e) { /* le fond partagé n'est pas encore installé côté serveur */ }
+    let needContact = false;
+    try {
+      const c = await authed("GET", "/rest/v1/profiles?select=birthdate,phone&id=eq." + uid);
+      needContact = !!(c && c[0] && p && p.username && (!c[0].birthdate || !c[0].phone));
+    } catch (e) { /* contact.sql pas encore installé côté serveur : on ne demande rien */ }
     return {
+      needContact,
       supportUnread,
       supportHas,
       wall,
@@ -197,14 +203,24 @@
   }
 
   // ---------- Comptes (Google / Apple / SMS) ----------
-  const A0 = () => ({ screen: "welcome", mode: "create", pseudo: "", age: "", avail: null, phone: "+237", code: "", busy: false, msg: null });
+  const A0 = () => ({ screen: "welcome", mode: "create", pseudo: "", birth: "", avail: null, phone: "+237", code: "", busy: false, msg: null });
   S.auth = A0();
   const PENDING = "tmm_pending";
   const PKCE = "tmm_pkce";
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignoré */ } };
   const lsDel = (k) => { try { localStorage.removeItem(k); } catch (e) { /* ignoré */ } };
-  const ageOk = (v) => { const n = Number(v); return /^\d{1,3}$/.test(String(v)) && n >= 1 && n <= 120; };
+  const ageFrom = (iso) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+    if (!m) return null;
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return null;
+    const t = new Date();
+    let a = t.getFullYear() - d.getFullYear();
+    if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--;
+    return a;
+  };
+  const birthOk = (v) => { const a = ageFrom(v); return a !== null && a >= 5 && a <= 120; };
   const pseudoOk = (v) => /^[a-z][a-z0-9_]{2,19}$/.test(v);
   const phoneDigits = (v) => String(v || "").replace(/\D/g, "");
   const e164 = (v) => {
@@ -221,13 +237,14 @@
     invalid: "3 à 20 caractères, commence par une lettre (a-z, 0-9 ou _)",
     error: "Impossible de vérifier pour le moment",
   };
-  const canContinue = () => S.auth.avail === "available" && ageOk(S.auth.age) && !S.auth.busy;
+  const canContinue = () => S.auth.avail === "available" && birthOk(S.auth.birth) && phoneDigits(S.auth.phone).length >= 8 && !S.auth.busy;
 
   // Met à jour les textes et boutons sans redessiner l'écran (pour ne pas perdre le clavier).
   function paintAuth() {
     const a = document.getElementById("avail");
     if (a) { a.textContent = AVAIL_TXT[S.auth.avail] || ""; a.className = "avail " + (S.auth.avail || ""); }
     root.querySelectorAll("[data-needok]").forEach((b) => { b.disabled = !canContinue(); });
+    root.querySelectorAll("[data-needcontact]").forEach((b) => { b.disabled = S.busy || !(birthOk(S.auth.birth) && phoneDigits(S.auth.phone).length >= 8); });
     const sc = root.querySelector('[data-action="sendCode"]');
     if (sc) sc.disabled = S.auth.busy || phoneDigits(S.auth.phone).length < 8;
     const vc = root.querySelector('[data-action="verifyCode"]');
@@ -289,7 +306,7 @@
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
     lsSet(PKCE, verifier);
-    if (S.auth.mode === "create") lsSet(PENDING, { pseudo: S.auth.pseudo, age: Number(S.auth.age) }); else lsDel(PENDING);
+    if (S.auth.mode === "create") lsSet(PENDING, { pseudo: S.auth.pseudo, birth: S.auth.birth, phone: S.auth.phone }); else lsDel(PENDING);
     location.href = CFG.SUPABASE_URL + "/auth/v1/authorize?provider=" + provider +
       "&redirect_to=" + encodeURIComponent(CFG.WEB_URL) +
       "&code_challenge=" + challenge + "&code_challenge_method=s256";
@@ -339,19 +356,29 @@
     }
   }
 
+  async function saveContactRpc(birth, phone) {
+    try {
+      const j = await authed("POST", "/rest/v1/rpc/save_contact", { p_birth: birth, p_phone: phone });
+      return (j && j.status) || "error";
+    } catch (e) { return "error"; }
+  }
+
   async function finishAuth() {
     S.needAuth = false;
     const snap = await loadSnapshot();
     if (!snap.username) {
-      const pend = lsGet(PENDING) || (S.auth.pseudo && ageOk(S.auth.age) ? { pseudo: S.auth.pseudo, age: Number(S.auth.age) } : null);
+      const pend = lsGet(PENDING) || (S.auth.pseudo && birthOk(S.auth.birth) ? { pseudo: S.auth.pseudo, birth: S.auth.birth, phone: S.auth.phone } : null);
       lsDel(PENDING);
       let note = null;
       if (pend) {
-        const j = await createAccountRpc(pend.pseudo, pend.age);
-        if (j && j.status === "ok") { applySnapshot(await loadSnapshot()); afterLogin(); return; }
+        const j = await createAccountRpc(pend.pseudo, pend.birth ? ageFrom(pend.birth) : pend.age);
+        if (j && (j.status === "ok" || j.status === "has_username")) {
+          if (pend.birth) await saveContactRpc(pend.birth, pend.phone || "");
+          applySnapshot(await loadSnapshot()); afterLogin(); return;
+        }
         note = j && j.status === "taken" ? "Ce pseudo vient d'être pris. Choisis-en un autre." : "Impossible de créer le compte.";
       }
-      S.auth = Object.assign(A0(), { mode: "create", msg: note, age: pend ? String(pend.age) : "", pseudo: note && note.startsWith("Ce pseudo") ? "" : (pend ? pend.pseudo : "") });
+      S.auth = Object.assign(A0(), { mode: "create", msg: note, birth: pend && pend.birth ? pend.birth : "", phone: pend && pend.phone ? pend.phone : "+237", pseudo: note && note.startsWith("Ce pseudo") ? "" : (pend ? pend.pseudo : "") });
       if (S.auth.pseudo) checkPseudo();
     } else {
       lsDel(PENDING);
@@ -497,15 +524,28 @@
     goWelcome: () => { S.auth = A0(); render(); },
     phoneStart: () => { S.auth.screen = "phone"; S.auth.msg = null; render(); },
     phoneBack: () => { S.auth.screen = S.auth.mode === "create" ? "create" : "login"; S.auth.msg = null; render(); },
+    saveContact: () => act(async () => {
+      const c = await saveContactRpc(S.auth.birth, S.auth.phone);
+      if (c === "ok") { S.contactSkip = true; }
+      else if (c === "phone_taken") say("Ce numéro est déjà utilisé par un autre compte.");
+      else if (c === "invalid_birth") say("Vérifie ta date de naissance.");
+      else if (c === "invalid_phone") say("Vérifie ton numéro (avec l'indicatif).");
+      else say("Impossible d'enregistrer pour le moment.");
+    }),
+    skipContact: () => { S.contactSkip = true; render(); },
     sendCode: () => sendCode(),
     verifyCode: () => verifyCode(),
     oauthGoogle: () => startOAuth("google"),
     oauthApple: () => startOAuth("apple"),
     createProfile: () => act(async () => {
-      const j = await createAccountRpc(S.auth.pseudo, Number(S.auth.age));
+      const j = await createAccountRpc(S.auth.pseudo, ageFrom(S.auth.birth));
       const st = (j && j.status) || "error";
+      if (st === "ok" || st === "has_username") {
+        const c = await saveContactRpc(S.auth.birth, S.auth.phone);
+        if (c === "phone_taken") say("Compte créé. Ce numéro est déjà utilisé par un autre compte : tu pourras le corriger ensuite.");
+      }
       if (st === "taken") { S.auth.avail = "taken"; say("Ce pseudo est déjà pris. Choisis-en un autre."); }
-      else if (st === "invalid" || st === "invalid_age") say("Vérifie ton pseudo et ton âge.");
+      else if (st === "invalid" || st === "invalid_age") say("Vérifie ton pseudo et ta date de naissance.");
       else if (st === "anonymous") { store.clear(); S.needAuth = true; S.auth = A0(); }
       else if (st !== "ok" && st !== "has_username") say("Impossible de créer le compte.");
     }),
@@ -614,8 +654,13 @@
       <div class="champ"><input id="f-pseudo" data-afield="pseudo" value="${esc(S.auth.pseudo)}"
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20" placeholder="par exemple stephane"></div>
       <p id="avail" class="avail ${esc(S.auth.avail || "")}">${esc(AVAIL_TXT[S.auth.avail] || "")}</p>
-      <label for="f-age">Ton âge</label>
-      <div class="champ"><input id="f-age" data-afield="age" value="${esc(S.auth.age)}" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="par exemple 25"></div>`;
+      ${contactFields()}`;
+
+  const contactFields = () => `
+      <label for="f-birth">Ta date de naissance</label>
+      <div class="champ"><input id="f-birth" type="date" data-afield="birth" value="${esc(S.auth.birth)}" max="${new Date().toISOString().slice(0, 10)}" autocomplete="bday"></div>
+      <label for="f-phone">Ton numéro de téléphone (avec l'indicatif)</label>
+      <div class="champ"><input id="f-phone" data-afield="phone" value="${esc(S.auth.phone)}" inputmode="tel" autocomplete="tel" maxlength="20"></div>`;
 
   function authScreen() {
     const a = S.auth;
@@ -663,6 +708,16 @@
       ${pseudoAgeFields()}
       <button class="principal" data-action="createProfile" data-needok ${canContinue() && !S.busy ? "" : "disabled"}>Créer mon compte</button>
       ${messageBlock()}${S.auth.msg ? '<p class="msg">' + esc(S.auth.msg) + "</p>" : ""}</div>`;
+  }
+
+  // Compte existant sans date de naissance ni numéro : on les demande une fois.
+  function contactScreen() {
+    return `<div class="col"><div class="coeur">🎂</div><h1>Complète ton profil</h1>
+      <p>Ajoute ta date de naissance et ton numéro de téléphone.</p>
+      ${contactFields()}
+      <button class="principal" data-action="saveContact" data-needcontact ${birthOk(S.auth.birth) && phoneDigits(S.auth.phone).length >= 8 && !S.busy ? "" : "disabled"}>Enregistrer</button>
+      ${messageBlock()}
+      <button class="lien" data-action="skipContact">Plus tard</button></div>`;
   }
 
   function partnerScreen() {
@@ -787,6 +842,7 @@
     else if (S.error) html = `<div class="col"><p>${esc(S.error)}</p><button class="principal" data-action="retry">Réessayer</button></div>`;
     else if (S.needAuth) html = authScreen();
     else if (!S.username) html = usernameScreen();
+    else if (S.needContact && !S.contactSkip) html = contactScreen();
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
 
@@ -817,7 +873,6 @@
       const f = el.dataset.afield;
       let v = el.value;
       if (f === "pseudo") v = filterName(v);
-      else if (f === "age") v = v.replace(/\D/g, "").slice(0, 3);
       else if (f === "phone") v = v.replace(/[^0-9+ ()-]/g, "").slice(0, 20);
       else if (f === "code") v = v.replace(/\D/g, "").slice(0, 8);
       if (el.value !== v) el.value = v;

@@ -57,14 +57,50 @@ fun PseudoAgeFields(s: AuthState, vm: AuthViewModel) {
         color = if (ok) Color(0xFF2E7D32) else if (s.avail == "checking" || s.avail == null) Color.Gray else Color(0xFFC62828),
         modifier = Modifier.fillMaxWidth().height(22.dp),
     )
+    ContactFields(s, vm)
+}
+
+@Composable
+fun ContactFields(s: AuthState, vm: AuthViewModel) {
     OutlinedTextField(
-        value = s.age,
-        onValueChange = { vm.setAge(it) },
-        label = { Text("Ton âge") },
+        value = s.birth,
+        onValueChange = { vm.setBirth(it) },
+        label = { Text("Ta date de naissance (jj/mm/aaaa)") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
+    Spacer(Modifier.height(8.dp))
+    OutlinedTextField(
+        value = s.phone,
+        onValueChange = { vm.setPhone(it) },
+        label = { Text("Ton numéro de téléphone (avec l'indicatif)") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Compte existant : on demande la date de naissance et le numéro une fois. */
+@Composable
+fun ContactScreen(s: AuthState, vm: AuthViewModel, onSkip: () -> Unit, onDone: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Text("🎂", fontSize = 56.sp)
+        Spacer(Modifier.height(8.dp))
+        Text("Complète ton profil", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Ajoute ta date de naissance et ton numéro de téléphone.", textAlign = TextAlign.Center)
+        Spacer(Modifier.height(16.dp))
+        ContactFields(s, vm)
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = { vm.saveContact(onDone) },
+            enabled = s.contactOk,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Enregistrer") }
+        Msg(s.msg)
+        TextButton(onClick = onSkip) { Text("Plus tard") }
+    }
 }
 
 @Composable

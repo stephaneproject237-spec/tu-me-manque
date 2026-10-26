@@ -19,7 +19,8 @@ data class AuthState(
     /** create ou login */
     val mode: String = "create",
     val pseudo: String = "",
-    val age: String = "",
+    /** Date de naissance saisie : jj/mm/aaaa */
+    val birth: String = "",
     /** null, checking, available, taken, invalid ou error */
     val avail: String? = null,
     val phone: String = "+237",
@@ -27,12 +28,31 @@ data class AuthState(
     val busy: Boolean = false,
     val msg: String? = null,
 ) {
-    val ageOk: Boolean get() = age.length in 1..3 && age.toIntOrNull()?.let { it in 1..120 } == true
-    val canContinue: Boolean get() = avail == "available" && ageOk && !busy
+    /** Date au format AAAA-MM-JJ, ou null si elle est invalide. */
+    val birthIso: String? get() = parseBirth(birth)?.first
+    val age: Int? get() = parseBirth(birth)?.second
+    val birthOk: Boolean get() = age?.let { it in 5..120 } == true
     val phoneOk: Boolean get() = phone.count { it.isDigit() } >= 8
+    val canContinue: Boolean get() = avail == "available" && birthOk && phoneOk && !busy
+    val contactOk: Boolean get() = birthOk && phoneOk && !busy
 }
 
 private val PSEUDO = Regex("^[a-z][a-z0-9_]{2,19}$")
+
+/** « 05/03/1998 » → ("1998-03-05", âge) ; null si ce n'est pas une vraie date. */
+fun parseBirth(v: String): Pair<String, Int>? {
+    val m = Regex("^(\\d{2})/(\\d{2})/(\\d{4})$").matchEntire(v) ?: return null
+    val (dd, mm, yy) = m.destructured.let { Triple(it.component1().toInt(), it.component2().toInt(), it.component3().toInt()) }
+    if (mm !in 1..12 || dd !in 1..31 || yy < 1900) return null
+    val cal = java.util.GregorianCalendar(yy, mm - 1, dd).apply { isLenient = false }
+    return try {
+        cal.timeInMillis // lève une exception si la date n'existe pas (30 février…)
+        val now = java.util.Calendar.getInstance()
+        var age = now.get(java.util.Calendar.YEAR) - yy
+        if (now.get(java.util.Calendar.MONTH) + 1 < mm || (now.get(java.util.Calendar.MONTH) + 1 == mm && now.get(java.util.Calendar.DAY_OF_MONTH) < dd)) age--
+        Pair("%04d-%02d-%02d".format(yy, mm, dd), age)
+    } catch (e: Exception) { null }
+}
 
 class AuthViewModel : ViewModel() {
     private val _state = MutableStateFlow(AuthState())
@@ -45,7 +65,14 @@ class AuthViewModel : ViewModel() {
     fun phoneStart() = _state.update { it.copy(screen = "phone", msg = null) }
     fun phoneBack() = _state.update { it.copy(screen = if (it.mode == "create") "create" else "login", msg = null) }
 
-    fun setAge(v: String) = _state.update { it.copy(age = v.filter { c -> c.isDigit() }.take(3)) }
+    /** Saisie de la date : on ajoute les « / » toute seule (jj/mm/aaaa). */
+    fun setBirth(v: String) {
+        val d = v.filter { it.isDigit() }.take(8)
+        val out = buildString {
+            d.forEachIndexed { i, c -> if (i == 2 || i == 4) append('/'); append(c) }
+        }
+        _state.update { it.copy(birth = out) }
+    }
     fun setPhone(v: String) = _state.update { it.copy(phone = v.filter { c -> c.isDigit() || c in "+ ()-" }.take(20)) }
     fun setCode(v: String) = _state.update { it.copy(code = v.filter { c -> c.isDigit() }.take(8)) }
 
@@ -67,8 +94,8 @@ class AuthViewModel : ViewModel() {
     /** Ouvre le navigateur pour se connecter avec Google ou Apple. */
     fun startOAuth(context: Context, provider: String) {
         val s = _state.value
-        val uri = if (s.mode == "create") Backend.oauthUri(provider, s.pseudo, s.age.toIntOrNull())
-        else Backend.oauthUri(provider, null, null)
+        val uri = if (s.mode == "create") Backend.oauthUri(provider, s.pseudo, s.age, s.birthIso, s.phone)
+        else Backend.oauthUri(provider, null, null, null, null)
         context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
@@ -130,11 +157,35 @@ class AuthViewModel : ViewModel() {
             val s = _state.value
             _state.update { it.copy(busy = true, msg = null) }
             try {
-                when (Backend.createAccount(s.pseudo, s.age.toIntOrNull() ?: 0)) {
-                    "ok", "has_username" -> onDone()
+                when (Backend.createAccount(s.pseudo, s.age ?: 0)) {
+                    "ok", "has_username" -> {
+                        s.birthIso?.let { Backend.saveContact(it, s.phone) }
+                        onDone()
+                    }
                     "taken" -> _state.update { it.copy(avail = "taken", msg = "Ce pseudo est déjà pris. Choisis-en un autre.") }
-                    "invalid", "invalid_age" -> _state.update { it.copy(msg = "Vérifie ton pseudo et ton âge.") }
+                    "invalid", "invalid_age" -> _state.update { it.copy(msg = "Vérifie ton pseudo et ta date de naissance.") }
                     else -> _state.update { it.copy(msg = "Impossible de créer le compte.") }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(msg = "Connexion impossible. Vérifie ta connexion internet.") }
+            }
+            _state.update { it.copy(busy = false) }
+        }
+    }
+
+    /** Compte existant : enregistre la date de naissance et le numéro. */
+    fun saveContact(onDone: () -> Unit) {
+        viewModelScope.launch {
+            val s = _state.value
+            val iso = s.birthIso ?: return@launch
+            _state.update { it.copy(busy = true, msg = null) }
+            try {
+                when (Backend.saveContact(iso, s.phone)) {
+                    "ok" -> onDone()
+                    "phone_taken" -> _state.update { it.copy(msg = "Ce numéro est déjà utilisé par un autre compte.") }
+                    "invalid_birth" -> _state.update { it.copy(msg = "Vérifie ta date de naissance.") }
+                    "invalid_phone" -> _state.update { it.copy(msg = "Vérifie ton numéro (avec l'indicatif).") }
+                    else -> _state.update { it.copy(msg = "Impossible d'enregistrer pour le moment.") }
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(msg = "Connexion impossible. Vérifie ta connexion internet.") }
@@ -145,7 +196,7 @@ class AuthViewModel : ViewModel() {
 
     private suspend fun finish(onDone: () -> Unit) {
         val s = _state.value
-        val note = Backend.finishAuth(s.pseudo.ifEmpty { null }, s.age.toIntOrNull())
+        val note = Backend.finishAuth(s.pseudo.ifEmpty { null }, s.age, s.birthIso, s.phone)
         if (note != null) {
             _state.update {
                 it.copy(

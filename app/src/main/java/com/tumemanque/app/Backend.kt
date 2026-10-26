@@ -35,6 +35,8 @@ data class Snapshot(
     val unread: Int,
     val incoming: List<Req>,
     val outgoing: List<Req>,
+    /** Compte sans date de naissance ou sans numéro : on les demande. */
+    val needContact: Boolean = false,
 )
 
 data class SupportMsg(val id: Long, val fromAdmin: Boolean, val body: String, val createdAt: Long)
@@ -212,6 +214,11 @@ object Backend {
             val req = Req(o.optLong("id").toString(), o.str("from_name") ?: "", o.str("to_name") ?: "")
             if (o.str("from_id") == uid) outgoing.add(req) else incoming.add(req)
         }
+        // contact.sql n'est peut-être pas encore installé côté serveur : dans ce cas on ne demande rien.
+        val needContact = runCatching {
+            val c = JSONArray(authed("GET", "/rest/v1/profiles?select=birthdate,phone&id=eq.$uid")).optJSONObject(0)
+            c != null && profile?.str("username") != null && (c.str("birthdate") == null || c.str("phone") == null)
+        }.getOrDefault(false)
         val missFrom = profile?.str("last_miss_from")
         var unread = 0
         if (profile?.str("partner_name") != null) {
@@ -248,6 +255,7 @@ object Backend {
             unread = unread,
             incoming = incoming,
             outgoing = outgoing,
+            needContact = needContact,
         )
     }
 
@@ -293,7 +301,7 @@ object Backend {
         Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
     /** Adresse à ouvrir dans le navigateur pour « Continuer avec Google / Apple » (PKCE). */
-    fun oauthUri(provider: String, pseudo: String?, age: Int?): Uri {
+    fun oauthUri(provider: String, pseudo: String?, age: Int?, birth: String?, phone: String?): Uri {
         val raw = ByteArray(48).also { SecureRandom().nextBytes(it) }
         val verifier = b64url(raw)
         val challenge = b64url(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
@@ -303,6 +311,8 @@ object Backend {
         if (!pseudo.isNullOrEmpty() && age != null) {
             editor.putString("pseudo", pseudo)
             editor.putInt("age", age)
+            if (birth != null) editor.putString("birth", birth)
+            if (phone != null) editor.putString("phone", phone)
         }
         editor.apply()
         val redirect = URLEncoder.encode("tumemanque://auth", "UTF-8")
@@ -331,6 +341,10 @@ object Backend {
         return if (first == "error") rpc("create_account", base) else first
     }
 
+    /** Date de naissance (AAAA-MM-JJ) et numéro de téléphone. Renvoie ok, phone_taken, invalid_birth, invalid_phone… */
+    suspend fun saveContact(birthIso: String, phone: String): String =
+        rpc("save_contact", JSONObject().put("p_birth", birthIso).put("p_phone", phone))
+
     // ====================== Messagerie avec @admin ======================
 
     suspend fun supportList(): List<SupportMsg> {
@@ -349,7 +363,7 @@ object Backend {
      * Après une connexion réussie. Renvoie null si le compte est prêt, sinon un message
      * (éventuellement vide) : on demandera alors le pseudo et l'âge.
      */
-    suspend fun finishAuth(fallbackPseudo: String?, fallbackAge: Int?): String? {
+    suspend fun finishAuth(fallbackPseudo: String?, fallbackAge: Int?, fallbackBirth: String?, fallbackPhone: String?): String? {
         val snap = loadSnapshot()
         val p = pend()
         if (snap.username != null) {
@@ -358,10 +372,15 @@ object Backend {
         }
         val pseudo = p.getString("pseudo", null) ?: fallbackPseudo
         val age = if (p.contains("age")) p.getInt("age", 0) else (fallbackAge ?: 0)
+        val birth = p.getString("birth", null) ?: fallbackBirth
+        val phone = p.getString("phone", null) ?: fallbackPhone
         p.edit().clear().apply()
         if (!pseudo.isNullOrEmpty() && age > 0) {
             return when (createAccount(pseudo, age)) {
-                "ok", "has_username" -> null
+                "ok", "has_username" -> {
+                    if (birth != null && phone != null) runCatching { saveContact(birth, phone) }
+                    null
+                }
                 "taken" -> "Ce pseudo vient d'être pris. Choisis-en un autre."
                 else -> "Impossible de créer le compte."
             }

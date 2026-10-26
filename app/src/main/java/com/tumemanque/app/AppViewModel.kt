@@ -32,6 +32,7 @@ data class UiState(
     val outgoing: List<Req> = emptyList(),
     val lastMiss: Miss? = null,
     val unread: Int = 0,
+    val needContact: Boolean = false,
     val busy: Boolean = false,
     val message: String? = null,
     /** Identifiant introuvable : on propose d'envoyer l'appli. */
@@ -104,6 +105,7 @@ class AppViewModel : ViewModel() {
                 needAuth = false,
                 lastMiss = s.miss,
                 unread = s.unread,
+                needContact = s.needContact,
                 incoming = s.incoming,
                 outgoing = s.outgoing,
             )
