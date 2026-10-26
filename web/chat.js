@@ -350,14 +350,14 @@
         if (addConfirmed(m)) {
           added.push(m);
           if (m.sender_id !== me) {
-            incoming = true; setTyping(false); bubbleSound(false);
+            incoming = true; setTyping(false); if (m.kind !== "game") bubbleSound(false);
             if (isLove(m)) love();
             if (m.kind === "sticker") burst(m.body);
           }
           else dropMatchingPending(m);
         }
       });
-      if (added.length) appendMessages(added, incoming);
+      if (added.length) { appendMessages(added, incoming); if (window.TMM_GAMES) window.TMM_GAMES.onMessages(added); }
       await syncDeleted();
       if (unreadOwn.size) await refreshReadStatus();
       if (incoming || hasUnreadIncoming()) markRead();
@@ -563,6 +563,9 @@
   }
 
   function rowEl(m) {
+    if (m.kind === "game" && window.TMM_GAMES) {
+      return window.TMM_GAMES.row(m, { me, partner, msgs: () => msgs, dayKey, hhmm });
+    }
     const mine = m.sender_id === me;
     const b = bubbleInner(m);
     const row = document.createElement("div");
@@ -741,6 +744,7 @@
       case "image": return "📷 " + (m.body ? m.body.slice(0, 60) : "Photo");
       case "voice": return "🎤 Message vocal";
       case "video": return "🎥 Vidéo";
+      case "game": return window.TMM_GAMES ? window.TMM_GAMES.snippet(m) : "🎮 Jeu";
       default: return "";
     }
   }
@@ -813,6 +817,7 @@
     const mine = m.sender_id === me, gone = !!m.deleted_at;
     let h = "";
     if (!gone) h += '<button class="ch-wpbtn ch-opt" data-c="mReply">↩ Répondre</button>';
+    if (m.kind === "game") { h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>'; $("ch-mmbox").innerHTML = h; $("ch-mm").hidden = false; return; }
     if (!gone && m.kind === "text" && m.body) h += '<button class="ch-wpbtn ch-opt" data-c="mCopy">⧉ Copier</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
     if (mine && !gone) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="mDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
@@ -1256,6 +1261,7 @@
 
   window.TMM_CHAT = {
     sendRaw,
+    poll,
     open,
     close,
     isOpen: () => opened,

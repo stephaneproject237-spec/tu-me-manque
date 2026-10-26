@@ -304,3 +304,32 @@ body.chat-open { overflow: hidden; }
 .gm-opt:active { transform: scale(.98); }
 .gm-opt.sel { background: linear-gradient(135deg, rgba(255,72,134,.35), rgba(214,24,92,.3)); border-color: #FF4F86; box-shadow: 0 0 0 3px rgba(233,30,99,.2); }
 .gm-opt.sel i { background: #E91E63; color: #fff; }
+
+/* ===== Cupidon : le jeu dans le fil du chat ===== */
+.ch-row.bot { justify-content: center; }
+.ch-row.bot .ch-bubble.gm-b { max-width: 92%; width: 100%; box-sizing: border-box; background: linear-gradient(160deg, rgba(58,40,52,.86), rgba(36,24,34,.82)); color: #F5EEF2;
+  border: 0; border-radius: 22px; padding: 12px 14px 8px; box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+.gm-botname { font-size: 12px; font-weight: 700; color: #FF8FB4; margin-bottom: 6px; letter-spacing: .2px; }
+.gm-bq small { display: block; color: #B7A3AE; font-size: 13px; margin-bottom: 4px; } .gm-bq b { font-size: 18px; line-height: 1.3; display: block; margin-bottom: 10px; }
+.gm-bopts { display: flex; flex-direction: column; gap: 7px; }
+.gm-bo { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; text-align: left; padding: 10px 12px; border-radius: 14px; cursor: pointer;
+  color: #F5EEF2; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); font: 15px inherit; font-family: inherit; transition: transform .15s, background .2s, border-color .2s; }
+.gm-bo i { flex: none; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.1); font-style: normal; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; color: #FF8FB4; }
+.gm-bo span { flex: 1; } .gm-bo em { font-style: normal; font-weight: 800; }
+.gm-bo:not(:disabled):active { transform: scale(.97); } .gm-bo:disabled { cursor: default; }
+.gm-bo.sel { background: rgba(233,30,99,.35); border-color: #FF4F86; }
+.gm-bo.right { background: rgba(46,158,91,.45); border-color: #3FD07F; animation: gmPop .5s cubic-bezier(.2,1.6,.4,1) both; } .gm-bo.right i { background: #2E9E5B; color: #fff; }
+.gm-bo.wrong { background: rgba(214,51,74,.42); border-color: #FF5A70; animation: gmShake .5s both; } .gm-bo.wrong i { background: #D6334A; color: #fff; }
+.gm-bo.dim { opacity: .45; }
+.gm-bres { margin-top: 8px; font-weight: 700; font-size: 14px; } .gm-bres.ok { color: #7BE0A3; } .gm-bres.ko { color: #FF8A9A; }
+.gm-bwait { margin-top: 8px; color: #B7A3AE; font-size: 13px; }
+.gm-react.ok { background: linear-gradient(160deg, rgba(40,120,70,.5), rgba(30,60,45,.55)) !important; animation: gmPop .45s cubic-bezier(.2,1.6,.4,1) both; }
+.gm-react.ko { background: linear-gradient(160deg, rgba(150,40,50,.5), rgba(60,24,30,.55)) !important; animation: gmShake .5s both; }
+.gm-endscore { display: flex; align-items: flex-end; justify-content: center; gap: 14px; margin: 6px 0 10px; }
+.gm-endscore div { display: flex; flex-direction: column; align-items: center; } .gm-endscore b { font-size: 44px; line-height: 1; color: #FF6A9C; animation: gmPop .6s cubic-bezier(.2,1.6,.4,1) both; }
+.gm-endscore small { color: #E3D6DD; font-size: 12px; } .gm-endscore span { color: #B7A3AE; padding-bottom: 14px; }
+.gm-endbtns { display: flex; gap: 8px; margin: 10px 0 4px; } .gm-endbtns .gm-btn { padding: 10px 16px; font-size: 14px; }
+.ch-row.bot .ch-meta { display: block; text-align: right; opacity: .5; font-size: 11px; margin-top: 4px; }
+.ch-row.bot .ch-bubble.gm-b { display: block !important; flex-direction: column; text-align: left; }
+.ch-row.bot .ch-bubble.gm-b .ch-text { display: block; }
+.ch-row.bot .gm-bopts, .ch-row.bot .gm-bo { width: 100%; }

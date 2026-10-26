@@ -86,6 +86,9 @@
   function apply(r) {
     const prev = R;
     R = r || null;
+    if (prev && R && overlayOpen && !showMenu && R.state === "playing" && R.my_answers >= 10 && R.their_answers >= 10 && (prev.my_answers < 10 || prev.their_answers < 10)) {
+      closeOverlay(); chatPoll();
+    }
     if (R && (!prev || prev.id !== R.id)) { draft = []; gIdx = null; verdict = null; editing = false; }
     if (prev && prev.state === "invite" && prev.by_me && !R && overlayOpen && !showMenu) { toast("@" + partner + " ne souhaite pas jouer pour l'instant."); showMenu = true; }
     // L'invité vient d'accepter, ou l'invitation vient d'arriver
@@ -124,7 +127,8 @@
     if (!t) return;
     ev.stopPropagation();
     const a = t.dataset.g;
-    if (a === "open") { openOverlay(); }
+    if (a === "pick") { pick(t); }
+    else if (a === "open") { openOverlay(); }
     else if (a === "close") { closeOverlay(); }
     else if (a === "yes") { act(() => rpc("game_respond", { p_round: R.id, p_accept: true })).then(openOverlay); }
     else if (a === "no") { act(() => rpc("game_respond", { p_round: R.id, p_accept: false })); }
@@ -209,7 +213,6 @@
     const keepScroll = g.querySelector(".gm-body") ? g.querySelector(".gm-body").scrollTop : 0;
     let body = "";
     if (!bank) { loadBank().then(() => { if (overlayOpen) { lastKey = ""; render(); } }); body = '<div class="gm-wait"><div class="spin"></div></div>'; }
-    else if (verdict) body = verdictHtml(verdict.idx);
     else if (showMenu || !R || R.state === "cancelled") body = menuHtml();
     else if (R.state === "declined") body = `<div class="gm-center"><div class="gm-big">🙈</div><p>@${esc(partner)} n'a pas envie de jouer pour l'instant.</p><button class="gm-btn" data-g="menu">Retour</button></div>`;
     else if (R.state === "cancelled") body = menuHtml();
@@ -261,15 +264,9 @@
       return `<div class="gm-center"><div class="gm-big pulse">⏳</div><h3>Tes réponses sont prêtes</h3><p>On attend que @${esc(partner)} réponde à ses 10 questions (${theirs}/10).</p>
         <button class="gm-btn ghost" data-g="editAns">Modifier mes réponses</button></div>`;
     }
-    const i = R.my_guesses;
-    if (i >= 10) {
-      const sc = (R.my_results || []).filter((x) => x.ok).length;
-      return `<div class="gm-center"><div class="gm-big">${sc >= 7 ? "🥰" : sc >= 4 ? "🙂" : "😅"}</div><h3>Tu as trouvé ${sc} / 10</h3><p>On attend que @${esc(partner)} devine tes réponses (${R.their_guesses}/10).</p></div>`;
-    }
-    return `<div class="gm-step">Étape 2 sur 2 · Question ${i + 1} / 10</div>${bar(i, 10)}
-      <div class="gm-guesscard"><div class="gm-from">@${esc(partner)} a répondu à :</div><div class="gm-qt">« ${esc(qOf(i).q)} »</div>
-      <div class="gm-from">Que penses-tu qu'il/elle a choisi ?</div>${inputHtml(i, "", "gmg")}</div>
-      <button class="gm-btn wide" data-g="guess">Valider</button>`;
+    return `<div class="gm-center"><div class="gm-big pulse">💬</div><h3>La partie continue dans le chat !</h3>
+      <p>Cupidon 💘 pose les questions directement dans la conversation.<br>Toi : <b>${R.my_guesses}/10</b> · @${esc(partner)} : <b>${R.their_guesses}/10</b></p>
+      <div class="gm-two"><button class="gm-btn" data-g="close">Retour au chat</button><button class="gm-btn ghost" data-g="cancel">Arrêter la partie</button></div></div>`;
   }
 
   function verdictHtml(i) {
@@ -321,5 +318,182 @@
     }, 250);
   }
 
-  window.TMM_GAMES = { attach, detach, refresh };
+  // ---------- Petits bruits : joie / tristesse ----------
+  let actx = null;
+  function audio() {
+    try {
+      if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); }
+      if (actx && actx.state === "suspended") actx.resume();
+    } catch (e) { /* ignoré */ }
+    return actx;
+  }
+  ["pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, audio, { passive: true }));
+  function tone(freq, t0, dur, type, vol, to) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.3, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function sfx(ok) {
+    try {
+      if (!audio()) return;
+      const t = actx.currentTime + 0.02;
+      if (ok) {          // petit arpège joyeux qui monte, avec des étincelles
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => { tone(f, t + k * 0.09, 0.28, "triangle", 0.28); tone(f * 2, t + k * 0.09, 0.2, "sine", 0.08); });
+        tone(1568, t + 0.42, 0.35, "sine", 0.14); tone(2093, t + 0.5, 0.3, "sine", 0.08);
+      } else {           // « wah-wah » triste qui descend
+        tone(392, t, 0.32, "sawtooth", 0.14, 330);
+        tone(349, t + 0.3, 0.55, "sawtooth", 0.14, 247);
+        tone(196, t + 0.3, 0.55, "sine", 0.1, 150);
+      }
+    } catch (e) { /* ignoré */ }
+  }
+  const chatPoll = () => { try { window.TMM_CHAT && window.TMM_CHAT.poll && window.TMM_CHAT.poll(); } catch (e) { /* ignoré */ } };
+
+  // ---------- Cupidon : les messages du jeu dans le fil du chat ----------
+  let envLast = null;
+  const localRes = {}, heard = new Set(), picking = {};
+  const PRAISE = ["Bravo", "Excellent", "Bien joué", "Dans le mille", "Parfait", "Quel flair"];
+  const OUPS = ["Aïe", "Oups", "Raté", "Pas de chance", "Presque", "Dommage"];
+  const gkey = (mt) => mt.round + ":" + mt.idx + ":" + mt.who;
+  const optOf = (qid, k) => { const q = bank && bank.get(qid); return q && q.o && q.o[Number(k)] != null ? q.o[Number(k)] : "…"; };
+  function resultFor(key, env) {
+    if (localRes[key]) return localRes[key];
+    const list = env.msgs();
+    for (let i = list.length - 1; i >= 0; i--) {
+      const x = list[i];
+      if (x.kind === "game" && x.meta && x.meta.t === "result" && gkey(x.meta) === key) return { ok: x.meta.ok, guess: x.meta.guess, answer: x.meta.answer };
+    }
+    return null;
+  }
+
+  function botHtml(m, env) {
+    const mt = m.meta || {};
+    const pn = "@" + esc(env.partner);
+    const time = '<span class="ch-meta">' + env.hhmm(m.created_at) + "</span>";
+    const head = (t) => '<div class="gm-botname">💘 Cupidon' + (t ? " · " + t : "") + "</div>";
+    switch (mt.t) {
+      case "intro":
+        return { cls: "gm-b", html: head("") + `<div class="ch-text">🎉 Vous avez choisi vos réponses !<br>Passons au jeu : chacun va <b>deviner ce que l'autre a choisi</b>. Je pose les questions ici, répondez quand vous voulez, et n'hésitez pas à commenter. 😏</div>` + time };
+      case "card": {
+        const q = bank && bank.get(mt.qid);
+        const key = gkey(mt), res = resultFor(key, env);
+        const mineTurn = mt.who === env.me;
+        let h = head("Question " + (mt.idx + 1) + "/10");
+        if (!q) return { cls: "gm-b", html: h + '<div class="ch-text">…</div>' + time };
+        h += mineTurn ? `<div class="gm-bq"><small>Qu'a choisi ${pn} ?</small><b>« ${esc(q.q)} »</b></div>`
+          : `<div class="gm-bq"><small>${pn} doit deviner ce que <u>tu</u> as choisi :</small><b>« ${esc(q.q)} »</b></div>`;
+        h += '<div class="gm-bopts">';
+        q.o.forEach((t, k) => {
+          let c = "gm-bo";
+          if (res) { if (String(k) === String(res.answer)) c += " right"; else if (String(k) === String(res.guess)) c += " wrong"; else c += " dim"; }
+          const can = !res && mineTurn;
+          h += `<button type="button" class="${c}" ${can ? `data-g="pick" data-round="${mt.round}" data-idx="${mt.idx}" data-o="${k}" data-who="${esc(mt.who)}" data-qid="${mt.qid}"` : "disabled"}><i>${LET[k]}</i><span>${esc(t)}</span>${res && String(k) === String(res.answer) ? "<em>✓</em>" : res && String(k) === String(res.guess) ? "<em>✗</em>" : ""}</button>`;
+        });
+        h += "</div>";
+        if (res) h += `<div class="gm-bres ${res.ok ? "ok" : "ko"}">${res.ok ? "✅ Bonne réponse !" : "❌ Raté…"}</div>`;
+        else if (!mineTurn) h += `<div class="gm-bwait">⏳ ${pn} réfléchit…</div>`;
+        return { cls: "gm-b gm-card" + (res ? (res.ok ? " done ok" : " done ko") : ""), html: h + time };
+      }
+      case "result": {
+        const ans = esc(optOf(mt.qid, mt.answer));
+        const me = mt.who === env.me;
+        const n = Number(m.id) || 0;
+        let t;
+        if (mt.ok) t = me ? `🎉 ${PRAISE[n % PRAISE.length]} ! Tu connais bien ${pn}.` : `🥰 ${pn} a trouvé exactement ce que tu avais choisi !`;
+        else t = me ? `😅 ${OUPS[n % OUPS.length]}… ${pn} avait choisi « ${ans} ».` : `🙈 ${pn} s'est trompé(e) : tu avais choisi « ${ans} ».`;
+        return { cls: "gm-b gm-react " + (mt.ok ? "ok" : "ko"), html: head("") + '<div class="ch-text">' + t + "</div>" + time };
+      }
+      case "finish": {
+        const me = mt.who === env.me;
+        return { cls: "gm-b", html: head("") + `<div class="ch-text">🏁 ${me ? "Tu as terminé" : pn + " a terminé"} ses 10 questions : <b>${mt.score}/10</b> !${me ? " On attend " + pn + "…" : ""}</div>` + time };
+      }
+      case "end": {
+        const iAmA = mt.ua === env.me;
+        const mine = iAmA ? mt.sa : mt.sb, theirs = iAmA ? mt.sb : mt.sa;
+        const verdict = mine > theirs ? `Tu connais ${pn} mieux qu'il/elle ne te connaît 😏` : mine < theirs ? `${pn} te connaît mieux 💗` : "Égalité parfaite, vous êtes faits l'un pour l'autre 💞";
+        return { cls: "gm-b gm-end", html: head("Résultats") + `<div class="gm-endscore"><div><b>${mine}</b><small>Toi</small></div><span>/10</span><div><b>${theirs}</b><small>${pn}</small></div></div><div class="ch-text">🏆 ${verdict}</div>` +
+          '<div class="gm-endbtns"><button class="gm-btn" data-g="again">Rejouer 🔁</button><button class="gm-btn ghost" data-g="open">Détails</button></div>' + time };
+      }
+      default: return { cls: "gm-b", html: head("") + '<div class="ch-text">' + esc(m.body || "🎮") + "</div>" + time };
+    }
+  }
+
+  function row(m, env) {
+    envLast = env;
+    const b = botHtml(m, env);
+    const el = document.createElement("div");
+    el.className = "ch-row bot";
+    el.dataset.day = env.dayKey(m.created_at);
+    el.dataset.id = m.id;
+    if (m.meta && m.meta.t === "card") el.dataset.gk = gkey(m.meta);
+    el.innerHTML = '<div class="ch-bubble ' + b.cls + '">' + b.html + "</div>";
+    el.addEventListener("click", onClick);
+    return el;
+  }
+
+  function refreshCard(key) {
+    if (!envLast) return;
+    const host = document.getElementById("chat");
+    const el = host && host.querySelector('.ch-row[data-gk="' + key + '"]');
+    if (!el) return;
+    const m = envLast.msgs().find((x) => x.kind === "game" && x.meta && x.meta.t === "card" && gkey(x.meta) === key);
+    if (m) el.replaceWith(row(m, envLast));
+  }
+
+  // Nouveaux messages reçus : on met à jour la carte concernée, et on joue le petit bruit si c'est l'autre qui a répondu.
+  function onMessages(list) {
+    list.forEach((m) => {
+      if (m.kind !== "game" || !m.meta) return;
+      const mt = m.meta;
+      if (mt.t === "result") {
+        const key = gkey(mt);
+        refreshCard(key);
+        if (mt.who !== (envLast && envLast.me) && !heard.has(key)) { heard.add(key); sfx(!!mt.ok); }
+      } else if (mt.t === "end") sfx(true);
+    });
+  }
+
+  async function pick(t) {
+    const key = t.dataset.round + ":" + t.dataset.idx + ":" + t.dataset.who;
+    if (picking[key]) return;
+    picking[key] = true;
+    const card = t.closest(".gm-bopts");
+    if (card) card.querySelectorAll(".gm-bo").forEach((b) => { b.disabled = true; if (b === t) b.classList.add("sel"); });
+    try {
+      const j = await rpc("game_guess", { p_round: Number(t.dataset.round), p_idx: Number(t.dataset.idx), p_guess: t.dataset.o });
+      if (j && j.status === "ok") {
+        localRes[key] = { ok: !!j.ok, guess: t.dataset.o, answer: j.answer };
+        heard.add(key);
+        sfx(!!j.ok);
+        try { if (navigator.vibrate) navigator.vibrate(j.ok ? [20, 30, 20] : 60); } catch (e) { /* ignoré */ }
+        refreshCard(key);
+        chatPoll();
+        setTimeout(chatPoll, 900);
+        refresh();
+      } else {
+        picking[key] = false;
+        if (card) card.querySelectorAll(".gm-bo").forEach((b) => { b.disabled = false; b.classList.remove("sel"); });
+        refreshCard(key);
+      }
+    } catch (e) {
+      picking[key] = false;
+      if (card) card.querySelectorAll(".gm-bo").forEach((b) => { b.disabled = false; b.classList.remove("sel"); });
+    }
+  }
+
+  function snippet(m) {
+    const mt = m.meta || {};
+    const q = bank && mt.qid ? bank.get(mt.qid) : null;
+    if (mt.t === "card") return "🎮 " + (q ? q.q : "Question " + ((mt.idx || 0) + 1));
+    if (mt.t === "result") return mt.ok ? "✅ Bonne réponse !" : "❌ Raté…";
+    return (m.body || "🎮 Cupidon").slice(0, 80);
+  }
+
+  window.TMM_GAMES = { attach, detach, refresh, row, onMessages, snippet };
 })();
