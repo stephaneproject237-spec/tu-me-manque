@@ -387,11 +387,7 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, 
         vm.sendMiss(false)
     }
     Spacer(Modifier.height(20.dp))
-    GlassButton(
-        if (state.unread > 0) "💬 Chat  (${state.unread})" else "💬 Chat",
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onOpenChat,
-    )
+    ChatEntryButton(partnerLabel(state), state.unread, modifier = Modifier.fillMaxWidth(), onClick = onOpenChat)
     Message(state)
 
     state.lastMiss?.let { miss ->

@@ -19,6 +19,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -209,5 +212,45 @@ fun FlutterOverlay(trigger: Int, heartsOnly: Boolean = false) {
                 c.nativeCanvas.drawText(pt.glyph, x, y, paint)
             }
         }
+    }
+}
+
+
+/** Bouton d'entrée dans le chat : tuile dégradée, titre, aperçu et pastille de messages non lus. */
+@Composable
+fun ChatEntryButton(partner: String, unread: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(26.dp)
+    Row(
+        modifier
+            .shadow(12.dp, shape, ambientColor = Color(0x55E91E63), spotColor = Color(0x55E91E63))
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(Color(0xD0402A36), Color(0xA02A1A24))))
+            .border(1.dp, Brush.linearGradient(listOf(Color(0x40FFFFFF), Color(0x0DFFFFFF))), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(50.dp).shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0x88E91E63), spotColor = Color(0x88E91E63))
+                .clip(RoundedCornerShape(16.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFFFF7FAA), Color(0xFFE91E63)))),
+            contentAlignment = Alignment.Center,
+        ) { Text("💬", fontSize = 24.sp) }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Chat", color = Color(0xFFF5EEF2), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (unread > 0) "$unread nouveau${if (unread > 1) "x" else ""} message${if (unread > 1) "s" else ""}" else "Discute avec $partner",
+                color = if (unread > 0) RoseVif else Color(0xFFA58F9B), fontSize = 13.sp,
+                fontWeight = if (unread > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1,
+            )
+        }
+        if (unread > 0) {
+            Box(
+                Modifier.padding(end = 8.dp).defaultMinSize(minWidth = 24.dp, minHeight = 24.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE91E63)).padding(horizontal = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(if (unread > 99) "99+" else "$unread", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        }
+        Text("›", color = RoseVif, fontSize = 30.sp, fontWeight = FontWeight.Light)
     }
 }

@@ -776,7 +776,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       <div><span class="gris" style="font-size:18px">moi 💗 </span><span class="pseudo" data-action="askRemove">@${esc(S.partnerName)}</span></div>
       <p class="petit" style="margin-top:-8px">Touche son pseudo pour retirer ton partenaire</p>
       <button class="principal gros" data-action="miss" ${S.busy ? "disabled" : ""}>Tu me manques 💗</button>
-      <button class="secondaire chatbtn" data-action="openChat">💬 Chat${S.unread ? ' <span class="badge">' + (S.unread > 99 ? "99+" : S.unread) + "</span>" : ""}</button>
+      <button class="chatentry" data-action="openChat"><span class="ce-tile">💬</span><span class="ce-txt"><b>Chat</b><small${S.unread ? ' class="new"' : ""}>${S.unread ? S.unread + " nouveau" + (S.unread > 1 ? "x" : "") + " message" + (S.unread > 1 ? "s" : "") : "Discute avec @" + esc(S.partnerName)}</small></span>${S.unread ? '<span class="ce-badge">' + (S.unread > 99 ? "99+" : S.unread) + "</span>" : ""}<span class="ce-go">›</span></button>
       ${messageBlock()}
       ${miss}
       ${pushBlock()}

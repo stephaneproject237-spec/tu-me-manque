@@ -442,3 +442,16 @@ body.chat-open { overflow: hidden; }
 .selecting .ch-row[data-id] { cursor: pointer; }
 .ch-row.sel { background: rgba(233,30,99,.25); border-radius: 14px; }
 .ch-row.sel::before { content: "✔"; align-self: center; flex: none; width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 50%; background: #E91E63; color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; order: -1; }
+
+/* Bouton « Chat » de la première page */
+.chatentry { display: flex; align-items: center; gap: 14px; align-self: stretch; width: 100%; text-align: left; padding: 12px 14px; border-radius: 26px; border: 1px solid rgba(255,255,255,.16);
+  background: linear-gradient(135deg, rgba(64,42,54,.82), rgba(42,26,36,.62)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  color: #F5EEF2; font: inherit; box-shadow: 0 8px 24px rgba(233,30,99,.22), inset 0 1px 0 rgba(255,255,255,.08); cursor: pointer; }
+.chatentry .ce-tile { flex: none; width: 50px; height: 50px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px;
+  background: linear-gradient(135deg, #FF7FAA, #E91E63); box-shadow: 0 6px 16px rgba(233,30,99,.45), inset 0 1px 0 rgba(255,255,255,.4); }
+.chatentry .ce-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chatentry .ce-txt b { font-size: 18px; font-weight: 700; }
+.chatentry .ce-txt small { font-size: 13px; color: #A58F9B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatentry .ce-txt small.new { color: #FF7FA8; font-weight: 600; }
+.chatentry .ce-badge { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: #E91E63; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.chatentry .ce-go { color: #FF7FA8; font-size: 30px; font-weight: 300; line-height: 1; margin-top: -3px; }
