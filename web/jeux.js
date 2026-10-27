@@ -38,6 +38,7 @@
         if (!gameActive) menu += it("open", "🎮 Jeux");
         if (!remActive) menu += it("rp", "⏰ Rappels");
         menu += it("sched", "🕐 Programmés");
+        menu += it("hot", "🔥 Hot pic");
       }
       h += '<div class="gm-boltwrap"><button class="gm-bolt' + (boltOpen ? " open" : "") + '" data-g="bolt" aria-label="Fonctions">⚡</button>' + (menu ? '<div class="gm-menu">' + menu + "</div>" : "") + "</div>";
     }
@@ -156,6 +157,7 @@
     }
     else if (a === "bolt") { boltOpen = !boltOpen; if (boltOpen) chime(); paintChip(); }
     else if (a === "open") { boltOpen = false; paintChip(); openOverlay(); }
+    else if (a === "hot") { boltOpen = false; paintChip(); if (window.TMM_HOT && window.TMM_CHAT) window.TMM_HOT.start({ title: "🔥 Hot pic", onResult: (r) => window.TMM_CHAT._x.sendImage(r.blob, r.w, r.h, "", { once: r.once }) }); }
     else if (a === "sched") { boltOpen = false; paintChip(); if (window.TMM_X) window.TMM_X.openList(); }
     else if (a === "rp") { boltOpen = false; paintChip(); if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
     else if (a === "close") { closeOverlay(); }
