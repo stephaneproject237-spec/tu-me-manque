@@ -1,1 +1,7 @@
-{"version": "web 1.0", "notes": "Première version iPhone : lecteur audio, playlists, messagerie multi-amis."}
+{
+ "version": "web 1.0",
+ "notes": "Le bouton « Aide » devient « À propos ».",
+ "versionCode": 8,
+ "versionName": "1.8",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-8/casque.apk"
+}

@@ -82,7 +82,13 @@ def main():
     mf = skin.words(mf).replace("Un bouton pour dire « Casque » à ton ami(e).", "Lecteur audio et messagerie entre amis.").replace("#160a12", "#0A0D13")
     mf = re.sub(r'"description": "[^"]*"', '"description": "Lecteur audio et messagerie entre amis."', mf)
     wr(os.path.join(OUT, "manifest.webmanifest"), mf)
-    wr(os.path.join(OUT, "update.json"), '{"version": "%s", "notes": "%s"}\n' % (VERSION, NOTES))
+    # update.json sert aux deux : « version » = iPhone/web ; versionCode / versionName / apk = Android (voir tools/casque-android.json)
+    import json
+    upd = {"version": VERSION, "notes": NOTES}
+    ap = os.path.join(ROOT, "tools", "casque-android.json")
+    if os.path.exists(ap):
+        upd.update(json.loads(rd(ap)))
+    wr(os.path.join(OUT, "update.json"), json.dumps(upd, ensure_ascii=False, indent=1) + "\n")
 
     # Icônes : un casque blanc sur fond bleu nuit
     from PIL import Image, ImageDraw
