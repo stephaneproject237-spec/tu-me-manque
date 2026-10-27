@@ -710,7 +710,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
           <span class="fr-pre${f.unread ? " new" : ""}">${esc(casPreview(f))}${f.unread ? '<span class="ce-badge">' + (f.unread > 99 ? "99+" : f.unread) + "</span>" : ""}</span></span>
           <button class="fr-del" data-action="askRemoveFriend" data-id="${esc(f.id)}" aria-label="Retirer">✕</button></div>`).join("");
     return `<div class="col fr-col">
-      <div class="fr-head"><h2>Aide · Messagerie</h2><p class="gris">Mon pseudo : @${esc(S.username)}</p></div>
+      <div class="fr-head"><h2>À propos</h2><p class="gris">Mon pseudo : @${esc(S.username)}</p></div>
       ${incoming}
       <div class="fr-add">
         <div class="champ" style="flex:1"><input id="f-partner" data-field="partner" value="${esc(S.draft.partner)}"

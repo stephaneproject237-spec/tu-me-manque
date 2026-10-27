@@ -434,7 +434,7 @@
       (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out wide" data-a="pickdir">' + I.folder + " Choisir un dossier source</button>") +
       '<button class="bt out wide" data-a="clear">Vider la bibliothèque</button></div>' +
       '<p class="sec">APPLICATION</p><div class="card l"><button class="bt out wide" data-a="update">Rechercher une mise à jour</button>' + (U.upd ? '<p class="note">' + esc(U.upd) + "</p>" : "") + "</div>" +
-      '<p class="sec">AIDE</p><div class="card l"><p class="note">Ouvre la messagerie : ajoute des amis, discute avec plusieurs personnes, envoie photos, vocaux et plus.</p><button class="bt wide" data-a="help">' + I.chat + " Aide · Messagerie</button></div>" +
+      '<p class="sec">À PROPOS</p><div class="card l"><button class="bt wide" data-a="help">' + I.chat + " À propos</button></div>" +
       "</main>";
   }
   function sheetView() {

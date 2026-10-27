@@ -167,7 +167,7 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
         }
         Spacer(Modifier.height(14.dp))
 
-        // ------------------------------------------------------------ aide
+        // ------------------------------------------------------------ à propos
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(P.card).clickable { onHelp() }.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -178,8 +178,7 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
             ) { CIcon(Ic.Help, Color.White, 22.dp) }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Aide", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text("Messagerie : tes amis, tes conversations, appels et jeux", color = P.sub, fontSize = 13.sp)
+                Text("À propos", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             CIcon(Ic.ChevronRight, P.sub, 22.dp)
         }
@@ -276,7 +275,7 @@ fun CasqueFriends(
             RoundBtn(Ic.Back, onBack)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Aide · Messagerie", color = P.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("À propos", color = P.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 if (!state.username.isNullOrEmpty()) Text("Mon pseudo : @${state.username}", color = P.sub, fontSize = 13.sp)
             }
             RoundBtn(Ic.Phone, onInvite, tint = P.blueSoft)
