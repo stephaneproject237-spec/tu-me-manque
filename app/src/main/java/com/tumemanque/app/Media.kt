@@ -23,9 +23,9 @@ import kotlin.math.min
 
 class PreparedPhoto(val bytes: ByteArray, val w: Int, val h: Int)
 
-/** Redimensionne une photo (1280 px max, JPEG) en tenant compte de son orientation. */
+/** Prépare une photo en haute définition (4096 px max, JPEG qualité 92) en tenant compte de son orientation. */
 object ImageUtil {
-    fun prepare(context: Context, uri: Uri, maxSide: Int = 1280, quality: Int = 82): PreparedPhoto? {
+    fun prepare(context: Context, uri: Uri, maxSide: Int = 4096, quality: Int = 92): PreparedPhoto? {
         val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
@@ -58,11 +58,12 @@ object ImageUtil {
         if (scale < 1f) m.postScale(scale, scale)
         val moved = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true)
 
-        // Fond blanc (les PNG transparents deviendraient noirs en JPEG).
-        val flat = Bitmap.createBitmap(moved.width, moved.height, Bitmap.Config.ARGB_8888)
-        Canvas(flat).apply {
-            drawColor(Color.WHITE)
-            drawBitmap(moved, 0f, 0f, null)
+        // Fond blanc (les PNG transparents deviendraient noirs en JPEG). Une photo sans transparence est gardée telle quelle (économise la mémoire en HD).
+        val flat = if (!moved.hasAlpha()) moved else Bitmap.createBitmap(moved.width, moved.height, Bitmap.Config.ARGB_8888).also {
+            Canvas(it).apply {
+                drawColor(Color.WHITE)
+                drawBitmap(moved, 0f, 0f, null)
+            }
         }
         val out = ByteArrayOutputStream()
         flat.compress(Bitmap.CompressFormat.JPEG, quality, out)

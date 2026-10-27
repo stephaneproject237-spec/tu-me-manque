@@ -70,7 +70,20 @@ data class ChatMsg(
     val myUid: String = "",
 ) {
     val key: String get() = if (pending) "t$tmp" else "m$id"
+
+    /** Message éphémère (vue unique) : le contenu n'est pas dans le message, on ne l'ouvre qu'une fois. */
+    val once: Boolean get() = meta?.optBoolean("once", false) == true
+    val opened: Boolean get() = meta?.optBoolean("opened", false) == true
 }
+
+/** Comment envoyer : en vue unique, et/ou à une heure précise (at = millisecondes, 0 = tout de suite). */
+data class SendOpts(val once: Boolean = false, val at: Long = 0)
+
+/** Contenu d'un message éphémère, remis une seule fois au destinataire. */
+class OnceContent(val kind: String, val body: String?, val media: String?)
+
+/** Un message programmé, pas encore parti. */
+data class Sched(val id: Long, val kind: String, val body: String?, val once: Boolean, val sendAt: Long)
 
 private fun JSONObject.str(key: String): String? = if (isNull(key)) null else optString(key)
 
@@ -547,6 +560,50 @@ object Backend {
     }
 
     suspend fun markRead() { rpc("mark_read") }
+
+    // ---------- Éphémères et programmés ----------
+
+    suspend fun sendOnce(kind: String, body: String?, media: String?, meta: JSONObject?): SendResult {
+        val args = JSONObject().put("p_kind", kind).put("p_body", body ?: JSONObject.NULL)
+            .put("p_media", media ?: JSONObject.NULL).put("p_meta", meta ?: JSONObject.NULL)
+        val j = JSONObject(authed("POST", "/rest/v1/rpc/send_once", args.toString()))
+        return SendResult(j.optString("status", "error"), j.optLong("id", 0))
+    }
+
+    /** Ouvre un message éphémère reçu : le contenu sort une seule fois. null = déjà disparu. */
+    suspend fun onceOpen(id: Long): OnceContent? {
+        val j = JSONObject(authed("POST", "/rest/v1/rpc/once_open", JSONObject().put("p_id", id).toString()))
+        if (j.optString("status") != "ok") return null
+        return OnceContent(j.optString("kind"), j.str("body"), j.str("media"))
+    }
+
+    suspend fun onceDone(id: Long) { runCatching { rpc("once_done", JSONObject().put("p_id", id)) } }
+
+    /** Parmi ces messages éphémères envoyés par moi, lesquels ont été ouverts ? */
+    suspend fun openedAmong(ids: List<Long>): List<Long> {
+        if (ids.isEmpty()) return emptyList()
+        val arr = JSONArray(authed("GET", "/rest/v1/messages?select=id&meta->>opened=eq.true&id=in.(${ids.joinToString(",")})"))
+        return List(arr.length()) { arr.getJSONObject(it).getLong("id") }
+    }
+
+    suspend fun scheduleMessage(kind: String, body: String?, media: String?, meta: JSONObject?, once: Boolean, atMillis: Long): String {
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(java.util.Date(atMillis))
+        val args = JSONObject().put("p_kind", kind).put("p_body", body ?: JSONObject.NULL).put("p_media", media ?: JSONObject.NULL)
+            .put("p_meta", meta ?: JSONObject.NULL).put("p_once", once).put("p_at", iso)
+        return JSONObject(authed("POST", "/rest/v1/rpc/schedule_message", args.toString())).optString("status", "error")
+    }
+
+    suspend fun scheduledList(): List<Sched> {
+        val arr = JSONArray(authed("POST", "/rest/v1/rpc/scheduled_list", "{}"))
+        return List(arr.length()) {
+            val o = arr.getJSONObject(it)
+            Sched(o.getLong("id"), o.optString("kind"), o.str("body"), o.optBoolean("once"), parseTime(o.str("send_at")))
+        }
+    }
+
+    suspend fun scheduledCancel(id: Long) { rpc("scheduled_cancel", JSONObject().put("p_id", id)) }
+
+    suspend fun deliverScheduled() { runCatching { rpc("deliver_scheduled") } }
 
     /** « Est en train d'écrire » : tout est silencieux si la fonction n'existe pas encore côté serveur. */
     suspend fun partnerTyping(): Boolean = runCatching {

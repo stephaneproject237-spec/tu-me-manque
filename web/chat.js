@@ -216,6 +216,10 @@
           <input id="ch-pvcap" placeholder="Ajouter une légende…" maxlength="300">
           <button class="ch-send on" data-c="pvSend" aria-label="Envoyer la photo">${ic("send", 22)}</button>
         </div>
+        <div class="ch-pvopts">
+          <button class="ch-pvopt" id="ch-pvonce" data-c="pvOnce">🔥 Vue unique</button>
+          <button class="ch-pvopt" id="ch-pvsched" data-c="pvSched">🕐 Programmer</button>
+        </div>
         <div class="ch-pvact">
           <button class="ch-pvbtn" data-c="pvRetake">↻ Reprendre</button>
           <button class="ch-pvbtn ok" data-c="pvSend">✓ Utiliser cette photo</button>
@@ -257,6 +261,15 @@
     $("ch-input").addEventListener("keydown", (e) => {
       if (fine && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
     });
+    (() => {
+      const b = $("ch-send");
+      let t = null, fired = false;
+      const clear = () => { clearTimeout(t); t = null; };
+      b.addEventListener("pointerdown", () => { fired = false; clear(); if (b.dataset.c !== "send") return; t = setTimeout(() => { fired = true; sendOptions(); }, 450); });
+      ["pointerup", "pointerleave", "pointercancel"].forEach((e) => b.addEventListener(e, clear));
+      b.addEventListener("click", (ev) => { if (fired) { ev.stopPropagation(); ev.preventDefault(); fired = false; } }, true);
+      b.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    })();
     $("ch-input").addEventListener("focus", () => { if (panelTab) closePanel(); setTimeout(() => scrollBottom(true), 250); });
     $("ch-file").addEventListener("change", onFile);
     $("ch-filep").addEventListener("change", onFile);
@@ -378,6 +391,8 @@
       if (added.length) { appendMessages(added, incoming); if (window.TMM_GAMES) window.TMM_GAMES.onMessages(added); }
       await syncDeleted();
       await syncEdited();
+      await syncOnce();
+      if (window.TMM_X) window.TMM_X.tick();
       if (unreadOwn.size) await refreshReadStatus();
       if (incoming || hasUnreadIncoming()) markRead();
     } catch (e) { /* hors-ligne : on réessaie au prochain tour */ }
@@ -515,6 +530,7 @@
   function bubbleInner(m) {
     const t = '<span class="ch-meta">' + (m.kind === "text" && m.meta && m.meta.edited && !m.deleted_at ? '<i class="ch-edited">modifié</i> · ' : "") + hhmm(m.created_at) + tickHtml(m) + "</span>";
     if (m.deleted_at) return { cls: "deleted", html: '<div class="ch-text ch-del">🚫 Message supprimé</div>' + t };
+    if (m.meta && m.meta.once && window.TMM_X) return { cls: "once", html: window.TMM_X.bubble(m, m.sender_id === me) + t };
     switch (m.kind) {
       case "text": {
         if (isBigEmoji(m.body)) return { cls: "big", html: '<div class="ch-bigemoji">' + esc(m.body) + "</div>" + t };
@@ -754,6 +770,7 @@
     if (byId.has(j.id)) { removePending(p); return; }
     const m = { id: j.id, sender_id: me, kind: payload.p_kind, body: payload.p_body || null, media: payload.p_media || null,
       meta: payload.p_meta || null, created_at: p.created_at, read_at: null, localUrl: p.localUrl };
+    if (p.once) { m.body = null; m.media = null; m.localUrl = null; m.meta = Object.assign({}, m.meta || {}, { once: true }); }
     pendings = pendings.filter((x) => x !== p);
     byId.set(m.id, m);
     msgs.push(m);
@@ -763,11 +780,12 @@
     if (el) el.replaceWith(rowEl(m));
   }
 
-  async function deliver(p, payload) {
+  async function deliver(p, payload, opts) {
+    const once = !!(opts && opts.once);
     stopTyping();
     if (p.meta && p.meta.reply) payload = Object.assign({}, payload, { p_meta: Object.assign({}, payload.p_meta || {}, { reply: p.meta.reply }) });
     try {
-      const j = await A().authed("POST", "/rest/v1/rpc/send_message", payload);
+      const j = await A().authed("POST", "/rest/v1/rpc/" + (once ? "send_once" : "send_message"), payload);
       if (!j || j.status !== "ok") {
         removePending(p);
         if (j && j.status === "no_partner") { toast("Vous n'êtes plus partenaires."); A().reload(); close(); }
@@ -777,6 +795,7 @@
       settle(p, payload, j);
       return true;
     } catch (e) {
+      if (once) { removePending(p); toast("Message non envoyé. Vérifie ta connexion."); return false; }
       return queueOffline(p, payload);
     }
   }
@@ -811,6 +830,7 @@
 
   // ---------- Répondre à un message ----------
   function snippet(m) {
+    if (m.meta && m.meta.once) return "🔥 Message éphémère";
     switch (m.kind) {
       case "text": return (m.body || "").replace(/\s+/g, " ").slice(0, 80);
       case "sticker": return "💗 Sticker";
@@ -825,7 +845,7 @@
   // ---------- Modifier un message envoyé ----------
   let editingId = null;
   function startEdit(m) {
-    if (!m || !m.id || m.kind !== "text") return;
+    if (!m || !m.id || m.kind !== "text" || (m.meta && m.meta.once)) return;
     clearReply();
     editingId = m.id;
     $("ch-rname").textContent = "✏️ Modifier le message";
@@ -866,6 +886,23 @@
     }
   }
   // La personne a modifié un message : on voit le nouveau texte ici aussi.
+  // Le destinataire a ouvert un message éphémère : on le voit ici aussi.
+  async function syncOnce() {
+    if (!msgs.length) return;
+    const waiting = msgs.filter((m) => m.meta && m.meta.once && !m.meta.opened && !m.deleted_at);
+    if (!waiting.length) return;
+    try {
+      const rows = await sb("GET", "/rest/v1/messages?select=id&meta->>opened=eq.true&id=in.(" + waiting.slice(-100).map((m) => m.id).join(",") + ")");
+      (rows || []).forEach((r) => markOpened(r.id));
+    } catch (e) { /* ignoré */ }
+  }
+  function markOpened(id) {
+    const m = byId.get(id);
+    if (!m || (m.meta && m.meta.opened)) return;
+    m.meta = Object.assign({}, m.meta || {}, { opened: true });
+    const el = host.querySelector('.ch-row[data-id="' + id + '"]');
+    if (el) el.replaceWith(rowEl(m));
+  }
   async function syncEdited() {
     if (!msgs.length) return;
     try {
@@ -948,7 +985,7 @@
     if (!gone) h += '<button class="ch-wpbtn ch-opt" data-c="mReply">↩ Répondre</button>';
     if (m.kind === "game") { h += '<button class="ch-wpbtn ch-wpclose" data-c="mClose">Annuler</button>'; $("ch-mmbox").innerHTML = h; $("ch-mm").hidden = false; return; }
     if (!gone && m.kind === "text" && m.body) h += '<button class="ch-wpbtn ch-opt" data-c="mCopy">⧉ Copier</button>';
-    if (mine && !gone && m.kind === "text" && !m.pending) h += '<button class="ch-wpbtn ch-opt" data-c="mEdit">✏️ Modifier</button>';
+    if (mine && !gone && m.kind === "text" && !m.pending && !(m.meta && m.meta.once)) h += '<button class="ch-wpbtn ch-opt" data-c="mEdit">✏️ Modifier</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mSel">☑ Sélectionner</button>';
     h += '<button class="ch-wpbtn ch-opt" data-c="mDelMe">' + ic("trash", 20) + " Supprimer pour moi</button>";
     if (mine && !gone) h += '<button class="ch-wpbtn ch-opt ch-danger" data-c="mDelAll">' + ic("trash", 20) + " Supprimer pour tout le monde</button>";
@@ -1051,17 +1088,35 @@
   const isLove = (m) => m.kind === "text" && m.body && LOVE_RE.test(m.body);
   function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
 
-  async function sendText() {
+  async function sendText(o) {
     if (editingId !== null) { submitEdit(); return; }
     const inp = $("ch-input");
     const text = inp.value.trim();
     if (!text) return;
     inp.value = "";
     onInput();
+    if (o && o.at) {
+      const ok = await window.TMM_X.schedule({ p_kind: "text", p_body: text }, o);
+      if (!ok && !inp.value) { inp.value = text; onInput(); }
+      return;
+    }
+    if (o && o.once) {
+      const p = addPending({ kind: "text", body: null, meta: { once: true } });
+      p.once = true;
+      const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null }, { once: true });
+      if (!ok && !inp.value) { inp.value = text; onInput(); }
+      return;
+    }
     if (LOVE_RE.test(text)) love();
     const p = addPending({ kind: "text", body: text });
     const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
     if (!ok && !inp.value) { inp.value = text; onInput(); }
+  }
+  // Appui long sur « envoyer » : éphémère ou programmé.
+  async function sendOptions() {
+    if (editingId !== null || !$("ch-input").value.trim()) return;
+    const o = await window.TMM_X.choose({ title: "Envoyer ce message", canOnce: true });
+    if (o) sendText(o);
   }
 
   async function sendSticker(id) {
@@ -1077,12 +1132,22 @@
     await deliver(p, { p_kind: "gif", p_body: null, p_media: g.url, p_meta: { w: g.w, h: g.h } });
   }
 
-  async function sendImage(blob, w, h, caption) {
+  async function sendImage(blob, w, h, caption, o) {
+    if (o && o.at) {
+      toast("Préparation…");
+      try {
+        const path = await uploadFile(blob, "jpg", "image/jpeg");
+        await window.TMM_X.schedule({ p_kind: "image", p_body: caption || null, p_media: path, p_meta: { w, h } }, o);
+      } catch (e) { toast("Photo non programmée. Vérifie ta connexion."); }
+      return;
+    }
+    const once = !!(o && o.once);
     const local = URL.createObjectURL(blob);
-    const p = addPending({ kind: "image", body: caption || null, meta: { w, h }, localUrl: local });
+    const p = once ? addPending({ kind: "image", body: null, meta: { once: true } }) : addPending({ kind: "image", body: caption || null, meta: { w, h }, localUrl: local });
+    if (once) p.once = true;
     try {
       const path = await uploadFile(blob, "jpg", "image/jpeg");
-      await deliver(p, { p_kind: "image", p_body: caption || null, p_media: path, p_meta: { w, h } });
+      await deliver(p, { p_kind: "image", p_body: caption || null, p_media: path, p_meta: { w, h } }, { once });
     } catch (e) {
       removePending(p);
       toast("Photo non envoyée. Vérifie ta connexion.");
@@ -1102,7 +1167,7 @@
       v.src = url;
     });
   }
-  async function sendVideo(file) {
+  async function sendVideo(file, o) {
     if (file.size > MAX_VIDEO) { toast("Vidéo trop lourde (50 Mo maximum)."); return; }
     const type = /quicktime/.test(file.type) ? "video/quicktime" : /webm/.test(file.type) ? "video/webm" : /3gpp/.test(file.type) ? "video/3gpp" : "video/mp4";
     const ext = type === "video/quicktime" ? "mov" : type === "video/webm" ? "webm" : type === "video/3gpp" ? "3gp" : "mp4";
@@ -1110,11 +1175,21 @@
     const meta = {};
     if (m.w && m.h) { meta.w = m.w; meta.h = m.h; }
     if (m.d) meta.d = m.d;
+    if (o && o.at) {
+      toast("Préparation…");
+      try {
+        const path = await uploadFile(file, ext, type);
+        await window.TMM_X.schedule({ p_kind: "video", p_body: null, p_media: path, p_meta: Object.keys(meta).length ? meta : null }, o);
+      } catch (e) { toast("Vidéo non programmée. Vérifie ta connexion."); }
+      return;
+    }
+    const once = !!(o && o.once);
     const local = URL.createObjectURL(file);
-    const p = addPending({ kind: "video", meta, localUrl: local });
+    const p = once ? addPending({ kind: "video", meta: { once: true } }) : addPending({ kind: "video", meta, localUrl: local });
+    if (once) p.once = true;
     try {
       const path = await uploadFile(file, ext, type);
-      await deliver(p, { p_kind: "video", p_body: null, p_media: path, p_meta: Object.keys(meta).length ? meta : null });
+      await deliver(p, { p_kind: "video", p_body: null, p_media: path, p_meta: Object.keys(meta).length ? meta : null }, { once });
     } catch (e) {
       removePending(p);
       toast("Vidéo non envoyée. Vérifie ta connexion.");
@@ -1149,12 +1224,23 @@
   }
 
   // ---------- Photos ----------
-  let pendingPhoto = null;
+  let pendingPhoto = null, pvOnce = false, pvAt = null;
+  function refreshPvOpts() {
+    const a = $("ch-pvonce"), b = $("ch-pvsched");
+    if (!a) return;
+    a.classList.toggle("on", pvOnce);
+    b.classList.toggle("on", !!pvAt);
+    b.textContent = pvAt ? "🕐 " + window.TMM_X.whenLabel(pvAt) : "🕐 Programmer";
+  }
   async function onFile(ev) {
     const f = ev.target.files && ev.target.files[0];
     ev.target.value = "";
     if (!f) return;
-    if ((f.type || "").startsWith("video/")) { sendVideo(f); return; }
+    if ((f.type || "").startsWith("video/")) {
+      const o = await window.TMM_X.choose({ title: "Envoyer cette vidéo", canOnce: true });
+      if (o) sendVideo(f, o);
+      return;
+    }
     try {
       pendingPhoto = await resizeImage(f);
       $("ch-pvimg").src = URL.createObjectURL(pendingPhoto.blob);
@@ -1165,7 +1251,7 @@
     }
   }
 
-  async function resizeImage(file, max = 1280, q = 0.82) {
+  async function resizeImage(file, max = 4096, q = 0.92) {
     let src, w, h;
     try {
       src = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -1397,13 +1483,22 @@
       case "wpGallery": $("ch-wpfile").click(); ev.stopPropagation(); break;
       case "wpReset": chooseWall(null); ev.stopPropagation(); break;
       case "pvRetake": $("ch-pv").hidden = true; pendingPhoto = null; $("ch-cam").hidden = false; break;
-      case "pvCancel": $("ch-pv").hidden = true; pendingPhoto = null; break;
+      case "pvCancel": $("ch-pv").hidden = true; pendingPhoto = null; pvOnce = false; pvAt = null; refreshPvOpts(); break;
+      case "pvOnce": pvOnce = !pvOnce; refreshPvOpts(); break;
+      case "pvSched": {
+        if (pvAt) { pvAt = null; refreshPvOpts(); break; }
+        window.TMM_X.choose({ title: "Programmer la photo", canOnce: false }).then((o) => { if (o && o.at) { pvAt = o.at; refreshPvOpts(); } });
+        break;
+      }
+      case "onceOpen": { const r = t.closest(".ch-row"); if (r && r.dataset.id) window.TMM_X.openOnce(Number(r.dataset.id)); break; }
       case "pvSend": {
         if (!pendingPhoto) break;
         const ph = pendingPhoto; pendingPhoto = null;
         const cap = $("ch-pvcap").value.trim();
         $("ch-pv").hidden = true;
-        sendImage(ph.blob, ph.w, ph.h, cap);
+        const o = { once: pvOnce, at: pvAt };
+        pvOnce = false; pvAt = null; refreshPvOpts();
+        sendImage(ph.blob, ph.w, ph.h, cap, o);
         break;
       }
       case "view": $("ch-viewimg").src = t.src; $("ch-view").hidden = false; break;
@@ -1446,5 +1541,6 @@
     close,
     isOpen: () => opened,
     setWall,
+    _x: { markOpened, mediaUrl, partner: () => partner, uploadFile, addPending, removePending, deliver, sendImage, sendVideo, toast },
   };
 })();

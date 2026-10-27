@@ -309,15 +309,22 @@ private fun Hourglass(size: androidx.compose.ui.unit.TextUnit) {
 }
 
 @Composable
-fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
+fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () -> Unit = {}) {
     ctl.partner = partner
     val r = ctl.round
     var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val gameActive = r != null && (r.state == "invite" || r.state == "playing")
     val remActive = rem.items.isNotEmpty()
+    // Les fonctions sortent de l'éclair vers le haut, avec une petite animation fluide.
+    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(start = 12.dp)) {
+        BoltItem(open, 140) { GPill("🕐 Programmés", false) { open = false; onSched() } }
+        if (!remActive) BoltItem(open, 70) { GPill("⏰ Rappels", false) { open = false; rem.overlay = true } }
+        if (!gameActive) BoltItem(open, 0) { GPill("🎮 Jeux", false) { open = false; ctl.openOverlay() } }
+    }
     // Une fonction reste hors de l'éclair uniquement si elle est en cours.
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (!(gameActive && remActive)) {
+        run {
             val scale by androidx.compose.animation.core.animateFloatAsState(if (open) 1.12f else 1f, spring(0.45f, 500f), label = "bolt")
             // Petite vie : l'éclair s'agite et de mini éclairs le frappent de temps en temps.
             val cycle: Float by androidx.compose.animation.core.rememberInfiniteTransition(label = "boltIdle").animateFloat(
@@ -360,16 +367,7 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel) {
         } else if (r != null && r.state == "invite") { GPill("⏳ Invitation envoyée…", false) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)) }
         else if (r != null && r.state == "playing") { GPill("🎮 Partie en cours — continuer", true) { ctl.openOverlay() }; Spacer(Modifier.width(8.dp)) }
         if (remActive) ReminderPill(rem)
-        // Les fonctions sortent de l'éclair avec une petite animation fluide.
-        var idx = 0
-        if (!gameActive) {
-            val d = (idx++) * 70
-            BoltItem(open, d) { GPill("🎮 Jeux", false) { open = false; ctl.openOverlay() } }
-        }
-        if (!remActive) {
-            val d = (idx++) * 70
-            BoltItem(open, d) { GPill("⏰ Rappels", false) { open = false; rem.overlay = true } }
-        }
+    }
     }
 }
 
@@ -380,11 +378,11 @@ private fun BoltItem(visible: Boolean, delayMs: Int, content: @Composable () -> 
         enter = androidx.compose.animation.fadeIn(tween(220, delayMillis = delayMs)) +
             androidx.compose.animation.scaleIn(
                 tween(420, delayMillis = delayMs, easing = androidx.compose.animation.core.CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)),
-                initialScale = 0.3f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f),
-            ) + androidx.compose.animation.expandHorizontally(tween(320, delayMillis = delayMs), expandFrom = Alignment.Start),
-        exit = androidx.compose.animation.fadeOut(tween(150)) + androidx.compose.animation.shrinkHorizontally(tween(200), shrinkTowards = Alignment.Start),
+                initialScale = 0.3f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f),
+            ) + androidx.compose.animation.expandVertically(tween(320, delayMillis = delayMs), expandFrom = Alignment.Bottom),
+        exit = androidx.compose.animation.fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200), shrinkTowards = Alignment.Bottom),
     ) {
-        Row { content(); Spacer(Modifier.width(8.dp)) }
+        Column { content(); Spacer(Modifier.height(8.dp)) }
     }
 }
 

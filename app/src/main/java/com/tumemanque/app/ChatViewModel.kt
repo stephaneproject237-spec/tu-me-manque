@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Vrai tant que l'écran de chat est ouvert : les notifications reçues sont alors masquées. */
 object ChatVisibility {
@@ -52,7 +55,7 @@ class ChatViewModel : ViewModel() {
 
     fun setReply(m: ChatMsg) {
         if (m.pending || m.id == 0L) return
-        val text = when (m.kind) {
+        val text = if (m.once) "🔥 Message éphémère" else when (m.kind) {
             "text" -> (m.body ?: "").replace(Regex("\\s+"), " ").take(80)
             "sticker" -> "💗 Sticker"
             "gif" -> "🎞️ GIF"
@@ -168,6 +171,8 @@ class ChatViewModel : ViewModel() {
             }
             if (syncDeleted()) changed = true
             if (syncEdited()) changed = true
+            if (syncOnce()) changed = true
+            tickScheduled()
             if (changed) publish()
             if (unreadOwn.isNotEmpty()) {
                 val read = Backend.readAmong(unreadOwn.toList().take(100))
@@ -330,7 +335,11 @@ class ChatViewModel : ViewModel() {
 
     fun clearToast() = _state.update { it.copy(toast = null) }
 
+    /** Le vrai contenu d'un message éphémère en cours d'envoi (il n'apparaît jamais dans la bulle). */
+    private val onceSecret = HashMap<Long, String>()
+
     private suspend fun deliver(p: ChatMsg, media: String?): Boolean {
+        val once = p.once
         try {
             val meta = JSONObject()
             if (p.w > 0) meta.put("w", p.w)
@@ -340,7 +349,8 @@ class ChatViewModel : ViewModel() {
                 meta.put("reply", JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text))
             }
             stopTyping()
-            val r = Backend.sendMessage(p.kind, p.body, media, if (meta.length() == 0) null else meta)
+            val m2 = if (meta.length() == 0) null else meta
+            val r = if (once) Backend.sendOnce(p.kind, onceSecret.remove(p.tmp), media, m2) else Backend.sendMessage(p.kind, p.body, media, m2)
             if (r.status != "ok") {
                 removePending(p)
                 showToast(if (r.status == "no_partner") "Vous n'êtes plus partenaires." else "Message non envoyé.")
@@ -349,13 +359,14 @@ class ChatViewModel : ViewModel() {
             Sounds.send()
             pendings.removeAll { it.tmp == p.tmp }
             if (ids.add(r.id)) {
-                confirmed.add(p.copy(id = r.id, pending = false, media = media))
+                confirmed.add(if (once) p.copy(id = r.id, pending = false, media = null, localBytes = null, localFile = null) else p.copy(id = r.id, pending = false, media = media))
                 confirmed.sortBy { it.id }
                 unreadOwn.add(r.id)
             }
             publish()
             return true
         } catch (e: Exception) {
+            if (once) { removePending(p); showToast("Message non envoyé. Vérifie ta connexion."); return false }
             queueOffline(p, media)
             return false
         }
@@ -402,11 +413,69 @@ class ChatViewModel : ViewModel() {
     private fun blank(kind: String, body: String? = null, media: String? = null, w: Int = 0, h: Int = 0, dur: Int = 0) =
         ChatMsg(id = 0, mine = true, kind = kind, body = body, media = media, w = w, h = h, dur = dur, createdAt = 0)
 
-    fun sendText(raw: String) {
+    private fun onceMeta() = JSONObject().put("once", true)
+
+    fun sendText(raw: String, o: SendOpts? = null) {
         val text = raw.trim()
         if (text.isEmpty()) return
+        if (o != null && o.at > 0) { schedule("text", text, null, null, o); return }
+        if (o != null && o.once) {
+            viewModelScope.launch {
+                val p = addPending(blank("text").copy(meta = onceMeta()))
+                onceSecret[p.tmp] = text
+                deliver(p, null)
+            }
+            return
+        }
         if (loveRegex.containsMatchIn(text)) onLove?.invoke()
         viewModelScope.launch { deliver(addPending(blank("text", body = text)), null) }
+    }
+
+    /** Programme un message : il part tout seul à l'heure choisie. */
+    fun schedule(kind: String, body: String?, media: String?, meta: JSONObject?, o: SendOpts, done: () -> Unit = {}) {
+        viewModelScope.launch {
+            val st = try { Backend.scheduleMessage(kind, body, media, meta, o.once, o.at) } catch (e: Exception) { "net" }
+            when (st) {
+                "ok" -> showToast("🕐 Programmé pour " + SimpleDateFormat("EEE d MMM 'à' HH:mm", Locale.FRANCE).format(Date(o.at)) + ".")
+                "too_many" -> showToast("Trop de messages programmés (100 maximum).")
+                "bad_time" -> showToast("Choisis une heure à venir.")
+                "no_partner" -> showToast("Vous n'êtes plus partenaires.")
+                "net" -> showToast("Connexion impossible. Réessaie.")
+                else -> showToast("Impossible de programmer ce message.")
+            }
+            if (st == "ok") done()
+        }
+    }
+
+    // ---------- Éphémères : ouverture et état ----------
+
+    fun markOpened(id: Long) {
+        val i = confirmed.indexOfFirst { it.id == id }
+        if (i < 0 || confirmed[i].opened) return
+        confirmed[i] = confirmed[i].copy(meta = JSONObject(confirmed[i].meta?.toString() ?: "{}").put("opened", true))
+        publish()
+    }
+
+    /** Le destinataire a ouvert un de mes messages éphémères : on le voit ici aussi. */
+    private suspend fun syncOnce(): Boolean {
+        val waiting = confirmed.filter { it.once && !it.opened && !it.deleted }.takeLast(100).map { it.id }
+        if (waiting.isEmpty()) return false
+        var any = false
+        for (id in Backend.openedAmong(waiting)) {
+            val i = confirmed.indexOfFirst { it.id == id }
+            if (i >= 0 && !confirmed[i].opened) {
+                confirmed[i] = confirmed[i].copy(meta = JSONObject(confirmed[i].meta?.toString() ?: "{}").put("opened", true)); any = true
+            }
+        }
+        return any
+    }
+
+    private var lastDeliver = 0L
+    private suspend fun tickScheduled() {
+        val now = System.currentTimeMillis()
+        if (now - lastDeliver < 25000) return
+        lastDeliver = now
+        Backend.deliverScheduled()
     }
 
     fun sendSticker(id: String) {
@@ -432,17 +501,35 @@ class ChatViewModel : ViewModel() {
 
     fun cancelPhoto() = _state.update { it.copy(photo = null) }
 
-    fun sendPhoto(caption: String) {
+    fun sendPhoto(caption: String, o: SendOpts? = null) {
         val ph = _state.value.photo ?: return
         _state.update { it.copy(photo = null) }
         val cap = caption.trim().ifEmpty { null }
         viewModelScope.launch {
-            val p = addPending(blank("image", body = cap, w = ph.w, h = ph.h).copy(localBytes = ph.bytes))
+            sendPhotoBytes(ph, cap, o)
+        }
+    }
+
+    /** Envoie une photo déjà prête (normale, éphémère ou programmée). */
+    suspend fun sendPhotoBytes(ph: PreparedPhoto, cap: String?, o: SendOpts?, nowpic: Boolean = false) {
+        if (o != null && o.at > 0) {
+            showToast("Préparation…")
+            try {
+                val path = Backend.upload(ph.bytes, "jpg", "image/jpeg")
+                schedule("image", cap, path, JSONObject().put("w", ph.w).put("h", ph.h), o)
+            } catch (e: Exception) { showToast("Photo non programmée. Vérifie ta connexion.") }
+            return
+        }
+        run {
+            val once = o != null && o.once
+            val p = if (once) addPending(blank("image").copy(meta = onceMeta())) else addPending(blank("image", body = cap, w = ph.w, h = ph.h).copy(localBytes = ph.bytes))
+            if (once && cap != null) onceSecret[p.tmp] = cap
             try {
                 val path = Backend.upload(ph.bytes, "jpg", "image/jpeg")
                 deliver(p, path)
             } catch (e: Exception) {
-                queueOffline(p, null, bytes = ph.bytes, ext = "jpg", mime = "image/jpeg")
+                if (once) { removePending(p); showToast("Photo non envoyée. Vérifie ta connexion.") }
+                else queueOffline(p, null, bytes = ph.bytes, ext = "jpg", mime = "image/jpeg")
             }
         }
     }
@@ -469,7 +556,7 @@ class ChatViewModel : ViewModel() {
     }
 
     /** Envoie une vidéo déjà enregistrée dans un fichier (caméra ou galerie). */
-    fun sendVideoFile(file: File, mime: String = "video/mp4") {
+    fun sendVideoFile(file: File, mime: String = "video/mp4", o: SendOpts? = null) {
         viewModelScope.launch {
             if (!file.exists() || file.length() == 0L) { showToast("Vidéo illisible."); return@launch }
             if (file.length() > maxVideo) { showToast("Vidéo trop lourde (50 Mo maximum)."); return@launch }
@@ -481,18 +568,29 @@ class ChatViewModel : ViewModel() {
                 else -> "mp4"
             }
             val type = when (ext) { "mov" -> "video/quicktime"; "webm" -> "video/webm"; "3gp" -> "video/3gpp"; else -> "video/mp4" }
-            val p = addPending(blank("video", w = w, h = h, dur = d).copy(localFile = file.absolutePath))
+            if (o != null && o.at > 0) {
+                showToast("Préparation…")
+                try {
+                    val path = Backend.uploadFile(file, ext, type)
+                    val vm = JSONObject(); if (w > 0) vm.put("w", w); if (h > 0) vm.put("h", h); if (d > 0) vm.put("d", d)
+                    schedule("video", null, path, if (vm.length() == 0) null else vm, o)
+                } catch (e: Exception) { showToast("Vidéo non programmée. Vérifie ta connexion.") }
+                return@launch
+            }
+            val once = o != null && o.once
+            val p = if (once) addPending(blank("video", w = w, h = h, dur = d).copy(meta = onceMeta())) else addPending(blank("video", w = w, h = h, dur = d).copy(localFile = file.absolutePath))
             try {
                 val path = Backend.uploadFile(file, ext, type)
                 deliver(p, path)
             } catch (e: Exception) {
-                queueOffline(p, null, src = file, ext = ext, mime = type)
+                if (once) { removePending(p); showToast("Vidéo non envoyée. Vérifie ta connexion.") }
+                else queueOffline(p, null, src = file, ext = ext, mime = type)
             }
         }
     }
 
     /** Vidéo choisie dans la galerie : on la copie d'abord dans le cache de l'appli. */
-    fun onVideoPicked(context: Context, uri: Uri, mime: String) {
+    fun onVideoPicked(context: Context, uri: Uri, mime: String, ready: (File, String) -> Unit) {
         viewModelScope.launch {
             val f = withContext(Dispatchers.IO) {
                 try {
@@ -502,7 +600,7 @@ class ChatViewModel : ViewModel() {
                     out
                 } catch (e: Exception) { null }
             }
-            if (f == null) showToast("Impossible de lire cette vidéo.") else sendVideoFile(f, mime)
+            if (f == null) showToast("Impossible de lire cette vidéo.") else ready(f, mime)
         }
     }
 

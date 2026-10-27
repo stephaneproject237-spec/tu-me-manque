@@ -29,8 +29,18 @@
     const gameActive = !!R && (R.state === "invite" || R.state === "playing");
     const remActive = remN > 0;
     let h = "";
-    // L'éclair ouvre le menu des fonctions ; il disparaît si tout est déjà en cours.
-    if (!(gameActive && remActive)) h += `<button class="gm-bolt${boltOpen ? " open" : ""}" data-g="bolt" aria-label="Fonctions">⚡</button>`;
+    // L'éclair ouvre le menu des fonctions, qui sort vers le haut ; il disparaît si tout est déjà en cours.
+    {
+      let menu = "";
+      if (boltOpen) {
+        let i = 0;
+        const it = (g, label) => '<button class="gm-chip gm-pop" style="animation-delay:' + (i++) * 70 + 'ms" data-g="' + g + '">' + label + "</button>";
+        if (!gameActive) menu += it("open", "🎮 Jeux");
+        if (!remActive) menu += it("rp", "⏰ Rappels");
+        menu += it("sched", "🕐 Programmés");
+      }
+      h += '<div class="gm-boltwrap"><button class="gm-bolt' + (boltOpen ? " open" : "") + '" data-g="bolt" aria-label="Fonctions">⚡</button>' + (menu ? '<div class="gm-menu">' + menu + "</div>" : "") + "</div>";
+    }
     // Une fonction reste dehors uniquement si elle est en cours.
     if (R && R.state === "invite" && !R.by_me) {
       h += `<div class="gm-invite"><span>🎮 <b>@${esc(partner)}</b> te propose « Me connais-tu ? »</span>
@@ -38,11 +48,6 @@
     } else if (R && R.state === "invite") h += '<button class="gm-chip" data-g="open"><span class="hg">⏳</span> Invitation envoyée…</button>';
     else if (R && R.state === "playing") h += '<button class="gm-chip on" data-g="open">🎮 Partie en cours — continuer</button>';
     if (remActive) h += window.TMM_RAPPELS.chipHtml();
-    if (boltOpen) {
-      let i = 0;
-      if (!gameActive) h += `<button class="gm-chip gm-pop" style="animation-delay:${(i++) * 70}ms" data-g="open">🎮 Jeux</button>`;
-      if (!remActive) h += `<button class="gm-chip gm-pop" style="animation-delay:${(i++) * 70}ms" data-g="rp">⏰ Rappels</button>`;
-    }
     return h;
   }
   function paintChip() {
@@ -151,6 +156,7 @@
     }
     else if (a === "bolt") { boltOpen = !boltOpen; if (boltOpen) chime(); paintChip(); }
     else if (a === "open") { boltOpen = false; paintChip(); openOverlay(); }
+    else if (a === "sched") { boltOpen = false; paintChip(); if (window.TMM_X) window.TMM_X.openList(); }
     else if (a === "rp") { boltOpen = false; paintChip(); if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }
     else if (a === "close") { closeOverlay(); }
     else if (a === "yes") { act(() => rpc("game_respond", { p_round: R.id, p_accept: true })).then(openOverlay); }

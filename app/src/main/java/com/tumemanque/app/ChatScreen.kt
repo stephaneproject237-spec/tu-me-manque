@@ -218,6 +218,9 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         if (granted) beginRecording() else vm.showToast("Micro refusé. Autorise-le dans les réglages pour envoyer des vocaux.")
     }
     var showCam by remember { mutableStateOf(false) }
+    var askText by remember { mutableStateOf(false) }
+    var askVideo by remember { mutableStateOf<Pair<File, String>?>(null) }
+    var showSched by remember { mutableStateOf(false) }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
@@ -234,7 +237,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             val mime = context.contentResolver.getType(uri) ?: ""
-            if (mime.startsWith("video/")) vm.onVideoPicked(context.applicationContext, uri, mime)
+            if (mime.startsWith("video/")) vm.onVideoPicked(context.applicationContext, uri, mime) { f, mt -> askVideo = f to mt }
             else vm.onPhotoPicked(context.applicationContext, uri)
         }
     }
@@ -242,7 +245,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         if (ok && camPath.isNotEmpty()) vm.onPhotoPicked(context.applicationContext, Uri.fromFile(File(camPath)))
     }
     val captureVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { ok ->
-        if (ok && camPath.isNotEmpty()) vm.sendVideoFile(File(camPath))
+        if (ok && camPath.isNotEmpty()) askVideo = File(camPath) to "video/mp4"
     }
     // L'appli déclare maintenant la permission caméra (appels vidéo) : le système exige alors qu'elle soit accordée avant d'ouvrir l'appareil photo.
     var afterCam by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -280,7 +283,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
-            if (!recording) GameChip(game, partner, remVm)
+            if (!recording) GameChip(game, partner, remVm, onSched = { showSched = true })
             if (state.typing && !recording) TypingBubble()
             editing?.let { em -> ReplyBar(Reply(em.id, true, "text", em.body ?: ""), partner, "✏️  Modifier le message") { editing = null; text = "" } }
             if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
@@ -306,6 +309,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
                     else { vm.sendText(text); text = "" }
                 },
+                onSendLong = { if (editing == null && text.isNotBlank()) askText = true },
             )
 
             if (panel != 0 && !recording) {
@@ -354,9 +358,12 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             onGallery = { showCam = false; photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
         )
     }
+    if (askText) SendChoiceSheet("Envoyer ce message", canOnce = true) { o -> askText = false; if (o != null) { vm.sendText(text, o); text = "" } }
+    askVideo?.let { (f, mt) -> SendChoiceSheet("Envoyer cette vidéo", canOnce = true) { o -> askVideo = null; if (o != null) vm.sendVideoFile(f, mt, o) } }
+    if (showSched) ScheduledListDialog { showSched = false }
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showCam = true }) }
-    viewer?.let { m -> if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }
+    viewer?.let { m -> if (m.once) OnceViewer(m, vm) { viewer = null } else if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }
 }
 
 @Composable
@@ -430,6 +437,7 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
     val sub = if (mine) Color(0xB3FFFFFF) else Color(0x99F5EEF2)
     val shape = RoundedCornerShape(21.dp, 21.dp, if (mine) 6.dp else 21.dp, if (mine) 21.dp else 6.dp)
 
+    if (m.once) { OnceBubble(m, onOpenPhoto); return }
     when (m.kind) {
         "sticker" -> Column(horizontalAlignment = Alignment.End) {
             AnimatedSticker(m.body ?: "", Modifier.size(150.dp))
@@ -738,7 +746,7 @@ private fun InputBar(
     recording: Boolean, recSecs: Int, panel: Int, text: String,
     onText: (String) -> Unit, onPanel: (Int) -> Unit,
     onCancelRec: () -> Unit, onStopRec: () -> Unit,
-    onMic: () -> Unit, onPhoto: () -> Unit, onSend: () -> Unit,
+    onMic: () -> Unit, onPhoto: () -> Unit, onSend: () -> Unit, onSendLong: () -> Unit = {},
 ) {
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -794,7 +802,7 @@ private fun InputBar(
                 Box(Modifier.padding(end = 4.dp, bottom = 5.dp)) {
                     if (text.isBlank()) Box(Modifier.clickable { onMic() }.padding(horizontal = 6.dp, vertical = 3.dp)) { Ico(R.drawable.ic_mic, Rose, 24.dp) }
                     else Box(
-                        Modifier.size(34.dp).clip(CircleShape).background(Rose).clickable { onSend() },
+                        Modifier.size(34.dp).clip(CircleShape).background(Rose).pointerInput(Unit) { detectTapGestures(onTap = { onSend() }, onLongPress = { onSendLong() }) },
                         contentAlignment = Alignment.Center,
                     ) { Ico(R.drawable.ic_send, Color.White, 18.dp) }
                 }
@@ -832,6 +840,10 @@ private fun PanelArea(panel: Int, vm: ChatViewModel, onPanel: (Int) -> Unit, onE
 @Composable
 private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel, onRetake: () -> Unit) {
         var caption by remember { mutableStateOf("") }
+        var onceSel by remember { mutableStateOf(false) }
+        var atSel by remember { mutableStateOf(0L) }
+        var askTime by remember { mutableStateOf(false) }
+        val opts = { SendOpts(onceSel, atSel) }
         Dialog(
             onDismissRequest = { vm.cancelPhoto() },
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -853,15 +865,28 @@ private fun PhotoPreview(ph: PreparedPhoto, vm: ChatViewModel, onRetake: () -> U
                         maxLines = 3,
                     )
                     Spacer(Modifier.width(8.dp))
-                    RoundButton(R.drawable.ic_send, true) { vm.sendPhoto(caption) }
+                    RoundButton(R.drawable.ic_send, true) { vm.sendPhoto(caption, opts()) }
                 }
+                Row(Modifier.fillMaxWidth().background(Color(0xFF111111)).padding(start = 10.dp, end = 10.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(if (onceSel) Color(0x47FF7043) else Color.Transparent)
+                            .border(1.dp, if (onceSel) Color(0xFFFF8A50) else Color(0x29FFFFFF), RoundedCornerShape(22.dp)).clickable { onceSel = !onceSel }.padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("🔥 Vue unique", color = Color(0xFFF5EEF2), fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(if (atSel > 0) Color(0x47FF7043) else Color.Transparent)
+                            .border(1.dp, if (atSel > 0) Color(0xFFFF8A50) else Color(0x29FFFFFF), RoundedCornerShape(22.dp)).clickable { if (atSel > 0) atSel = 0 else askTime = true }.padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(if (atSel > 0) "🕐 " + whenLabel(atSel) else "🕐 Programmer", color = Color(0xFFF5EEF2), fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                }
+                if (askTime) SendChoiceSheet("Programmer la photo", canOnce = false) { o -> askTime = false; if (o != null && o.at > 0) atSel = o.at }
                 Row(Modifier.fillMaxWidth().background(Color(0xFF111111)).padding(start = 10.dp, end = 10.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(
                         Modifier.weight(1f).clip(RoundedCornerShape(26.dp)).background(Color(0xFF2A1B24)).clickable { onRetake() }.padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center,
                     ) { Text("↻ Reprendre", color = Color(0xFFF5EEF2), fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
                     Box(
-                        Modifier.weight(1.4f).clip(RoundedCornerShape(26.dp)).background(Rose).clickable { vm.sendPhoto(caption) }.padding(vertical = 14.dp),
+                        Modifier.weight(1.4f).clip(RoundedCornerShape(26.dp)).background(Rose).clickable { vm.sendPhoto(caption, opts()) }.padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center,
                     ) { Text("✓ Utiliser cette photo", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
                 }
@@ -927,7 +952,7 @@ private fun MessageMenu(m: ChatMsg, onDismiss: () -> Unit, onReply: () -> Unit, 
             Column {
                 if (!m.deleted) MenuRow(null, "↩  Répondre", Rose, onReply)
                 if (!m.deleted && m.kind == "text" && !m.body.isNullOrEmpty()) MenuRow(null, "⧉  Copier", Rose, onCopy)
-                if (m.mine && !m.deleted && !m.pending && m.id != 0L && m.kind == "text") MenuRow(null, "✏️  Modifier", Rose, onEdit)
+                if (m.mine && !m.deleted && !m.pending && m.id != 0L && m.kind == "text" && !m.once) MenuRow(null, "✏️  Modifier", Rose, onEdit)
                 MenuRow(null, "☑  Sélectionner", Rose, onSelect)
                 MenuRow(R.drawable.ic_trash, "Supprimer pour moi", Rose, onDelMe)
                 if (m.mine && !m.deleted) MenuRow(R.drawable.ic_trash, "Supprimer pour tout le monde", Color(0xFFD32F2F), onDelAll)
