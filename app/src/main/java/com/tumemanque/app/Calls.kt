@@ -88,7 +88,7 @@ fun CallHost(label: String) {
             while (true) {
                 var ok = true
                 if (Calls.request == null) ok = Calls.pollOnce()
-                delay(if (ok) 2500 else 20000)
+                delay(if (ok) 1500 else 20000)
             }
         }
     }

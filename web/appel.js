@@ -15,8 +15,13 @@
   ];
   let relay = null, relayAt = 0;
   // Relais TURN Cloudflare (fonction « turn » de Supabase). S'il n'est pas disponible, on garde le relais public de secours.
-  async function loadRelay() {
-    if (relay && Date.now() - relayAt < 3600000) return;
+  let relayP = null;
+  function loadRelay() {
+    if (relay && Date.now() - relayAt < 3600000) return Promise.resolve();
+    if (!relayP) relayP = fetchRelay().finally(() => { relayP = null; });
+    return relayP;
+  }
+  async function fetchRelay() {
     try {
       const r = await Promise.race([A().authed("GET", "/functions/v1/turn"), new Promise((_, rej) => setTimeout(() => rej(new Error("lent")), 4000))]);
       if (r && Array.isArray(r.iceServers) && r.iceServers.length) { relay = r.iceServers; relayAt = Date.now(); }
@@ -107,7 +112,7 @@
   }
   function loop() {
     clearTimeout(S.pollTimer);
-    poll().finally(() => { S.pollTimer = setTimeout(loop, S.st !== "idle" ? 800 : S.fail ? 20000 : 2500); });
+    poll().finally(() => { S.pollTimer = setTimeout(loop, S.st === "idle" ? (S.fail ? 20000 : 1500) : S.st === "active" ? 700 : 300); });
   }
 
   async function handle(sig) {
@@ -123,8 +128,8 @@
     switch (sig.kind) {
       case "accept": if (S.dir === "out" && S.st === "out") await makeOffer(); break;
       case "offer": if (S.dir === "in") await onOffer(p.sdp); break;
-      case "answer": if (S.dir === "out" && S.pc && !S.remoteSet) await setRemote(p.sdp); break;
-      case "ice": await addIce(p.c); break;
+      case "answer": if (S.dir === "out" && S.pc && S.pc.signalingState === "have-local-offer") await setRemote(p.sdp); break;
+      case "ice": for (const c of (p.cs || [p.c])) await addIce(c); break;
       case "reject": finish(p.busy ? "Occupé pour le moment" : "Appel refusé", false); break;
       case "hangup": finish(S.st === "active" || S.st === "connecting" ? "Appel terminé" : "Appel manqué", false); break;
       default: break;
@@ -139,11 +144,21 @@
       video: video ? { facingMode: S.facing, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } } : false,
     });
   }
+  // Les infos de connexion sont envoyées par petits paquets (au lieu d'une par une) : l'appel s'établit bien plus vite.
+  let iceBuf = [], iceTimer = null;
+  function flushIce() {
+    clearTimeout(iceTimer); iceTimer = null;
+    if (iceBuf.length) { const cs = iceBuf; iceBuf = []; send("ice", { cs }); }
+  }
   function createPc() {
     const pc = new RTCPeerConnection({ iceServers: iceServers() });
     S.pc = pc; S.remoteSet = false; S.pendingIce = [];
     S.local.getTracks().forEach((t) => pc.addTrack(t, S.local));
-    pc.onicecandidate = (e) => { if (e.candidate) send("ice", { c: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
+    iceBuf = [];
+    pc.onicecandidate = (e) => {
+      if (e.candidate) { iceBuf.push(e.candidate.toJSON ? e.candidate.toJSON() : e.candidate); if (!iceTimer) iceTimer = setTimeout(flushIce, 120); }
+      else flushIce();
+    };
     pc.ontrack = (e) => {
       S.remote = e.streams && e.streams[0] ? e.streams[0] : S.remote || new MediaStream();
       if (!(e.streams && e.streams[0])) S.remote.addTrack(e.track);
@@ -156,15 +171,29 @@
       if (st === "connected" || st === "completed") {
         clearTimeout(S.discTimer); S.discTimer = null;
         if (S.st !== "active") { S.st = "active"; S.t0 = Date.now(); stopTone(); clearTimeout(S.ringTimer); startTimer(); paint(); }
+        else setStatus(mmss(Math.round((Date.now() - S.t0) / 1000)));
       } else if (st === "disconnected") {
         setStatus("Connexion instable…");
         clearTimeout(S.discTimer);
-        S.discTimer = setTimeout(() => finish("Connexion perdue", true), 9000);
-      } else if (st === "failed") finish("Connexion impossible. Vérifie ta connexion.", true);
+        S.discTimer = setTimeout(recover, 3000);
+      } else if (st === "failed") { clearTimeout(S.discTimer); recover(); }
     };
     pc.onconnectionstatechange = onState;
     pc.oniceconnectionstatechange = onState;
     return pc;
+  }
+  // Réseau qui vacille : celui qui a appelé relance la négociation (jusqu'à 3 fois) avant d'abandonner.
+  async function recover() {
+    if (S.st === "idle" || !S.pc) return;
+    clearTimeout(S.discTimer);
+    S.discTimer = setTimeout(() => finish("Connexion perdue", true), 14000);
+    if (S.dir !== "out" || S.restarts >= 3) return;
+    S.restarts++;
+    try {
+      const o = await S.pc.createOffer({ iceRestart: true });
+      await S.pc.setLocalDescription(o);
+      await send("offer", { sdp: { type: o.type, sdp: o.sdp } });
+    } catch (e) { /* on attend la fin du délai */ }
   }
   async function setRemote(sdp) {
     await S.pc.setRemoteDescription(sdp);
@@ -187,7 +216,7 @@
   }
   async function onOffer(sdp) {
     if (S.ready) await S.ready;
-    if (!S.pc || S.remoteSet) return;
+    if (!S.pc) return;
     await setRemote(sdp);
     const a = await S.pc.createAnswer();
     await S.pc.setLocalDescription(a);
@@ -200,6 +229,7 @@
     if (S.st !== "idle") return;
     if (!A() || !partnerName()) { say("Il faut d'abord avoir un partenaire."); return; }
     if (!window.RTCPeerConnection) { say("Ton navigateur ne gère pas les appels."); return; }
+    S.restarts = 0;
     S.cid = rid(); S.handled.add(S.cid); S.video = !!video; S.dir = "out"; S.name = partnerName();
     S.st = "out"; S.muted = false; S.camOff = false;
     paint();
@@ -215,6 +245,7 @@
     return r;
   }
   function incoming(cid, video) {
+    S.restarts = 0;
     loadRelay();
     S.cid = cid; S.video = video; S.dir = "in"; S.name = partnerName() || S.name || ""; S.st = "in"; S.muted = false; S.camOff = false;
     paint();
@@ -227,15 +258,16 @@
     if (S.st !== "in") return;
     stopTone(); clearTimeout(S.ringTimer);
     S.st = "connecting"; paint();
+    send("accept");   // l'autre commence tout de suite à préparer la connexion, pendant qu'ici on ouvre le micro
     S.ready = (async () => {
-      await loadRelay();
+      const rl = loadRelay();
       S.local = await getMedia(S.video);
+      await Promise.race([rl, new Promise((r) => setTimeout(r, 1500))]);
       createPc();
     })();
     try { await S.ready; }
     catch (e) { S.ready = null; finish(S.video ? "Micro ou caméra refusés" : "Micro refusé", true, "reject"); return; }
     paint();
-    await send("accept");
   }
   function reject() { if (S.st === "in") finish("", true, "reject"); }
   function hangup() { if (S.st === "in") reject(); else if (S.st !== "idle") finish("", true); }
@@ -249,7 +281,7 @@
     const dur = S.t0 ? Math.round((Date.now() - S.t0) / 1000) : 0;
     const wasOut = S.dir === "out", video = S.video;
     if (notify) send(kind || "hangup");
-    stopTone(); clearTimeout(S.ringTimer); clearTimeout(S.discTimer); clearInterval(S.timer);
+    stopTone(); clearTimeout(S.ringTimer); clearTimeout(S.discTimer); clearInterval(S.timer); clearTimeout(iceTimer); iceTimer = null; iceBuf = [];
     if (S.pc) { try { S.pc.close(); } catch (e) { /* ignoré */ } S.pc = null; }
     stopLocal();
     const rv = $("cl-remote"); if (rv) rv.srcObject = null;
@@ -391,7 +423,7 @@
     else start(!!o.video);
   }
 
-  window.TMM_CALL = { init, start, accept, reject, hangup, nativeStart, state: () => S.st };
+  window.TMM_CALL = { init, start, accept, reject, hangup, nativeStart, recover, state: () => S.st };
   if (!native()) {
     const tryInit = () => { if (A()) init(); else setTimeout(tryInit, 500); };
     tryInit();
