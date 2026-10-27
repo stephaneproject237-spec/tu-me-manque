@@ -57,7 +57,7 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
     val s by upd.state.collectAsState()
     val context = LocalContext.current
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { if (!s.checked) upd.check() }
+    LaunchedEffect(Unit) { if (!s.checked) upd.check(context = context) }
 
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -85,7 +85,7 @@ fun SettingsScreen(upd: UpdateViewModel, username: String?, partner: String?, su
 
         GlassCard(Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().clickable(enabled = !s.checking && !s.downloading) { upd.check() }.padding(vertical = 4.dp),
+                Modifier.fillMaxWidth().clickable(enabled = !s.checking && !s.downloading) { upd.check(context = context) }.padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {

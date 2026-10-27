@@ -163,7 +163,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val remVm: ReminderViewModel = viewModel()
     val updState by updateVm.state.collectAsStateWithLifecycle()
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) { updateVm.check(force = false) }
+    LaunchedEffect(Unit) { updateVm.check(force = false, context = context) }
     var crash by remember { mutableStateOf(CrashLog.take(context)) }
     crash?.let { trace ->
         Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {

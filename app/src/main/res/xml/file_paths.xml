@@ -2,4 +2,5 @@
 <paths>
     <cache-path name="cam" path="cam/" />
     <cache-path name="update" path="update/" />
+    <external-files-path name="dl" path="Download/" />
 </paths>
