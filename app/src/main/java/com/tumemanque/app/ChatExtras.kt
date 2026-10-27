@@ -119,8 +119,8 @@ fun ChatHeader(partner: String, typing: Boolean, onBack: () -> Unit, onMenu: () 
             ) { Ico(R.drawable.ic_settings, RoseChat, 22.dp) }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(false) }, contentAlignment = Alignment.Center) { Text("📞", fontSize = 17.sp) }
-                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(true) }, contentAlignment = Alignment.Center) { Text("📹", fontSize = 17.sp) }
+                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(false) }, contentAlignment = Alignment.Center) { Ico(R.drawable.ic_call_line, RoseChat, 19.dp) }
+                Box(Modifier.size(38.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).clickable { onCall(true) }, contentAlignment = Alignment.Center) { Ico(R.drawable.ic_video_line, RoseChat, 21.dp) }
             }
         }
     }
