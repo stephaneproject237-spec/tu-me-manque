@@ -158,6 +158,12 @@ fun CallScreen(req: CallReq, label: String, onClose: () -> Unit) {
                             webViewClient = object : WebViewClient() {
                                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                                     loader.shouldInterceptRequest(request.url)
+
+                                // Si le moteur web de l'appel plante (manque de mémoire…), on ferme l'appel au lieu de fermer toute l'appli.
+                                override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                                    Handler(Looper.getMainLooper()).post { onClose() }
+                                    return true
+                                }
                             }
                             webChromeClient = object : WebChromeClient() {
                                 override fun onPermissionRequest(request: PermissionRequest) { request.grant(request.resources) }
@@ -171,7 +177,7 @@ fun CallScreen(req: CallReq, label: String, onClose: () -> Unit) {
                             web = this
                         }
                     },
-                    onRelease = { it.evaluateJavascript("TMM_CALL.hangup()", null); it.destroy() },
+                    onRelease = { try { it.evaluateJavascript("TMM_CALL.hangup()", null); it.destroy() } catch (e: Exception) { } },
                 )
                 Box(
                     Modifier.align(Alignment.TopStart).padding(12.dp).size(42.dp).clip(CircleShape).background(Color(0x66000000))
