@@ -44,7 +44,7 @@ android {
 
 // La page d'appel de l'appli réutilise exactement le code web des appels.
 val syncCallAssets by tasks.registering(Copy::class) {
-    from("../web/appel.js", "../web/appel.css")
+    from("../web/appel.js", "../web/appel.css", "../web/photoedit.js", "../web/photoedit.css", "../web/emoji.js")
     into("src/main/assets/call")
 }
 tasks.named("preBuild") { dependsOn(syncCallAssets) }
@@ -69,4 +69,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.webkit:webkit:1.11.0")
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
 }

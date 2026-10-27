@@ -221,6 +221,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     var askText by remember { mutableStateOf(false) }
     var askVideo by remember { mutableStateOf<Pair<File, String>?>(null) }
     var showSched by remember { mutableStateOf(false) }
+    var showHot by remember { mutableStateOf(false) }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
@@ -283,7 +284,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
-            if (!recording) GameChip(game, partner, remVm, onSched = { showSched = true })
+            if (!recording) GameChip(game, partner, remVm, onSched = { showSched = true }, onHot = { showHot = true })
             if (state.typing && !recording) TypingBubble()
             editing?.let { em -> ReplyBar(Reply(em.id, true, "text", em.body ?: ""), partner, "✏️  Modifier le message") { editing = null; text = "" } }
             if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
@@ -361,6 +362,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     if (askText) SendChoiceSheet("Envoyer ce message", canOnce = true) { o -> askText = false; if (o != null) { vm.sendText(text, o); text = "" } }
     askVideo?.let { (f, mt) -> SendChoiceSheet("Envoyer cette vidéo", canOnce = true) { o -> askVideo = null; if (o != null) vm.sendVideoFile(f, mt, o) } }
     if (showSched) ScheduledListDialog { showSched = false }
+    if (showHot) HotPicFlow("🔥 Hot pic", onResult = { ph, once -> vm.sendEdited(ph, once) }, onClose = { showHot = false })
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showCam = true }) }
     viewer?.let { m -> if (m.once) OnceViewer(m, vm) { viewer = null } else if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }

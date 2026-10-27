@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<link rel="stylesheet" href="photoedit.css">
+<style>html,body{margin:0;height:100%;background:#0c0709;overflow:hidden;position:relative}</style>
+</head><body>
+<script src="emoji.js"></script>
+<script src="photoedit.js"></script>
+<script>
+  // Éditeur de photo de l'appli Android : même code que le web. La photo arrive par adresse, le résultat repart vers l'appli (objet Native).
+  const q = new URLSearchParams(location.search);
+  TMM_EDIT.open(q.get("src"), { title: q.get("title") || "Retouche", parent: document.body }).then((r) => {
+    if (!r) { Native.cancel(); return; }
+    const fr = new FileReader();
+    fr.onload = () => Native.done(String(fr.result).split(",")[1] || "", r.w, r.h, !!r.once);
+    fr.readAsDataURL(r.blob);
+  }).catch(() => Native.cancel());
+</script>
+</body></html>
