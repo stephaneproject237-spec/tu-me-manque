@@ -159,6 +159,15 @@ object Lib {
     fun deleteTracks(ids: Collection<String>) {
         if (ids.isEmpty()) return
         val set = ids.toSet()
+        // Les fichiers téléchargés avec Casque sont aussi effacés du téléphone.
+        synchronized(pinned) {
+            set.filter { it in pinned }.forEach { id ->
+                Store.delete(app, id)
+                runCatching { Covers.file(app, id).delete() }
+                pinned.remove(id)
+            }
+            prefs().edit().putString("pinned", JSONArray(pinned.toList()).toString()).apply()
+        }
         hiddenTracks = hiddenTracks + set
         saveHidden()
         cleanReferences(set)

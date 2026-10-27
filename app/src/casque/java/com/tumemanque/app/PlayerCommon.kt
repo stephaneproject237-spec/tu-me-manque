@@ -167,6 +167,7 @@ fun TrackMenu(
     t: Track, fav: Boolean, onAddToPlaylist: () -> Unit, onInfo: () -> Unit, extra: List<Pair<String, () -> Unit>> = emptyList(),
 ) {
     var open by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
     Box {
         Box(Modifier.size(40.dp).clip(CircleShape).combinedClickableSimple { open = true }, contentAlignment = Alignment.Center) {
             CIcon(Ic.More, P.sub, 20.dp)
@@ -178,6 +179,7 @@ fun TrackMenu(
             item("Lire ensuite") { Hub.playNext(t) }
             item("Ajouter à la file d'attente") { Hub.enqueue(listOf(t)) }
             item("Ajouter à une playlist…") { onAddToPlaylist() }
+            item("Envoyer hors de Casque…") { Share.tracks(ctx, listOf(t.id)) }
             item(if (fav) "Retirer des favoris" else "Ajouter aux favoris") { Lib.toggleFav(t.id) }
             extra.forEach { (l, f) -> item(l, f) }
             item("Informations") { onInfo() }

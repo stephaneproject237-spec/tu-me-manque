@@ -160,6 +160,8 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                         Hub.enqueue(selected.mapNotNull { byId[it] }); selected = emptySet()
                     })
                     Spacer(Modifier.width(8.dp))
+                    RoundBtn(Ic.Share, { Share.tracks(ctx, selected.toList()) })
+                    Spacer(Modifier.width(8.dp))
                     RoundBtn(Ic.PlaylistAdd, { pickFor = selected.toList() })
                     Spacer(Modifier.width(8.dp))
                     RoundBtn(Ic.Delete, { deleteTracksFor = selected.toList() }, fill = P.danger, tint = Color.White)
@@ -335,7 +337,8 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                 title = { Text(if (ids.size == 1) "Supprimer ce morceau ?" else "Supprimer ${ids.size} morceaux ?", color = P.text) },
                 text = {
                     Text(
-                        "Ils n'apparaîtront plus dans la bibliothèque, les playlists, les favoris ni la file d'attente. Les fichiers restent sur ton téléphone.",
+                        "Ils n'apparaîtront plus dans la bibliothèque, les playlists, les favoris ni la file d'attente. " +
+                            "Les morceaux téléchargés avec Casque sont aussi effacés du téléphone ; les autres fichiers y restent.",
                         color = P.sub, fontSize = 14.sp,
                     )
                 },
