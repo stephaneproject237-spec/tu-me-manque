@@ -689,7 +689,33 @@
       o.start(t0); o.stop(t0 + 0.24);
     } catch (e) { /* ignoré */ }
   }
-  const popSound = () => bubbleSound(true);
+  // Son d'envoi : « pop » doux et grave (≈ 0,3 s) qui monte légèrement, avec un petit souffle au départ.
+  function sentSound() {
+    try {
+      unlockAudio();
+      if (!actx) return;
+      const t0 = actx.currentTime + 0.01, D = 0.34;
+      const env = new Float32Array(96);
+      for (let i = 0; i < env.length; i++) { const x = i / (env.length - 1); env[i] = Math.pow(Math.sin(Math.PI * Math.pow(x, 0.62)), 1.6); }
+      const out = actx.createGain(); out.gain.value = 0.55; out.connect(actx.destination);
+      const tone = (mul, vol) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(330 * mul, t0); o.frequency.linearRampToValueAtTime(480 * mul, t0 + 0.24);
+        g.gain.setValueAtTime(0, t0); g.gain.setValueCurveAtTime(env, t0, D);
+        const v = actx.createGain(); v.gain.value = vol;
+        o.connect(g); g.connect(v); v.connect(out); o.start(t0); o.stop(t0 + D + 0.02);
+      };
+      tone(1, 1); tone(2, 0.12);
+      const nb = actx.createBuffer(1, Math.floor(actx.sampleRate * 0.14), actx.sampleRate), d = nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+      const ns = actx.createBufferSource(); ns.buffer = nb;
+      const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600;
+      const ng = actx.createGain(); ng.gain.value = 0.12;
+      ns.connect(lp); lp.connect(ng); ng.connect(out); ns.start(t0);
+    } catch (e) { /* ignoré */ }
+  }
+  const popSound = () => {};
 
   // ---------- Envoi ----------
   function addPending(p) {
@@ -699,9 +725,33 @@
     p.sender_id = me;
     p.created_at = new Date().toISOString();
     pendings.push(p);
+    // Les messages déjà à l'écran : on mémorise leur place pour les faire monter en douceur.
+    const l = list(), lr = l.getBoundingClientRect();
+    const before = [...l.querySelectorAll(".ch-row")].map((r) => [r, r.getBoundingClientRect().top]).filter((x) => x[1] > lr.top - 40 && x[1] < lr.bottom);
+    const inp = $("ch-input"), ir = inp ? inp.getBoundingClientRect() : null;
     appendMessages([p], false);
     scrollBottom(true);
+    sentSound();
+    try { sentAnim(p, before, ir); } catch (e) { /* ignoré */ }
     return p;
+  }
+  // Comme sur iOS : la bulle part du champ de texte, petite, et rejoint sa place en grossissant avec un léger rebond.
+  function sentAnim(p, before, ir) {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const EASE = "cubic-bezier(.2,1.2,.35,1)", T = 420;
+    const el = host.querySelector('.ch-row[data-tmp="' + p.tmp + '"]'), b = el && el.querySelector(".ch-bubble");
+    if (b && ir) {
+      const br = b.getBoundingClientRect();
+      const dx = (ir.left + 28) - (br.left + br.width / 2), dy = (ir.top + ir.height / 2) - (br.top + br.height / 2);
+      b.animate([{ transform: "translate(" + dx + "px," + dy + "px) scale(.35)", opacity: .2, transformOrigin: "50% 50%" }, { transform: "translate(0,0) scale(1)", opacity: 1, transformOrigin: "50% 50%" }], { duration: T, easing: EASE });
+    }
+    before.forEach(([r, top]) => {
+      if (r === el) return;
+      const d = top - r.getBoundingClientRect().top;
+      if (Math.abs(d) > 1) r.animate([{ transform: "translateY(" + d + "px)" }, { transform: "translateY(0)" }], { duration: T, easing: EASE });
+    });
+    const bar = $("ch-bar");
+    if (bar) { bar.classList.remove("sendflash"); void bar.offsetWidth; bar.classList.add("sendflash"); setTimeout(() => bar.classList.remove("sendflash"), 520); }
   }
   function removePending(p) {
     pendings = pendings.filter((x) => x !== p);
@@ -767,7 +817,6 @@
 
   // Le serveur a enregistré le message : on remplace la bulle « en cours » par la vraie.
   function settle(p, payload, j) {
-    popSound();
     if (byId.has(j.id)) { removePending(p); return; }
     const m = { id: j.id, sender_id: me, kind: payload.p_kind, body: payload.p_body || null, media: payload.p_media || null,
       meta: payload.p_meta || null, created_at: p.created_at, read_at: null, localUrl: p.localUrl };

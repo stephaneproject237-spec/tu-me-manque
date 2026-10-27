@@ -59,6 +59,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -151,6 +152,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     val remVm: ReminderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 
     var text by rememberSaveable { mutableStateOf("") }
+    var sendTick by remember { mutableIntStateOf(0) }
     var panel by rememberSaveable { mutableIntStateOf(0) } // 0 aucun, 1 emojis, 2 stickers, 3 GIF
     var recording by remember { mutableStateOf(false) }
     var recSecs by remember { mutableIntStateOf(0) }
@@ -291,7 +293,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
             InputBar(
-                recording = recording, recSecs = recSecs, panel = panel, text = text,
+                flash = sendTick, recording = recording, recSecs = recSecs, panel = panel, text = text,
                 onText = { text = it; vm.onTextChanged(it.isNotBlank()) },
                 onPanel = { panel = it },
                 onCancelRec = { recorder.cancel(); recording = false },
@@ -309,7 +311,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 onSend = {
                     val em = editing
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
-                    else { vm.sendText(text); text = "" }
+                    else { vm.sendText(text); text = ""; sendTick++ }
                 },
                 onSendLong = { if (editing == null && text.isNotBlank()) askText = true },
             )
@@ -714,10 +716,20 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
                         ) {
                             itemsIndexed(items, key = { _, m -> m.key }) { i, m ->
                                 val older = items.getOrNull(i + 1)
-                                Column(Modifier.fillMaxWidth()) {
+                                Column(Modifier.fillMaxWidth().animateItem(fadeInSpec = null, fadeOutSpec = null)) {
                                     if (older == null || !sameDay(older.createdAt, m.createdAt)) DayChip(m.createdAt)
                                     val canSel = selected.isNotEmpty() && m.id != 0L && !m.pending && m.kind != "game"
-                                    Box(Modifier.fillMaxWidth().then(if (m.id in selected) Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x40E91E63)) else Modifier)) {
+                                    val fresh = m.pending && System.currentTimeMillis() - m.createdAt < 1500
+                                    val enter = remember(m.key) { androidx.compose.animation.core.Animatable(if (fresh) 0f else 1f) }
+                                    LaunchedEffect(m.key) { if (fresh) enter.animateTo(1f, androidx.compose.animation.core.spring(0.6f, 380f)) }
+                                    val dpPx = androidx.compose.ui.platform.LocalDensity.current.density
+                                    Box(Modifier.fillMaxWidth().graphicsLayer {
+                                        val p = enter.value
+                                        scaleX = 0.35f + 0.65f * p; scaleY = scaleX
+                                        translationY = (1f - p) * 64f * dpPx
+                                        alpha = (0.2f + 0.8f * p).coerceIn(0f, 1f)
+                                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (m.mine) 1f else 0f, 1f)
+                                    }.then(if (m.id in selected) Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x40E91E63)) else Modifier)) {
                                         BubbleRow(m, partner, { onOpenPhoto(m) }, { onReply(m) }, { onMenu(m) })
                                         if (canSel) Box(Modifier.matchParentSize().clickable { onToggle(m) })
                                         if (m.id in selected) Text("✔", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
@@ -746,13 +758,15 @@ private fun MessagesArea(state: ChatState, partner: String, vm: ChatViewModel, m
 
 @Composable
 private fun InputBar(
-    recording: Boolean, recSecs: Int, panel: Int, text: String,
+    flash: Int, recording: Boolean, recSecs: Int, panel: Int, text: String,
     onText: (String) -> Unit, onPanel: (Int) -> Unit,
     onCancelRec: () -> Unit, onStopRec: () -> Unit,
     onMic: () -> Unit, onPhoto: () -> Unit, onSend: () -> Unit, onSendLong: () -> Unit = {},
 ) {
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val fl = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(flash) { if (flash > 0) { fl.snapTo(1f); fl.animateTo(0f, androidx.compose.animation.core.tween(500)) } }
     if (recording) {
         Row(
             Modifier.fillMaxWidth().background(Color(0xCC26171F)).padding(6.dp),
@@ -783,7 +797,7 @@ private fun InputBar(
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.weight(1f).heightIn(min = 44.dp).softGlow(RoundedCornerShape(24.dp), false).clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xCC2A1B24))
+                    .background(androidx.compose.ui.graphics.lerp(Color(0xCC2A1B24), Color(0xB3FF6A9C), fl.value))
                     .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(24.dp)),
                 verticalAlignment = Alignment.Bottom,
             ) {

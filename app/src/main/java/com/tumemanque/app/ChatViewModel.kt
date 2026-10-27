@@ -316,6 +316,7 @@ class ChatViewModel : ViewModel() {
         _state.update { it.copy(replyTo = null) }
         pendings.add(p)
         publish()
+        Sounds.send()
         return p
     }
 
@@ -356,7 +357,6 @@ class ChatViewModel : ViewModel() {
                 showToast(if (r.status == "no_partner") "Vous n'êtes plus partenaires." else "Message non envoyé.")
                 return false
             }
-            Sounds.send()
             pendings.removeAll { it.tmp == p.tmp }
             if (ids.add(r.id)) {
                 confirmed.add(if (once) p.copy(id = r.id, pending = false, media = null, localBytes = null, localFile = null) else p.copy(id = r.id, pending = false, media = media))

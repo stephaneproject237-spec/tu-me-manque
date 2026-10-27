@@ -108,7 +108,27 @@ object Sounds {
 
     fun sad() = play(sadData)
 
-    private val sendData: ShortArray by lazy { bubble(true) }
+    /** Envoi : « pop » doux et grave (≈ 0,3 s) qui monte un peu, avec un léger souffle au départ. */
+    private fun sentPop(): ShortArray {
+        val total = (RATE * 0.36).toInt()
+        val out = ShortArray(total)
+        var phase = 0.0
+        var lp = 0.0
+        val rnd = java.util.Random(7)
+        val dur = 0.34
+        for (i in 0 until total) {
+            val t = i.toDouble() / RATE
+            val x = (t / dur).coerceIn(0.0, 1.0)
+            val f = 330.0 + 150.0 * (t / 0.24).coerceIn(0.0, 1.0)
+            phase += 2 * PI * f / RATE
+            val env = Math.pow(sin(PI * Math.pow(x, 0.62)), 1.6)
+            var v = (sin(phase) + 0.12 * sin(2 * phase)) * env
+            if (t < 0.14) { lp += 0.2 * ((rnd.nextDouble() * 2 - 1) - lp); v += lp * 0.5 * Math.pow(1 - t / 0.14, 2.0) }
+            out[i] = (v * 0.5 * Short.MAX_VALUE).toInt().coerceIn(-32000, 32000).toShort()
+        }
+        return out
+    }
+    private val sendData: ShortArray by lazy { sentPop() }
     private val recvData: ShortArray by lazy { bubble(false) }
 
     fun send() = play(sendData)
