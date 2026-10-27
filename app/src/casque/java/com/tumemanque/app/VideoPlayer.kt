@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +67,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Le lecteur vidéo : un seul pour toute l'appli (recherche et vidéos téléchargées). */
 object Vp {
@@ -84,6 +86,9 @@ object Vp {
         private set
     var error by mutableStateOf<String?>(null)
         private set
+    var errorDetail by mutableStateOf("")
+        private set
+    private var lastYt: YtVideo? = null
     var ended by mutableStateOf(false)
         private set
     var fullscreen by mutableStateOf(false)
@@ -116,6 +121,7 @@ object Vp {
             override fun onPlayerError(e: PlaybackException) {
                 loading = false
                 error = "Lecture impossible. Réessaie, ou télécharge la vidéo."
+                errorDetail = e.errorCodeName
             }
         })
         exo = p
@@ -141,11 +147,16 @@ object Vp {
         val p = player(ctx)
         saveLocal()
         localId = null
-        key = v.id; title = v.title; error = null; ended = false; loading = true
+        lastYt = v
+        key = v.id; title = v.title; error = null; errorDetail = ""; ended = false; loading = true
         p.stop(); p.clearMediaItems()
         Hub.player.pause()
         val info = try { Yt.info(v.id) } catch (e: Exception) {
-            if (key == v.id) { loading = false; error = "Impossible d'ouvrir cette vidéo pour le moment." }
+            if (key == v.id) {
+                loading = false
+                error = "Impossible d'ouvrir cette vidéo pour le moment."
+                errorDetail = (e.message ?: e.javaClass.simpleName).lineSequence().map { it.removePrefix("ERROR: ").trim() }.firstOrNull { it.isNotEmpty() }?.take(140).orEmpty()
+            }
             return
         }
         if (key != v.id) return
@@ -202,6 +213,9 @@ object Vp {
 
     fun pause() { exo?.pause() }
 
+    /** Relance la dernière vidéo YouTube qui n'a pas pu être lue. */
+    suspend fun retry(ctx: Context) { lastYt?.let { playYt(ctx, it) } }
+
     fun stop() {
         saveLocal()
         exo?.stop(); exo?.clearMediaItems()
@@ -249,6 +263,20 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
     Box(
         Modifier.matchParentSize().clickable(remember { MutableInteractionSource() }, indication = null) { visible = !visible; touch = System.currentTimeMillis() },
     )
+    if (Vp.error != null) {
+        val ctx = LocalContext.current
+        val scope = rememberCoroutineScope()
+        Column(
+            Modifier.align(Alignment.Center).padding(16.dp).glass(androidx.compose.foundation.shape.RoundedCornerShape(20.dp), 0.12f).padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(Vp.error ?: "", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            if (Vp.errorDetail.isNotBlank()) Text(Vp.errorDetail, color = Color(0xAAFFFFFF), fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(10.dp))
+            GlassChip("Réessayer", Ic.Refresh, P.blueSoft) { scope.launch { Vp.retry(ctx) } }
+        }
+        return
+    }
     AnimatedVisibility(visible || !Vp.playing, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color(0x11000000), Color(0x88000000))))) {
             Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (big) 40.dp else 26.dp)) {
@@ -279,11 +307,6 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 RoundBtn(if (big) Ic.FullscreenExit else Ic.Fullscreen, onFullscreen, size = 36.dp, iconSize = 22.dp, fill = Color.Transparent, tint = Color.White)
             }
-        }
-    }
-    if (Vp.error != null) {
-        Column(Modifier.align(Alignment.Center).padding(16.dp).glass(androidx.compose.foundation.shape.RoundedCornerShape(18.dp), 0.1f).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(Vp.error ?: "", color = Color.White, fontSize = 13.sp)
         }
     }
 }

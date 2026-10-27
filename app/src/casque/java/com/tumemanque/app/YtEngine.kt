@@ -10,6 +10,7 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -165,14 +166,24 @@ object Yt {
     }
 
     /** Lien de lecture et tailles des formats d'une vidéo. */
-    suspend fun info(id: String): YtInfo = withContext(Dispatchers.IO) {
-        cachedInfo(id)?.let { return@withContext it }
+    private val inflight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<YtInfo>>()
+
+    /** Une seule demande à la fois par vidéo (le lecteur et les formats la partagent). */
+    suspend fun info(id: String): YtInfo {
+        cachedInfo(id)?.let { return it }
+        val d = inflight.getOrPut(id) {
+            scope.async { try { fetchInfo(id) } finally { inflight.remove(id) } }
+        }
+        return d.await()
+    }
+
+    private suspend fun fetchInfo(id: String): YtInfo = withContext(Dispatchers.IO) {
         ensure()
         val req = base(YoutubeDLRequest("https://www.youtube.com/watch?v=$id"))
             .addOption("--no-playlist")
             .addOption("-f", "18/b[ext=mp4][vcodec!=none][acodec!=none]/bv*[vcodec^=avc1][height<=720]+ba[ext=m4a]/b/bv*+ba")
             .addOption("--dump-json")
-        val o = JSONObject(YoutubeDL.execute(req, "info$id", null).out)
+        val o = JSONObject(YoutubeDL.execute(req, null, null).out)
         val dur = o.optDouble("duration", 0.0).toInt()
         val headers = HashMap<String, String>()
         o.optJSONObject("http_headers")?.let { h -> h.keys().forEach { k -> headers[k] = h.optString(k) } }

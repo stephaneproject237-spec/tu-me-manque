@@ -90,10 +90,10 @@ fun Modifier.liquid(state: HazeState, shape: Shape): Modifier =
             state,
             HazeStyle(
                 backgroundColor = P.bg,
-                tints = listOf(HazeTint(Color(0x9E0F1217))),
+                tints = listOf(HazeTint(Color(0xD60F1217))),
                 blurRadius = 26.dp,
                 noiseFactor = 0.035f,
-                fallbackTint = HazeTint(Color(0xF0161A21)),
+                fallbackTint = HazeTint(Color(0xF5161A21)),
             ),
         )
         .border(0.7.dp, rim, shape)
