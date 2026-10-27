@@ -407,6 +407,8 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(open)
             .setBitmapLoader(ArtLoader(applicationContext))
             .build()
+        // Sans contrôleur externe, c'est ce qui fait apparaître la notification de lecture.
+        addSession(session!!)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
