@@ -47,7 +47,7 @@
 
   // ---------- État ----------
   const L = { tracks: [], playlists: [], favs: new Set(), ready: false, error: null };
-  const U = { tab: "titres", q: "", sort: "titre", sel: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "" };
+  const U = { tab: "titres", q: "", sort: "titre", sel: null, selDirs: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "" };
   const Q = { order: [], pos: -1, shuffle: false, repeat: "off", speed: 1, sleepAt: 0, sleepT: null };
   const audio = new Audio();
   audio.preload = "auto";
@@ -182,10 +182,17 @@
       L.playlists.forEach((p) => { p.ids = p.ids.filter((x) => x !== id); });
       if (covers.has(id)) { URL.revokeObjectURL(covers.get(id)); covers.delete(id); }
     }
-    const c = cur();
-    if (!c && Q.pos >= 0) { audio.pause(); Q.order = Q.order.filter((x) => byId(x)); Q.pos = -1; }
+    if (Q.pos >= 0) {
+      const wasId = Q.order[Q.pos];
+      const stillThere = !!byId(wasId);
+      Q.order = Q.order.filter((x) => byId(x));
+      if (stillThere) Q.pos = Q.order.indexOf(wasId);
+      else { audio.pause(); audio.removeAttribute("src"); Q.pos = -1; Q.order = []; }
+    }
     savePl(); saveFav();
   }
+  // Supprimer un dossier : ses morceaux disparaissent de la bibliothèque, des playlists et des favoris.
+  const removeFolders = (names) => removeTracks(L.tracks.filter((t) => names.indexOf(t.folder) >= 0).map((t) => t.id));
 
   // ---------- Lecture ----------
   async function loadTrack(t, autoplay) {
@@ -321,6 +328,7 @@
     list: sv('<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>'),
     moon: sv('<path d="M12.3 3a9 9 0 109.7 11.9A7 7 0 0112.3 3z"/>'),
     check: sv('<path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/>'),
+    trash: sv('<path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>'),
     close: sv('<path d="M19 6.4L17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/>'),
     folder: sv('<path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/>'),
     disc: sv('<path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 14a4 4 0 110-8 4 4 0 010 8zm0-5.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>'),
@@ -333,6 +341,7 @@
     let l = L.tracks.slice();
     if (U.detail) {
       if (U.detail.kind === "album") l = l.filter((t) => t.album === U.detail.id);
+      else if (U.detail.kind === "folder") l = l.filter((t) => t.folder === U.detail.id);
       else if (U.detail.kind === "playlist") { const p = L.playlists.find((x) => x.id === U.detail.id); l = p ? p.ids.map(byId).filter(Boolean) : []; }
     } else if (U.tab === "favoris") l = l.filter((t) => L.favs.has(t.id));
     const q = U.q.trim().toLowerCase();
@@ -364,8 +373,8 @@
       (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out" data-a="pickdir">' + I.folder + " Choisir un dossier</button>") + "</div>";
   }
   function libView() {
-    const tabs = ["titres", "albums", "playlists", "favoris"];
-    const names = { titres: "Titres", albums: "Albums", playlists: "Playlists", favoris: "Favoris" };
+    const tabs = ["titres", "albums", "dossiers", "playlists", "favoris"];
+    const names = { titres: "Titres", albums: "Albums", dossiers: "Dossiers", playlists: "Playlists", favoris: "Favoris" };
     let body = "";
     if (U.detail) {
       const l = visibleTracks();
@@ -382,6 +391,15 @@
       const q = U.q.trim().toLowerCase();
       const albums = [...m.entries()].filter(([a, l]) => !q || (a + " " + l.map((t) => t.artist).join(" ")).toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
       body = albums.length ? '<div class="cgrid">' + albums.map(([a, l]) => '<div class="al" data-a="album" data-id="' + esc(a) + '">' + cover(l[0], "big") + "<b>" + esc(a) + "</b><small>" + esc(l[0].artist) + " · " + l.length + "</small></div>").join("") + "</div>" : L.tracks.length ? '<p class="note">Aucun résultat.</p>' : emptyLib();
+    } else if (U.tab === "dossiers") {
+      const m = new Map();
+      L.tracks.forEach((t) => { if (!m.has(t.folder)) m.set(t.folder, []); m.get(t.folder).push(t); });
+      const q = U.q.trim().toLowerCase();
+      const dirs = [...m.entries()].filter(([f]) => !q || f.toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
+      body = dirs.length ? dirs.map(([f, l]) => {
+        const sel = U.selDirs && U.selDirs.has(f);
+        return '<div class="tr' + (sel ? " sel" : "") + '" data-a="folder" data-id="' + esc(f) + '"><div class="cvw"><div class="cv ph h1">' + (sel ? I.check : I.folder) + '</div></div><div class="tm"><b>' + esc(f) + "</b><small>" + l.length + " titre" + (l.length > 1 ? "s" : "") + " · " + fmtTotal(l.reduce((s2, t) => s2 + t.dur, 0)) + "</small></div></div>";
+      }).join("") : L.tracks.length ? '<p class="note">Aucun dossier.</p>' : emptyLib();
     } else if (U.tab === "playlists") {
       body = '<button class="bt out wide" data-a="newpl">' + I.plus + " Nouvelle playlist</button>" +
         (L.playlists.length ? L.playlists.map((p) => {
@@ -396,8 +414,8 @@
         : L.tracks.length ? '<p class="note">' + (U.tab === "favoris" ? "Aucun favori pour l'instant." : "Aucun résultat.") + "</p>" : emptyLib();
     }
     const tot = L.tracks.reduce((s, t) => s + t.dur, 0);
-    return '<header class="top">' + (U.sel ? '<button class="ib" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
-      '<button class="ib" data-a="selplay">' + I.play + '</button><button class="ib" data-a="seladd">' + I.list + '</button><button class="ib" data-a="seldel">' + I.close + "</button>"
+    return '<header class="top">' + (U.selDirs ? '<button class="ib" data-a="dircancel">' + I.close + "</button><h1>" + U.selDirs.size + " dossier" + (U.selDirs.size > 1 ? "s" : "") + '</h1><button class="ib" data-a="dirdel">' + I.trash + "</button>" : U.sel ? '<button class="ib" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
+      '<button class="ib" data-a="selplay">' + I.play + '</button><button class="ib" data-a="seladd">' + I.list + '</button><button class="ib" data-a="seldel">' + I.trash + "</button>"
       : '<div class="logo">' + I.head + "</div><h1>Casque</h1><button class=\"ib\" data-a=\"pick\" aria-label=\"Ajouter\">" + I.plus + '</button><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>") + "</header>" +
       (U.detail ? "" : '<div class="sr"><span>' + I.search + '</span><input id="q" type="search" placeholder="Rechercher un titre, un artiste…" value="' + esc(U.q) + '" autocomplete="off" autocapitalize="none"></div>' +
         '<nav class="tabs">' + tabs.map((t) => '<button class="' + (U.tab === t ? "on" : "") + '" data-a="tab" data-id="' + t + '">' + names[t] + "</button>").join("") + "</nav>" +
@@ -530,7 +548,7 @@
     switch (a) {
       case "pick": pickFiles(false); break;
       case "pickdir": pickFiles(true); break;
-      case "tab": U.tab = id; U.detail = null; U.q = ""; draw(); break;
+      case "tab": U.tab = id; U.detail = null; U.q = ""; U.sel = null; U.selDirs = null; draw(); break;
       case "row": {
         if (U.sel) { selToggle(el.dataset.id); break; }
         const ids = listOfRow();
@@ -538,6 +556,19 @@
         break;
       }
       case "album": U.detail = { kind: "album", id }; draw(); break;
+      case "folder": {
+        if (U.selDirs) { if (U.selDirs.has(id)) U.selDirs.delete(id); else U.selDirs.add(id); if (!U.selDirs.size) U.selDirs = null; draw(); }
+        else { U.detail = { kind: "folder", id }; draw(); }
+        break;
+      }
+      case "dircancel": U.selDirs = null; draw(); break;
+      case "dirdel": {
+        const names = [...U.selDirs];
+        const n = L.tracks.filter((t) => names.indexOf(t.folder) >= 0).length;
+        pending = () => removeFolders(names).then(() => { U.selDirs = null; U.sheet = null; draw(); });
+        sheet({ kind: "confirm", title: names.length > 1 ? "Supprimer " + names.length + " dossiers ?" : "Supprimer ce dossier ?", text: "Les " + n + " titre(s) qu'il contient n'apparaîtront plus dans la bibliothèque ni dans les playlists. Les fichiers d'origine restent sur ton téléphone.", ok: "Supprimer" });
+        break;
+      }
       case "playlist": U.detail = { kind: "playlist", id }; draw(); break;
       case "detailback": U.detail = null; draw(); break;
       case "playall": playList(listOfRow(), 0); break;
@@ -596,10 +627,17 @@
   // Appui long sur un titre : sélection multiple.
   let lpT = null, lpDone = false;
   host.addEventListener("touchstart", (ev) => {
-    const r = ev.target.closest(".tr[data-a=row]");
+    const r = ev.target.closest(".tr[data-a=row], .tr[data-a=folder]");
     lpDone = false;
-    if (!r || U.sel) return;
-    lpT = setTimeout(() => { lpDone = true; U.sel = new Set([r.dataset.id]); if (navigator.vibrate) navigator.vibrate(20); draw(); }, 520);
+    if (!r) return;
+    const dir = r.dataset.a === "folder";
+    if (dir ? U.selDirs : U.sel) return;
+    lpT = setTimeout(() => {
+      lpDone = true;
+      if (dir) U.selDirs = new Set([r.dataset.id]); else U.sel = new Set([r.dataset.id]);
+      if (navigator.vibrate) navigator.vibrate(20);
+      draw();
+    }, 520);
   }, { passive: true });
   ["touchend", "touchmove", "touchcancel"].forEach((e) => host.addEventListener(e, () => clearTimeout(lpT), { passive: true }));
   host.addEventListener("click", (ev) => { if (lpDone) { ev.stopPropagation(); ev.preventDefault(); lpDone = false; } }, true);

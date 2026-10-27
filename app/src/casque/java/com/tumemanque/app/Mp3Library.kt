@@ -100,6 +100,8 @@ object Lib {
             }
         }
         loadFavs()
+        loadHidden()
+        publish(_tracks.value)
         runCatching {
             val a = JSONArray(prefs().getString("sources", "[]"))
             _sources.value = (0 until a.length()).map { a.getString(it) }
@@ -114,9 +116,69 @@ object Lib {
         }
     }
 
+    // Morceaux et dossiers retirés par l'utilisateur : ils ne reviennent pas, même après une nouvelle analyse.
+    private var hiddenTracks: Set<String> = emptySet()
+    private var hiddenDirs: Set<String> = emptySet()
+
+    private fun loadHidden() {
+        runCatching {
+            val a = JSONArray(prefs().getString("hidden_t", "[]")); hiddenTracks = (0 until a.length()).map { a.getString(it) }.toSet()
+            val b = JSONArray(prefs().getString("hidden_d", "[]")); hiddenDirs = (0 until b.length()).map { b.getString(it) }.toSet()
+        }
+    }
+
+    private fun saveHidden() {
+        prefs().edit().putString("hidden_t", JSONArray(hiddenTracks.toList()).toString())
+            .putString("hidden_d", JSONArray(hiddenDirs.toList()).toString()).apply()
+    }
+
+    private fun visible(list: List<Track>) = list.filter { it.id !in hiddenTracks && it.folder !in hiddenDirs }
+
     private fun publish(list: List<Track>) {
-        _tracks.value = list
-        _byId.value = list.associateBy { it.id }
+        val l = visible(list)
+        _tracks.value = l
+        _byId.value = l.associateBy { it.id }
+    }
+
+    /** Retire des morceaux de Casque (le fichier reste sur le téléphone) : bibliothèque, playlists, favoris et file d'attente. */
+    fun deleteTracks(ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        val set = ids.toSet()
+        hiddenTracks = hiddenTracks + set
+        saveHidden()
+        cleanReferences(set)
+        publish(_tracks.value)
+        save()
+    }
+
+    /** Retire des dossiers de Casque : leurs morceaux disparaissent de la bibliothèque et des playlists. */
+    fun deleteFolders(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        val dirs = paths.toSet()
+        val gone = _tracks.value.filter { it.folder in dirs }.map { it.id }.toSet()
+        hiddenDirs = hiddenDirs + dirs
+        saveHidden()
+        // Un dossier source choisi par l'utilisateur est aussi retiré de la liste des sources.
+        _sources.value.filter { treeName(it) in dirs }.forEach { removeSource(it) }
+        cleanReferences(gone)
+        publish(_tracks.value)
+        save()
+    }
+
+    /** Remet tout ce qui avait été retiré (il faudra relancer une analyse). */
+    fun restoreHidden() {
+        hiddenTracks = emptySet(); hiddenDirs = emptySet(); saveHidden()
+    }
+
+    fun hiddenCount(): Int = hiddenTracks.size + hiddenDirs.size
+
+    private fun cleanReferences(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        _playlists.value = _playlists.value.map { it.copy(ids = it.ids.filterNot { id -> id in ids }) }
+        savePlaylists()
+        _favs.value = _favs.value - ids
+        prefs().edit().putString("favs", JSONArray(_favs.value.toList()).toString()).apply()
+        Hub.removeIds(ids)
     }
 
     // ------------------------------------------------------------------ permissions
@@ -207,7 +269,7 @@ object Lib {
         val store = withContext(Dispatchers.IO) { queryStore(ctx) }
         val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") }
         val merged = (store + folderTracks).distinctBy { it.id }
-        if (merged.map { it.id } != _tracks.value.map { it.id }) {
+        if (visible(merged).map { it.id } != _tracks.value.map { it.id }) {
             publish(merged)
             withContext(Dispatchers.IO) { save() }
         }
@@ -220,6 +282,10 @@ object Lib {
 
     fun addSource(ctx: Context, tree: Uri) {
         val s = tree.toString()
+        // Si ce dossier avait été retiré, on le remet.
+        val name = treeName(s)
+        hiddenDirs = hiddenDirs.filterNot { it == name || it.startsWith("$name/") }.toSet()
+        saveHidden()
         if (s in _sources.value) return
         _sources.value = _sources.value + s
         saveSources()

@@ -163,7 +163,12 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
             BlueButton("Scanner tout le téléphone", Modifier.fillMaxWidth(), Ic.Search) {
                 if (Lib.hasPermission(ctx)) scope.launch { Lib.scanPhone(ctx) } else permLauncher.launch(Lib.permission())
             }
-            Text("Les dossiers sources se gèrent dans l'onglet « Dossiers » du lecteur.", color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            var restored by remember { mutableStateOf(false) }
+            BlueButton("Restaurer les éléments supprimés", Modifier.fillMaxWidth().padding(top = 10.dp), outlined = true) {
+                Lib.restoreHidden(); restored = true
+                if (Lib.hasPermission(ctx)) scope.launch { Lib.refreshAll(ctx) }
+            }
+            if (restored) Text("Éléments restaurés : analyse en cours.", color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
         Spacer(Modifier.height(14.dp))
 

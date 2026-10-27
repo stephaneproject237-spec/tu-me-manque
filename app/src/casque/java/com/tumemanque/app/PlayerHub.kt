@@ -241,6 +241,15 @@ object Hub {
         syncQueue(); saveState()
     }
 
+    /** Retire de la file d'attente les morceaux supprimés de la bibliothèque. */
+    fun removeIds(ids: Set<String>) {
+        if (!::player.isInitialized) return
+        for (i in player.mediaItemCount - 1 downTo 0) {
+            if (player.getMediaItemAt(i).mediaId in ids) player.removeMediaItem(i)
+        }
+        syncQueue(); saveState()
+    }
+
     fun move(from: Int, to: Int) {
         if (from == to || from !in 0 until player.mediaItemCount || to !in 0 until player.mediaItemCount) return
         player.moveMediaItem(from, to)

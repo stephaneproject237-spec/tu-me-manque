@@ -9,7 +9,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -102,6 +104,9 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
     var infoFor by remember { mutableStateOf<Track?>(null) }
     var newPlaylistFor by remember { mutableStateOf<List<String>?>(null) }
     var sortMenu by remember { mutableStateOf(false) }
+    var selectedDirs by remember { mutableStateOf(setOf<String>()) }
+    var deleteTracksFor by remember { mutableStateOf<List<String>?>(null) }
+    var deleteDirsFor by remember { mutableStateOf<Set<String>?>(null) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) scope.launch { Lib.scanPhone(ctx) }
@@ -127,15 +132,23 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
     val detail = stack.lastOrNull()
     BackHandler(enabled = showNow) { showNow = false }
     BackHandler(enabled = !showNow && selected.isNotEmpty()) { selected = emptySet() }
-    BackHandler(enabled = !showNow && selected.isEmpty() && stack.isNotEmpty()) { stack = stack.dropLast(1) }
-    BackHandler(enabled = !showNow && selected.isEmpty() && stack.isEmpty() && searching) { searching = false; query = "" }
+    BackHandler(enabled = !showNow && selectedDirs.isNotEmpty()) { selectedDirs = emptySet() }
+    BackHandler(enabled = !showNow && selected.isEmpty() && selectedDirs.isEmpty() && stack.isNotEmpty()) { stack = stack.dropLast(1) }
+    BackHandler(enabled = !showNow && selected.isEmpty() && selectedDirs.isEmpty() && stack.isEmpty() && searching) { searching = false; query = "" }
 
     val currentTrack = Hub.currentId?.let { byId[it] }
 
     Box(Modifier.fillMaxSize().background(P.bg)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             // ---------------------------------------------------------------- barre du haut
-            if (selected.isNotEmpty()) {
+            if (selectedDirs.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RoundBtn(Ic.Close, { selectedDirs = emptySet() })
+                    Spacer(Modifier.width(12.dp))
+                    Text("${selectedDirs.size} dossier(s) sélectionné(s)", color = P.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    RoundBtn(Ic.Delete, { deleteDirsFor = selectedDirs }, fill = P.danger, tint = Color.White)
+                }
+            } else if (selected.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     RoundBtn(Ic.Close, { selected = emptySet() })
                     Spacer(Modifier.width(12.dp))
@@ -144,7 +157,9 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                         Hub.enqueue(selected.mapNotNull { byId[it] }); selected = emptySet()
                     })
                     Spacer(Modifier.width(8.dp))
-                    RoundBtn(Ic.PlaylistAdd, { pickFor = selected.toList() }, fill = P.blue, tint = Color.White)
+                    RoundBtn(Ic.PlaylistAdd, { pickFor = selected.toList() })
+                    Spacer(Modifier.width(8.dp))
+                    RoundBtn(Ic.Delete, { deleteTracksFor = selected.toList() }, fill = P.danger, tint = Color.White)
                 }
             } else if (detail == null) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -214,11 +229,13 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                     TrackList(
                         res, "Aucun résultat pour « $query »", favs, selected, { selected = it },
                         { l, i -> Hub.play(l, i) }, { pickFor = it }, { infoFor = it }, header = null,
+                        onDelete = { deleteTracksFor = it },
                     )
                 } else if (detail != null) {
                     DetailView(
                         detail, tracks, byId, playlists, favs, selected, { selected = it },
                         { pickFor = it }, { infoFor = it }, { stack = emptyList() },
+                        onDelete = { deleteTracksFor = it },
                     )
                 } else when (tab) {
                     0 -> {
@@ -232,6 +249,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                         TrackList(
                             sorted, "Aucun morceau", favs, selected, { selected = it },
                             { l, i -> Hub.play(l, i) }, { pickFor = it }, { infoFor = it },
+                            onDelete = { deleteTracksFor = it },
                             header = {
                                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -270,6 +288,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                         onRemove = { Lib.removeSource(it) },
                         onScanPhone = { scanPhone() },
                         onRescan = { scope.launch { Lib.scanSources(ctx) } },
+                        selectedDirs = selectedDirs, setSelectedDirs = { selectedDirs = it },
                     )
                 }
             }
@@ -313,6 +332,35 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
             NameDialog("Nouvelle playlist", "", "Créer", { newPlaylistFor = null }) { name ->
                 Lib.createPlaylist(name, ids); newPlaylistFor = null; selected = emptySet()
             }
+        }
+        deleteTracksFor?.let { ids ->
+            AlertDialog(
+                onDismissRequest = { deleteTracksFor = null }, containerColor = P.card2,
+                title = { Text(if (ids.size == 1) "Supprimer ce morceau ?" else "Supprimer ${ids.size} morceaux ?", color = P.text) },
+                text = {
+                    Text(
+                        "Ils n'apparaîtront plus dans la bibliothèque, les playlists, les favoris ni la file d'attente. Les fichiers restent sur ton téléphone.",
+                        color = P.sub, fontSize = 14.sp,
+                    )
+                },
+                confirmButton = { TextButton({ Lib.deleteTracks(ids); deleteTracksFor = null; selected = emptySet() }) { Text("Supprimer", color = P.danger) } },
+                dismissButton = { TextButton({ deleteTracksFor = null }) { Text("Annuler", color = P.sub) } },
+            )
+        }
+        deleteDirsFor?.let { dirs ->
+            val n = tracks.count { it.folder in dirs }
+            AlertDialog(
+                onDismissRequest = { deleteDirsFor = null }, containerColor = P.card2,
+                title = { Text(if (dirs.size == 1) "Supprimer ce dossier ?" else "Supprimer ${dirs.size} dossiers ?", color = P.text) },
+                text = {
+                    Text(
+                        "Les $n morceau(x) qu'il contient n'apparaîtront plus dans la bibliothèque ni dans les playlists. Les fichiers restent sur ton téléphone.",
+                        color = P.sub, fontSize = 14.sp,
+                    )
+                },
+                confirmButton = { TextButton({ Lib.deleteFolders(dirs); deleteDirsFor = null; selectedDirs = emptySet() }) { Text("Supprimer", color = P.danger) } },
+                dismissButton = { TextButton({ deleteDirsFor = null }) { Text("Annuler", color = P.sub) } },
+            )
         }
         infoFor?.let { t ->
             AlertDialog(
@@ -391,6 +439,7 @@ private fun TrackList(
     list: List<Track>, empty: String, favs: Set<String>, selected: Set<String>, setSelected: (Set<String>) -> Unit,
     onPlay: (List<Track>, Int) -> Unit, onAddToPlaylist: (List<String>) -> Unit, onInfo: (Track) -> Unit,
     header: (@Composable () -> Unit)?, extraMenu: (Track) -> List<Pair<String, () -> Unit>> = { emptyList() },
+    onDelete: ((List<String>) -> Unit)? = null,
 ) {
     val selecting = selected.isNotEmpty()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
@@ -406,7 +455,12 @@ private fun TrackList(
                     else onPlay(list, list.indexOf(t))
                 },
                 onLong = { setSelected(if (t.id in selected) selected - t.id else selected + t.id) },
-                menu = { TrackMenu(t, t.id in favs, { onAddToPlaylist(listOf(t.id)) }, { onInfo(t) }, extraMenu(t)) },
+                menu = {
+                    TrackMenu(
+                        t, t.id in favs, { onAddToPlaylist(listOf(t.id)) }, { onInfo(t) },
+                        extraMenu(t) + (if (onDelete != null) listOf("Supprimer de Casque" to { onDelete(listOf(t.id)) }) else emptyList()),
+                    )
+                },
             )
         }
     }
@@ -489,11 +543,14 @@ private fun PlaylistRow(name: String, sub: String, icon: androidx.compose.ui.gra
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FoldersTab(
     tracks: List<Track>, sources: List<String>, scanning: Boolean, onOpen: (String) -> Unit,
     onAddFolder: () -> Unit, onRemove: (String) -> Unit, onScanPhone: () -> Unit, onRescan: () -> Unit,
+    selectedDirs: Set<String>, setSelectedDirs: (Set<String>) -> Unit,
 ) {
+    val selecting = selectedDirs.isNotEmpty()
     val dirs = remember(tracks) { tracks.groupBy { it.folder }.toList().sortedBy { it.first.lowercase() } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
         item {
@@ -520,14 +577,23 @@ private fun FoldersTab(
         item { SectionTitle("TOUS LES DOSSIERS") }
         if (dirs.isEmpty()) item { Text("Aucun dossier pour l'instant", color = P.sub, modifier = Modifier.padding(24.dp)) }
         items(dirs, key = { "d${it.first}" }) { (path, l) ->
-            Row(Modifier.fillMaxWidth().clickable { onOpen(path) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)).background(P.card2), contentAlignment = Alignment.Center) { CIcon(Ic.Folder, P.blueSoft, 24.dp) }
+            val sel = path in selectedDirs
+            val toggle = { setSelectedDirs(if (sel) selectedDirs - path else selectedDirs + path) }
+            Row(
+                Modifier.fillMaxWidth().background(if (sel) Color(0x262F7BFF) else Color.Transparent)
+                    .combinedClickable(onClick = { if (selecting) toggle() else onOpen(path) }, onLongClick = { toggle() })
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)).background(if (sel) P.blue else P.card2), contentAlignment = Alignment.Center) {
+                    CIcon(if (sel) Ic.Check else Ic.Folder, if (sel) Color.White else P.blueSoft, 24.dp)
+                }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(path.substringAfterLast('/'), color = P.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${l.size} morceau(x) · $path", color = P.sub, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                CIcon(Ic.ChevronRight, P.sub, 20.dp)
+                if (!selecting) CIcon(Ic.ChevronRight, P.sub, 20.dp)
             }
         }
     }
@@ -538,6 +604,7 @@ private fun DetailView(
     d: Detail, all: List<Track>, byId: Map<String, Track>, playlists: List<Playlist>, favs: Set<String>,
     selected: Set<String>, setSelected: (Set<String>) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit, onInfo: (Track) -> Unit, onGone: () -> Unit,
+    onDelete: ((List<String>) -> Unit)? = null,
 ) {
     var editing by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -558,7 +625,7 @@ private fun DetailView(
 
     TrackList(
         list, "Rien ici pour l'instant", favs, selected, setSelected,
-        { l, i -> Hub.play(l, i) }, onAddToPlaylist, onInfo,
+        { l, i -> Hub.play(l, i) }, onAddToPlaylist, onInfo, onDelete = onDelete,
         header = {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
