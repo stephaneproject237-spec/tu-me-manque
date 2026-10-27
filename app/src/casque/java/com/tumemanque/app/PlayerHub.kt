@@ -52,6 +52,12 @@ object Art {
 
     fun peek(id: String, px: Int): Bitmap? = cache.get("$id@$px")
 
+    /** Oublie ce qu'on savait d'un morceau (une nouvelle pochette vient d'arriver). */
+    fun forget(id: String) {
+        synchronized(misses) { misses.removeAll { it.startsWith("$id@") } }
+        cache.snapshot().keys.filter { it.startsWith("$id@") }.forEach { cache.remove(it) }
+    }
+
     fun loadSync(ctx: Context, t: Track, px: Int): Bitmap? {
         val key = "${t.id}@$px"
         cache.get(key)?.let { return it }
@@ -213,6 +219,7 @@ object Hub {
     /** Joue une liste à partir d'un morceau. */
     fun play(list: List<Track>, start: Int = 0, shuffleOn: Boolean? = null) {
         if (list.isEmpty()) return
+        Shell.miniHidden = false
         ensureService()
         if (shuffleOn != null) player.shuffleModeEnabled = shuffleOn
         player.setMediaItems(list.map(::item), start.coerceIn(0, list.lastIndex), 0)
@@ -259,6 +266,7 @@ object Hub {
 
     fun jump(i: Int) {
         if (i !in 0 until player.mediaItemCount) return
+        Shell.miniHidden = false
         ensureService()
         player.seekTo(i, 0)
         player.prepare()
@@ -268,7 +276,7 @@ object Hub {
     fun toggle() {
         ensureService()
         if (player.mediaItemCount == 0) return
-        if (player.isPlaying) player.pause() else { player.prepare(); player.play() }
+        if (player.isPlaying) player.pause() else { Shell.miniHidden = false; player.prepare(); player.play() }
     }
 
     fun next() { if (player.hasNextMediaItem()) player.seekToNextMediaItem() else if (player.mediaItemCount > 0) { player.seekTo(0, 0) } }

@@ -1,6 +1,17 @@
 package com.tumemanque.app
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -126,6 +137,10 @@ object Shell {
     var nowOpen by mutableStateOf(false)
     /** Demande d'ouverture du lecteur depuis un autre onglet. */
     var openNow by mutableIntStateOf(0)
+    /** Mini-lecteur glissé vers le bas (il revient quand on relance un audio). */
+    var miniHidden by mutableStateOf(false)
+    /** Paroles en mode karaoké ouvertes. */
+    var lyrics by mutableStateOf(false)
 }
 
 private data class TabDef(val key: String, val label: String, val icon: ImageVector)
@@ -140,13 +155,18 @@ private val TABS_MAIN = listOf(
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
     remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); true }
+    // Pochettes manquantes : on les cherche en arrière-plan.
+    val allTracks by Lib.tracks.collectAsState()
+    LaunchedEffect(allTracks.size) { delay(1500); Artwork.fill(ctx, allTracks) }
     val haze = remember { HazeState() }
     val byId by Lib.byId.collectAsState()
     val current = Hub.currentId?.let { byId[it] }
+    var lastMini by remember { mutableStateOf<Track?>(null) }
+    if (current != null) lastMini = current
     val holder = rememberSaveableStateHolder()
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bars = !Shell.nowOpen && !Vp.fullscreen
-    val inset = navBottom + 10.dp + 62.dp + (if (current != null) 66.dp else 0.dp) + 12.dp
+    val inset = navBottom + 10.dp + 62.dp + (if (current != null && !Shell.miniHidden) 66.dp else 0.dp) + 12.dp
 
     BackHandler(enabled = Shell.tab != "audios" && !Vp.fullscreen && !Shell.nowOpen) { Shell.tab = "audios" }
     // La vidéo de la recherche s'arrête quand on change d'onglet.
@@ -171,8 +191,13 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
             enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 },
         ) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 10.dp)) {
-                if (current != null) GlassMini(current, haze) {
-                    Shell.tab = "audios"; Shell.openNow++
+                AnimatedVisibility(
+                    current != null && !Shell.miniHidden,
+                    enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow)) + fadeIn() + slideInVertically { it },
+                    exit = shrinkVertically(spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessLow)) + fadeOut() + slideOutVertically { it },
+                ) {
+                    val t = current ?: lastMini
+                    if (t != null) GlassMini(t, haze) { Shell.tab = "audios"; Shell.openNow++ }
                 }
                 GlassTabBar(haze)
             }
@@ -224,7 +249,7 @@ private fun GlassTabBar(haze: HazeState) {
     }
 }
 
-/** Mini-lecteur en verre au-dessus de la barre d'onglets. */
+/** Mini-lecteur en verre au-dessus de la barre d'onglets ; on le glisse vers le bas pour le ranger. */
 @Composable
 private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
     var pos by remember { mutableLongStateOf(0L) }
@@ -232,9 +257,36 @@ private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
         while (true) { pos = Hub.player.currentPosition; delay(500) }
     }
     val dur = Hub.durationMs.takeIf { it > 0 } ?: t.durationMs
-    Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp)) {
+    val scope = rememberCoroutineScope()
+    val drag = remember { Animatable(0f) }
+    val limit = with(LocalDensity.current) { 56.dp.toPx() }
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp)
+            .graphicsLayer {
+                translationY = drag.value
+                alpha = (1f - drag.value / (limit * 2.2f)).coerceIn(0f, 1f)
+                val sc = 1f - (drag.value / (limit * 12f)).coerceIn(0f, 0.06f)
+                scaleX = sc; scaleY = sc
+            }
+            .draggable(
+                rememberDraggableState { d -> scope.launch { drag.snapTo((drag.value + d).coerceAtLeast(-12f)) } },
+                Orientation.Vertical,
+                onDragStopped = { v ->
+                    if (drag.value > limit || v > 1400f) {
+                        drag.animateTo(limit * 2.4f, tween(180))
+                        Shell.miniHidden = true
+                        drag.snapTo(0f)
+                    } else {
+                        drag.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+            ),
+    ) {
         Column(Modifier.fillMaxWidth().liquid(haze, RoundedCornerShape(24.dp)).pressable(onOpen)) {
-            Row(Modifier.padding(start = 8.dp, end = 6.dp, top = 7.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.width(34.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF)))
+            }
+            Row(Modifier.padding(start = 8.dp, end = 6.dp, top = 3.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Cover(t, 42.dp, 12.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {

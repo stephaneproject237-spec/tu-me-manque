@@ -168,11 +168,11 @@ fun NowPlaying(t: Track, favs: Set<String>, onClose: () -> Unit, onAddToPlaylist
         while (true) { if (!dragging) pos = Hub.player.currentPosition; delay(250) }
     }
     val dur = (Hub.durationMs.takeIf { it > 0 } ?: t.durationMs).coerceAtLeast(1L)
-    val tint by produceState(P.card2, t.id) {
+    val tint by produceState(P.card2, t.id, Artwork.version) {
         value = Art.load(ctx, t, 96)?.let { avgColor(it) } ?: P.card2
     }
     val bgTop by animateColorAsState(tint.copy(alpha = 0.55f), tween(600), label = "bg")
-    BackHandler(enabled = sheet.isEmpty()) { onClose() }
+    BackHandler(enabled = sheet.isEmpty()) { if (Shell.lyrics) Shell.lyrics = false else onClose() }
 
     Box(Modifier.fillMaxSize().background(P.bg).background(Brush.verticalGradient(listOf(bgTop, P.bg, P.bg)))) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 22.dp)) {
@@ -185,6 +185,8 @@ fun NowPlaying(t: Track, favs: Set<String>, onClose: () -> Unit, onAddToPlaylist
                 Box {
                     RoundBtn(Ic.More, { menu = true }, fill = Color(0x26FFFFFF))
                     DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
+                        DropdownMenuItem(text = { Text("Paroles (karaoké)", color = P.text) }, onClick = { menu = false; Shell.lyrics = true })
+                        DropdownMenuItem(text = { Text("Envoyer hors de Casque…", color = P.text) }, onClick = { menu = false; Share.tracks(ctx, listOf(t.id)) })
                         DropdownMenuItem(text = { Text("Ajouter à une playlist…", color = P.text) }, onClick = { menu = false; onAddToPlaylist(t) })
                         DropdownMenuItem(text = { Text("Informations", color = P.text) }, onClick = { menu = false; onInfo(t) })
                     }
@@ -233,9 +235,16 @@ fun NowPlaying(t: Track, favs: Set<String>, onClose: () -> Unit, onAddToPlaylist
                 ) { Text("${"%.2f".format(Hub.speed).trimEnd('0').trimEnd('.').replace('.', ',')}×", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                 RoundBtn(Ic.Moon, { sheet = "sleep" }, fill = if (Hub.sleepEndsAt > 0 || Hub.sleepEndOfTrack) P.blue else Color(0x26FFFFFF), tint = Color.White, size = 42.dp, iconSize = 20.dp)
                 RoundBtn(Ic.Equalizer, { sheet = "eq" }, fill = if (Hub.eqEnabled) P.blue else Color(0x26FFFFFF), tint = Color.White, size = 42.dp, iconSize = 20.dp)
+                RoundBtn(Ic.Mic, { Shell.lyrics = true }, fill = Color(0x26FFFFFF), tint = Color.White, size = 42.dp, iconSize = 20.dp)
                 RoundBtn(Ic.Queue, { sheet = "queue" }, fill = Color(0x26FFFFFF), size = 42.dp, iconSize = 20.dp)
             }
         }
+        // Paroles en mode karaoké, par-dessus le lecteur.
+        androidx.compose.animation.AnimatedVisibility(
+            Shell.lyrics,
+            enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+        ) { LyricsScreen(t) { Shell.lyrics = false } }
     }
 
     if (sheet.isNotEmpty()) {
