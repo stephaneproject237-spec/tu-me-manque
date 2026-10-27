@@ -62,6 +62,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,21 +88,30 @@ fun HotPicFlow(
     onResult: (PreparedPhoto, Boolean, Long) -> Unit, onClose: () -> Unit,
 ) {
     var shot by remember { mutableStateOf<File?>(null) }
+    val ctx = LocalContext.current
+    var overPx by remember { mutableStateOf(0f) }
     BackHandler { if (shot != null) shot = null else onClose() }
     // Une seule fenêtre pour la caméra et la retouche : fondu enchaîné, jamais de « trou » noir entre les deux.
     val enter = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) { enter.animateTo(1f, androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
     Dialog(onDismissRequest = { if (shot != null) shot = null else onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(
-            Modifier.fillMaxSize().background(Color.Black).graphicsLayer {
+            Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { c ->
+                // Sur certains téléphones la fenêtre dépasse en bas de l'écran : on remonte les boutons pour qu'ils restent visibles.
+                val bottom = c.positionOnScreen().y + c.size.height
+                val over = (bottom - ctx.resources.displayMetrics.heightPixels).coerceAtLeast(0f)
+                if (kotlin.math.abs(over - overPx) > 1f) overPx = over
+            }.graphicsLayer {
                 alpha = enter.value
                 val k = 1.04f - 0.04f * enter.value
                 scaleX = k; scaleY = k
             },
         ) {
-            androidx.compose.animation.Crossfade(targetState = shot, animationSpec = androidx.compose.animation.core.tween(320), label = "hotflow") { f ->
-                if (f == null) HotCamera(title, icon, onVideoRecord, onVideoPicked, onShot = { shot = it }, onClose = onClose)
-                else PhotoEditorNative(f, title, allowSched, onResult = { ph, once, at -> onResult(ph, once, at); onClose() }, onCancel = { shot = null })
+            Box(Modifier.fillMaxSize().padding(bottom = with(androidx.compose.ui.platform.LocalDensity.current) { overPx.toDp() })) {
+                androidx.compose.animation.Crossfade(targetState = shot, animationSpec = androidx.compose.animation.core.tween(320), label = "hotflow") { f ->
+                    if (f == null) HotCamera(title, icon, onVideoRecord, onVideoPicked, onShot = { shot = it }, onClose = onClose)
+                    else PhotoEditorNative(f, title, allowSched, onResult = { ph, once, at -> onResult(ph, once, at); onClose() }, onCancel = { shot = null })
+                }
             }
         }
     }
