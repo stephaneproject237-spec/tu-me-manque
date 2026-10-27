@@ -1,6 +1,6 @@
 {
- "versionCode": 15,
- "versionName": "1.15",
- "notes": "Lecture des vidéos dans la recherche corrigée, message d'erreur plus clair avec « Réessayer », barre en verre plus lisible.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-15/casque.apk"
+ "versionCode": 17,
+ "versionName": "1.17",
+ "notes": "Vidéo flottante quand tu quittes l'appli, et mini-fenêtre réductible dans l'appli.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-17/casque.apk"
 }
