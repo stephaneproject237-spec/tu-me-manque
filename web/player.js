@@ -138,26 +138,48 @@
       a.src = u;
     });
   }
-  const AUDIO_RE = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|caf|aif|aiff|wma|mp4)$/i;
+  // Safari ajoute parfois « .download » (ou .crdownload, .part…) à un fichier téléchargé : « chanson.mp3.download » est bien un MP3.
+  const EXT_MIME = { mp3: "audio/mpeg", m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", caf: "audio/x-caf", aif: "audio/aiff", aiff: "audio/aiff" };
+  const cleanName = (n) => String(n || "").replace(/(\.(download|crdownload|part|partial|tmp))+$/i, "");
+  // Type du fichier : d'après son nom nettoyé, sinon d'après son contenu (ID3, trame MP3, M4A, WAV, FLAC, OGG).
+  async function mimeOf(f) {
+    const ext = (cleanName(f.name).match(/\.([a-z0-9]+)$/i) || [])[1];
+    if (ext && EXT_MIME[ext.toLowerCase()]) return EXT_MIME[ext.toLowerCase()];
+    if (f.type && f.type.indexOf("audio") === 0) return f.type;
+    try {
+      const b = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+      const a4 = String.fromCharCode(b[0], b[1], b[2], b[3]);
+      if (a4.slice(0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+      if (String.fromCharCode(b[4], b[5], b[6], b[7]) === "ftyp") return "audio/mp4";
+      if (a4 === "RIFF") return "audio/wav";
+      if (a4 === "fLaC") return "audio/flac";
+      if (a4 === "OggS") return "audio/ogg";
+    } catch (e) { /* ignoré */ }
+    return "";
+  }
 
   async function importFiles(list) {
-    const files = [...list].filter((f) => (f.type && f.type.indexOf("audio") === 0) || AUDIO_RE.test(f.name));
+    const files = [];
+    for (const f of list) { const m = await mimeOf(f); if (m) files.push({ f, m }); }
     if (!files.length) { toast("Aucun fichier audio trouvé."); return; }
     if (!db) { toast(L.error || "Stockage indisponible."); return; }
     let added = 0, dup = 0;
     for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      U.importing = { i: i + 1, n: files.length, name: f.name };
+      const name = cleanName(files[i].f.name);
+      const mime = files[i].m;
+      const f = files[i].f.slice(0, files[i].f.size, mime); // le même fichier, avec son vrai type
+      f.name2 = name;
+      U.importing = { i: i + 1, n: files.length, name };
       draw();
-      if (L.tracks.some((t) => t.size === f.size && t.file === f.name)) { dup++; continue; }
-      const base = f.name.replace(/\.[^.]+$/, "");
+      if (L.tracks.some((t) => t.size === f.size && t.file === name)) { dup++; continue; }
+      const base = name.replace(/\.[^.]+$/, "");
       const tg = await readTags(f);
       let title = tg.title || base, artist = tg.artist || "";
       if (!tg.title && /^(.+?)\s+-\s+(.+)$/.test(base)) { artist = artist || RegExp.$1; title = RegExp.$2; }
-      const rel = f.webkitRelativePath || "";
+      const rel = files[i].f.webkitRelativePath || "";
       const folder = rel ? rel.split("/").slice(-2, -1)[0] || "" : "";
       const t = {
-        id: uid(), file: f.name, size: f.size, mime: f.type || "audio/mpeg", title, artist: artist || "Artiste inconnu",
+        id: uid(), file: name, size: f.size, mime, title, artist: artist || "Artiste inconnu",
         album: tg.album || folder || "Album inconnu", folder: folder || "Importés", dur: await duration(f), added: Date.now(), cover: tg.cover || null,
       };
       try {
@@ -199,7 +221,7 @@
     const rec = await getOne("blobs", t.id);
     if (!rec) { toast("Fichier introuvable."); return false; }
     if (curUrl) URL.revokeObjectURL(curUrl);
-    curUrl = URL.createObjectURL(rec.blob);
+    curUrl = URL.createObjectURL(t.mime && rec.blob.type !== t.mime ? new Blob([rec.blob], { type: t.mime }) : rec.blob);
     audio.src = curUrl;
     audio.playbackRate = Q.speed;
     if (autoplay) { try { await audio.play(); } catch (e) { /* le téléphone demande un geste */ } }
@@ -522,7 +544,8 @@
     i.type = "file";
     i.multiple = true;
     if (dir) { i.setAttribute("webkitdirectory", ""); i.setAttribute("directory", ""); }
-    else i.accept = "audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus";
+    // iPhone : pas de filtre, sinon les fichiers « .mp3.download » restent grisés dans le sélecteur.
+    else if (!/iPhone|iPad/.test(navigator.userAgent)) i.accept = "audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.download,.crdownload";
     i.style.display = "none";
     i.onchange = () => { const fl = [...i.files]; i.remove(); importFiles(fl); };
     document.body.appendChild(i);
