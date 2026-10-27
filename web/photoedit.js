@@ -195,6 +195,7 @@
         '<div class="pe-tray" id="pe-tray"></div>' +
         '<div class="pe-tabs"><button data-p="tab" data-t="filtres" class="on">🎞 Filtres</button><button data-p="tab" data-t="texte">Aa Texte</button><button data-p="tab" data-t="stickers">😀 Stickers</button><button data-p="tab" data-t="tape">🎀 Tape</button></div>' +
         '<div class="pe-send"><button class="pe-btn" data-p="send">➤ Envoyer</button><button class="pe-btn hot" data-p="once">🔥 Éphémère</button></div>';
+      if (opts.fixed) root.classList.add("fixed");
       (opts.parent || document.body).appendChild(root);
       const cv = root.querySelector(".pe-cv"); cv.width = PW; cv.height = PH;
       const cx = cv.getContext("2d");

@@ -44,6 +44,7 @@
   let toastTimer = null;
   function toast(t) {
     const el = $("ch-toast");
+    if (!el) { const e = document.createElement("div"); e.className = "np-toast"; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3200); return; }
     el.textContent = t; el.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
@@ -1147,7 +1148,7 @@
     if (once) p.once = true;
     try {
       const path = await uploadFile(blob, "jpg", "image/jpeg");
-      await deliver(p, { p_kind: "image", p_body: caption || null, p_media: path, p_meta: { w, h } }, { once });
+      await deliver(p, { p_kind: "image", p_body: caption || null, p_media: path, p_meta: o && o.nowpic ? { w, h, nowpic: true } : { w, h } }, { once });
     } catch (e) {
       removePending(p);
       toast("Photo non envoyée. Vérifie ta connexion.");
@@ -1533,7 +1534,22 @@
     return deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
   }
 
+  // Photo envoyée depuis n'importe où (ex. Now pic quand le chat n'est pas ouvert).
+  async function sendPhotoAny(blob, w, h, once, nowpic) {
+    if (opened) { sendImage(blob, w, h, "", { once: !!once, nowpic: !!nowpic }); return; }
+    try {
+      const s = await A().session(false);
+      if (!me) me = s.uid;
+      const path = await uploadFile(blob, "jpg", "image/jpeg");
+      const meta = { w, h }; if (nowpic) meta.nowpic = true;
+      const j = await A().authed("POST", "/rest/v1/rpc/" + (once ? "send_once" : "send_message"), { p_kind: "image", p_body: null, p_media: path, p_meta: meta });
+      if (!j || j.status !== "ok") throw new Error("send");
+      toast("📸 Photo envoyée !");
+    } catch (e) { toast("Photo non envoyée. Vérifie ta connexion."); }
+  }
+
   window.TMM_CHAT = {
+    sendPhotoAny,
     sendRaw,
     poll,
     toast,

@@ -11,7 +11,11 @@
       '<div class="hp-msg" hidden></div>' +
       '<div class="hp-bar"><button class="hp-side" data-h="gal" aria-label="Galerie">🖼</button><button class="hp-shutter" data-h="shot" aria-label="Prendre la photo"><i></i></button><button class="hp-side" data-h="flip" aria-label="Changer de caméra">🔄</button></div>' +
       '<input type="file" accept="image/*" hidden>';
-    (document.getElementById("chat") || document.body).appendChild(root);
+    const chatEl = document.getElementById("chat");
+    const inChat = !!(chatEl && window.TMM_CHAT && window.TMM_CHAT.isOpen());
+    const parent = inChat ? chatEl : document.body;
+    if (!inChat) root.classList.add("fixed");
+    parent.appendChild(root);
     const vid = root.querySelector("video"), msg = root.querySelector(".hp-msg"), file = root.querySelector("input");
     let stream = null, facing = "user", busy = false, closed = false;
 
@@ -48,7 +52,7 @@
     }
     async function edit(src) {
       if (!window.TMM_EDIT) return;
-      const r = await window.TMM_EDIT.open(src, { title: opts.title || "Retouche", parent: document.getElementById("chat") || document.body });
+      const r = await window.TMM_EDIT.open(src, { title: opts.title || "Retouche", parent: parent, fixed: !inChat });
       if (r) { close(); if (opts.onResult) opts.onResult(r); }
     }
     root.addEventListener("click", async (ev) => {

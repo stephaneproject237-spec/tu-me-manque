@@ -533,3 +533,18 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .hp-shutter i { width: 60px; height: 60px; border-radius: 50%; background: #fff; transition: transform .12s; }
 .hp-shutter:active i { transform: scale(.86); }
 .hp.flash .hp-v { filter: brightness(1.7); }
+
+/* ===== Now pic ===== */
+.np { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); }
+.np[hidden] { display: none; }
+.np:has(.np-wait) { inset: auto 0 calc(90px + env(safe-area-inset-bottom)) 0; background: none; pointer-events: none; z-index: 40; }
+.np-card { width: min(340px, 86vw); padding: 24px 20px; border-radius: 26px; background: rgba(36,22,32,.96); color: #F5EEF2; text-align: center; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.np-ic { font-size: 54px; animation: xflame 1.4s ease-in-out infinite; }
+.np-card b { font-size: 19px; } .np-card span { opacity: .8; font-size: 14px; }
+.np-yes, .np-no { border: 0; border-radius: 26px; padding: 15px; font: 700 16px inherit; font-family: inherit; }
+.np-yes { background: linear-gradient(135deg, #FF4F86, #D81B60); color: #fff; } .np-no { background: rgba(255,255,255,.1); color: #D8B8C8; }
+.np-wait { pointer-events: auto; margin: 0 auto; padding: 10px 14px; border-radius: 22px; background: rgba(36,22,32,.92); color: #F5EEF2; font-size: 14px; display: flex; gap: 10px; align-items: center; border: 1px solid rgba(255,255,255,.12); }
+.np-wait button { border: 0; border-radius: 14px; padding: 6px 10px; background: rgba(255,255,255,.12); color: #FF8FB4; font: 600 13px inherit; font-family: inherit; }
+.np-toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 95; background: rgba(0,0,0,.8); color: #fff; padding: 10px 16px; border-radius: 18px; font-size: 14px; max-width: 86vw; text-align: center; }
+.hp.fixed, .pe.fixed { position: fixed; }
+.nowic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 2px; }
