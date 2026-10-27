@@ -137,11 +137,54 @@
   }
 
   // ---------- Média et connexion ----------
+  // Image HD : 1280×720 à 30 images/s si le téléphone le permet (le réseau peut la réduire automatiquement s'il est lent).
+  const VIDEO_HD = (facing) => ({ facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } });
+
+  // Réglages SDP : son Opus haute qualité (128 kbit/s, 48 kHz, correction d'erreurs) et débit vidéo de départ élevé.
+  function setFmtp(lines, pt, params) {
+    const i = lines.findIndex((l) => l.indexOf("a=fmtp:" + pt + " ") === 0);
+    if (i < 0) {
+      const r = lines.findIndex((l) => l.indexOf("a=rtpmap:" + pt + " ") === 0);
+      if (r >= 0) lines.splice(r + 1, 0, "a=fmtp:" + pt + " " + Object.keys(params).map((k) => k + "=" + params[k]).join(";"));
+      return;
+    }
+    const kv = {};
+    lines[i].slice(("a=fmtp:" + pt + " ").length).split(";").forEach((x) => { const e = x.indexOf("="); if (e > 0) kv[x.slice(0, e).trim()] = x.slice(e + 1); else if (x.trim()) kv[x.trim()] = null; });
+    Object.assign(kv, params);
+    lines[i] = "a=fmtp:" + pt + " " + Object.keys(kv).map((k) => (kv[k] === null ? k : k + "=" + kv[k])).join(";");
+  }
+  function tuneSdp(sdp) {
+    try {
+      const lines = sdp.split("\r\n");
+      lines.map((l) => /^a=rtpmap:(\d+) opus\/48000/.exec(l)).filter(Boolean).forEach((m) => {
+        setFmtp(lines, m[1], { minptime: 10, useinbandfec: 1, usedtx: 0, stereo: 0, maxplaybackrate: 48000, maxaveragebitrate: 128000 });
+      });
+      lines.map((l) => /^a=rtpmap:(\d+) (VP8|VP9|H264|AV1)\/90000/.exec(l)).filter(Boolean).forEach((m) => {
+        setFmtp(lines, m[1], { "x-google-start-bitrate": 1500, "x-google-max-bitrate": 4000 });
+      });
+      return lines.join("\r\n");
+    } catch (e) { return sdp; }
+  }
+  const tuned = (d) => ({ type: d.type, sdp: tuneSdp(d.sdp) });
+  // Plafonds d'envoi : 4 Mbit/s en vidéo, 128 kbit/s en son.
+  async function tuneSenders() {
+    if (!S.pc) return;
+    for (const sd of S.pc.getSenders()) {
+      if (!sd.track) continue;
+      try {
+        const p = sd.getParameters();
+        if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        if (sd.track.kind === "video") { p.encodings[0].maxBitrate = 4000000; p.encodings[0].maxFramerate = 30; if (sd.track.contentHint === "") sd.track.contentHint = "motion"; }
+        else p.encodings[0].maxBitrate = 128000;
+        await sd.setParameters(p);
+      } catch (e) { /* ignoré */ }
+    }
+  }
   async function getMedia(video) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("nomedia");
     return navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: video ? { facingMode: S.facing, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } } : false,
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: { ideal: 48000 }, channelCount: { ideal: 1 } },
+      video: video ? VIDEO_HD(S.facing) : false,
     });
   }
   // Les infos de connexion sont envoyées par petits paquets (au lieu d'une par une) : l'appel s'établit bien plus vite.
@@ -170,6 +213,7 @@
       const st = pc.connectionState || pc.iceConnectionState;
       if (st === "connected" || st === "completed") {
         clearTimeout(S.discTimer); S.discTimer = null;
+        tuneSenders();
         if (S.st !== "active") { S.st = "active"; S.t0 = Date.now(); stopTone(); clearTimeout(S.ringTimer); startTimer(); paint(); }
         else setStatus(mmss(Math.round((Date.now() - S.t0) / 1000)));
       } else if (st === "disconnected") {
@@ -190,9 +234,9 @@
     if (S.dir !== "out" || S.restarts >= 3) return;
     S.restarts++;
     try {
-      const o = await S.pc.createOffer({ iceRestart: true });
+      const o = tuned(await S.pc.createOffer({ iceRestart: true }));
       await S.pc.setLocalDescription(o);
-      await send("offer", { sdp: { type: o.type, sdp: o.sdp } });
+      await send("offer", { sdp: o });
     } catch (e) { /* on attend la fin du délai */ }
   }
   async function setRemote(sdp) {
@@ -210,17 +254,19 @@
     S.st = "connecting"; paint();
     await loadRelay();
     createPc();
-    const o = await S.pc.createOffer();
+    const o = tuned(await S.pc.createOffer());
     await S.pc.setLocalDescription(o);
-    await send("offer", { sdp: { type: o.type, sdp: o.sdp } });
+    tuneSenders();
+    await send("offer", { sdp: o });
   }
   async function onOffer(sdp) {
     if (S.ready) await S.ready;
     if (!S.pc) return;
     await setRemote(sdp);
-    const a = await S.pc.createAnswer();
+    const a = tuned(await S.pc.createAnswer());
     await S.pc.setLocalDescription(a);
-    await send("answer", { sdp: { type: a.type, sdp: a.sdp } });
+    tuneSenders();
+    await send("answer", { sdp: a });
   }
 
   // ---------- Démarrer / répondre / raccrocher ----------
@@ -314,7 +360,7 @@
     if (!S.local || !S.video) return;
     const next = S.facing === "user" ? "environment" : "user";
     try {
-      const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      const ns = await navigator.mediaDevices.getUserMedia({ video: VIDEO_HD(next), audio: false });
       const nt = ns.getVideoTracks()[0];
       const old = S.local.getVideoTracks()[0];
       const sender = S.pc && S.pc.getSenders().find((x) => x.track && x.track.kind === "video");
