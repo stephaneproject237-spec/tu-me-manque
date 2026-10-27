@@ -12,9 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="appel.css?v=2">
-  <link rel="stylesheet" href="chat.css?v=36">
-  <link rel="stylesheet" href="photoedit.css?v=5">
+  <link rel="preconnect" href="https://ahwxssgcwqzkxitpfvxy.supabase.co" crossorigin>
+  <link rel="stylesheet" href="dist/app.min.css?v=f95563ac" media="print" onload="this.media='all'">
   <style>
     :root { --rose: #E91E63; --rose-clair: #FFD9E4; --gris: #757575; --texte: #212121; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -137,22 +136,18 @@
   </style>
 </head>
 <body>
-  <div id="app"><div class="spin"></div></div>
+  <div id="app"><div class="coeur">💗</div><div class="spin"></div><p class="gris">Chargement…</p></div>
   <div id="chat" hidden></div>
   <div id="support" hidden></div>
-  <script src="config.js"></script>
-  <script src="lock.js?v=2"></script>
-  <script src="emoji.js?v=2"></script>
-  <script src="chat.js?v=26"></script>
-  <script src="extras.js?v=1"></script>
-  <script src="ios.js?v=1"></script>
-<script src="photoedit.js?v=5"></script>
-  <script src="hotpic.js?v=4"></script>
-  <script src="nowpic.js?v=2"></script>
-  <script src="jeux.js?v=14"></script>
-  <script src="support.js?v=3"></script>
-  <script src="rappels.js?v=3"></script>
-  <script src="appel.js?v=6"></script>
-  <script src="app.js?v=17"></script>
+  <script src="dist/app.min.js?v=f95563ac" defer></script>
+  <script>
+    // Si le réseau est trop lent, on le dit au lieu de laisser un écran vide.
+    setTimeout(function () {
+      if (window.__tmmReady) return;
+      var a = document.getElementById("app");
+      if (a) a.innerHTML = '<div class="col"><div class="coeur">💗</div><h2>Connexion lente</h2><p class="gris">L\'application n\'a pas pu se charger sur ce réseau.</p><button class="principal" onclick="location.reload()">Réessayer</button><p class="petit">Astuce : essaie le Wi-Fi, ou l\'autre carte SIM.</p></div>';
+    }, 15000);
+    if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  </script>
 </body>
 </html>

@@ -43,12 +43,18 @@
   async function http(method, path, body, token) {
     const headers = { apikey: CFG.SUPABASE_ANON_KEY, "Content-Type": "application/json", Accept: "application/json" };
     if (token) headers.Authorization = "Bearer " + token;
-    const res = await fetch(CFG.SUPABASE_URL + path, {
-      method,
-      headers,
-      body: body === undefined || body === null ? undefined : JSON.stringify(body),
-    });
-    return { code: res.status, text: await res.text() };
+    // Réseau très lent : on abandonne au bout de 25 s (message d'erreur clair) au lieu d'attendre sans fin.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 25000);
+    try {
+      const res = await fetch(CFG.SUPABASE_URL + path, {
+        method,
+        headers,
+        signal: ctl.signal,
+        body: body === undefined || body === null ? undefined : JSON.stringify(body),
+      });
+      return { code: res.status, text: await res.text() };
+    } finally { clearTimeout(timer); }
   }
 
   function saveSession(j) {
