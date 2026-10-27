@@ -298,14 +298,14 @@ private fun PlayerCard(v: YtVideo) {
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
-            if (loaded && !Vp.fullscreen) {
+            if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {
                 VideoSurface(Modifier.fillMaxSize())
                 VideoControls(big = false) { Vp.fullscreen = true }
-            } else if (!loaded) {
+            } else if (!loaded || Vp.mini) {
                 AsyncImage(model = v.thumbHd, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x00000000), Color(0x66000000)))))
                 Box(
-                    Modifier.size(72.dp).glass(CircleShape, 0.18f).pressable { scope.launch { Vp.playYt(ctx, v) } },
+                    Modifier.size(72.dp).glass(CircleShape, 0.18f).pressable { if (loaded) Vp.mini = false else scope.launch { Vp.playYt(ctx, v) } },
                     contentAlignment = Alignment.Center,
                 ) { CIcon(Ic.Play, Color.White, 40.dp) }
                 if (v.durationSec > 0) {

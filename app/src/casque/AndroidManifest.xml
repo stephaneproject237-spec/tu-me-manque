@@ -10,6 +10,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application>
+        <!-- Fenêtre vidéo flottante (Picture-in-Picture) -->
+        <activity
+            android:name="com.tumemanque.app.MainActivity"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            tools:node="merge" />
         <service
             android:name="com.tumemanque.app.PlaybackService"
             android:exported="true"

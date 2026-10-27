@@ -150,7 +150,8 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
 
     BackHandler(enabled = Shell.tab != "audios" && !Vp.fullscreen && !Shell.nowOpen) { Shell.tab = "audios" }
     // La vidéo de la recherche s'arrête quand on change d'onglet.
-    LaunchedEffect(Shell.tab) { if (Shell.tab != "search" && !Vp.fullscreen) Vp.pause() }
+    // En quittant la recherche, la vidéo qui joue continue dans la petite fenêtre flottante.
+    LaunchedEffect(Shell.tab) { if (Shell.tab != "search" && !Vp.fullscreen && Vp.key != null && Vp.playing) Vp.mini = true }
 
     Box(Modifier.fillMaxSize().background(P.bg)) {
         Box(Modifier.fillMaxSize().haze(haze)) {
@@ -176,6 +177,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
                 GlassTabBar(haze)
             }
         }
+        if (Vp.mini && Vp.key != null && !Vp.fullscreen && !Vp.inPip) MiniVideo(if (bars) inset - navBottom else 24.dp)
         if (Vp.fullscreen) VideoFullscreen()
     }
 }

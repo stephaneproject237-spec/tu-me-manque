@@ -59,12 +59,15 @@ import org.json.JSONObject
 fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, onScreen: (String) -> Unit) {
     val ctx = LocalContext.current
     remember { Hub.init(ctx); true }
+    PipHost()
     Box(Modifier.fillMaxSize().background(P.bg)) {
         if (screen == "settings") {
             CasqueSettings(updateVm, onHelp = { onScreen("help") }, onBack = { onScreen("player") })
         } else {
             CasqueShell(onSettings = { onScreen("settings") }, hasUpdate = hasUpdate)
         }
+        // Fenêtre flottante d'Android : on ne montre que la vidéo (le reste de l'écran reste en mémoire).
+        if (Vp.inPip) PipScreen()
     }
 }
 

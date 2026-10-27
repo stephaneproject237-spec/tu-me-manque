@@ -1,6 +1,33 @@
 package com.tumemanque.app
 
 import android.app.Activity
+import android.app.PendingIntent
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.graphics.drawable.Icon
+import android.os.Build
+import android.util.Rational
+import androidx.activity.ComponentActivity
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlin.math.roundToInt
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
@@ -92,6 +119,10 @@ object Vp {
     var ended by mutableStateOf(false)
         private set
     var fullscreen by mutableStateOf(false)
+    /** Réduite en petite fenêtre flottante dans l'appli. */
+    var mini by mutableStateOf(false)
+    /** Fenêtre flottante d'Android (par-dessus les autres applis). */
+    var inPip by mutableStateOf(false)
     var aspect by mutableFloatStateOf(16f / 9f)
         private set
     private var localId: String? = null
@@ -220,11 +251,11 @@ object Vp {
         saveLocal()
         exo?.stop(); exo?.clearMediaItems()
         key = null; localId = null; playing = false; loading = false; error = null
-        fullscreen = false
+        fullscreen = false; mini = false
     }
 }
 
-private fun Context.activity(): Activity? {
+fun Context.activity(): Activity? {
     var c: Context? = this
     while (c is ContextWrapper) { if (c is Activity) return c; c = c.baseContext }
     return null
@@ -290,6 +321,9 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 }
                 RoundBtn(Ic.Forward10, { Vp.seekBy(10_000); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 44.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
             }
+            if (!big) {
+                RoundBtn(Ic.ChevronDown, { Vp.mini = true }, Modifier.align(Alignment.TopStart).padding(10.dp), size = 36.dp, iconSize = 24.dp, tint = Color.White)
+            }
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = if (big) 14.dp else 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -305,6 +339,10 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 )
                 Text(fmt(dur), color = Color(0xCCFFFFFF), fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
+                val act = LocalContext.current.activity()
+                if (act != null && Pip.supported(act)) {
+                    RoundBtn(Ic.Pip, { Pip.enter(act) }, size = 36.dp, iconSize = 20.dp, fill = Color.Transparent, tint = Color.White)
+                }
                 RoundBtn(if (big) Ic.FullscreenExit else Ic.Fullscreen, onFullscreen, size = 36.dp, iconSize = 22.dp, fill = Color.Transparent, tint = Color.White)
             }
         }
@@ -324,16 +362,18 @@ fun VideoFullscreen() {
         ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         ctl?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
-            // Hors de la recherche, il n'y a pas de petit lecteur : on met en pause en quittant le plein écran.
-            if (Shell.tab != "search") Vp.pause()
+            // Hors de la recherche, la vidéo continue dans la petite fenêtre flottante.
+            if (Shell.tab != "search" && Vp.key != null && Vp.playing) Vp.mini = true
             act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             ctl?.show(WindowInsetsCompat.Type.systemBars())
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black).clickable(remember { MutableInteractionSource() }, indication = null) {}) {
-        VideoSurface(Modifier.fillMaxSize().align(Alignment.Center))
+        if (!Vp.inPip) VideoSurface(Modifier.fillMaxSize().align(Alignment.Center))
         VideoControls(big = true) { Vp.fullscreen = false }
         Row(Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            RoundBtn(Ic.ChevronDown, { Vp.mini = true; Vp.fullscreen = false }, size = 40.dp, iconSize = 26.dp, tint = Color.White)
+            Spacer(Modifier.width(8.dp))
             RoundBtn(Ic.Close, { Vp.fullscreen = false }, size = 40.dp, iconSize = 20.dp, tint = Color.White)
             Spacer(Modifier.width(12.dp))
             Text(Vp.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -347,4 +387,129 @@ fun fmtBytes(b: Long): String = when {
     b >= 1_073_741_824 -> "%.1f Go".format(b / 1_073_741_824.0)
     b >= 1_048_576 -> "%.0f Mo".format(b / 1_048_576.0)
     else -> "${b / 1024} Ko"
+}
+
+// =============================================================================================
+//  Petite fenêtre flottante dans l'appli (déplaçable)
+// =============================================================================================
+
+@Composable
+fun BoxScope.MiniVideo(bottom: Dp) {
+    val density = LocalDensity.current
+    var off by remember { mutableStateOf(Offset.Zero) }
+    var showCtl by remember { mutableStateOf(true) }
+    LaunchedEffect(showCtl, Vp.playing) { if (showCtl && Vp.playing) { delay(2500); showCtl = false } }
+    BoxWithConstraints(Modifier.matchParentSize()) {
+        val w = 210.dp
+        val h = (w / Vp.aspect.coerceIn(0.56f, 2.4f)).coerceAtMost(300.dp)
+        val maxX = with(density) { (maxWidth - w - 24.dp).toPx() }.coerceAtLeast(0f)
+        val maxY = with(density) { (maxHeight - h - bottom - 60.dp).toPx() }.coerceAtLeast(0f)
+        Box(
+            Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = bottom)
+                .offset { IntOffset(off.x.roundToInt(), off.y.roundToInt()) }
+                .pointerInput(maxX, maxY) {
+                    detectDragGestures { change, drag ->
+                        change.consume()
+                        off = Offset((off.x + drag.x).coerceIn(-maxX, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
+                    }
+                }
+                .size(w, h)
+                .shadow(18.dp, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black)
+                .border(0.7.dp, Color(0x40FFFFFF), RoundedCornerShape(18.dp))
+                .clickable(remember { MutableInteractionSource() }, indication = null) { showCtl = !showCtl },
+        ) {
+            VideoSurface(Modifier.fillMaxSize())
+            if (Vp.loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(30.dp), color = Color.White, strokeWidth = 2.dp)
+            AnimatedVisibility(showCtl || !Vp.playing, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) {
+                Box(Modifier.fillMaxSize().background(Color(0x66000000))) {
+                    RoundBtn(Ic.Close, { Vp.stop() }, Modifier.align(Alignment.TopStart).padding(6.dp), size = 30.dp, iconSize = 16.dp, tint = Color.White)
+                    RoundBtn(Ic.Fullscreen, { Vp.mini = false; Vp.fullscreen = true }, Modifier.align(Alignment.TopEnd).padding(6.dp), size = 30.dp, iconSize = 18.dp, tint = Color.White)
+                    RoundBtn(if (Vp.playing) Ic.Pause else Ic.Play, { Vp.toggle(); showCtl = true }, Modifier.align(Alignment.Center), size = 46.dp, iconSize = 26.dp, tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================================
+//  Fenêtre flottante d'Android (Picture-in-Picture) quand on quitte l'appli
+// =============================================================================================
+
+object Pip {
+    const val ACTION = "com.casque.app.PIP_TOGGLE"
+
+    fun supported(act: Activity): Boolean =
+        Build.VERSION.SDK_INT >= 26 && act.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    @RequiresApi(26)
+    fun params(act: Activity): PictureInPictureParams {
+        val a = Vp.aspect.coerceIn(0.42f, 2.38f)
+        val b = PictureInPictureParams.Builder().setAspectRatio(Rational((a * 1000).roundToInt(), 1000))
+        val pi = PendingIntent.getBroadcast(
+            act, 11, Intent(ACTION).setPackage(act.packageName),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val icon = Icon.createWithResource(act, if (Vp.playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+        b.setActions(listOf(RemoteAction(icon, if (Vp.playing) "Pause" else "Lecture", "Lecture / pause", pi)))
+        if (Build.VERSION.SDK_INT >= 31) {
+            b.setAutoEnterEnabled(Vp.key != null && Vp.playing)
+            b.setSeamlessResizeEnabled(true)
+        }
+        return b.build()
+    }
+
+    fun enter(act: Activity) {
+        if (!supported(act) || Vp.key == null) return
+        runCatching { act.enterPictureInPictureMode(params(act)) }
+    }
+}
+
+/** Branche la fenêtre flottante sur l'activité : entrée automatique en quittant l'appli, bouton lecture/pause. */
+@Composable
+fun PipHost() {
+    val ctx = LocalContext.current
+    val act = remember { ctx.activity() as? ComponentActivity } ?: return
+    if (!Pip.supported(act)) return
+    LaunchedEffect(Vp.playing, Vp.key, Vp.aspect) {
+        if (Build.VERSION.SDK_INT >= 26) runCatching { act.setPictureInPictureParams(Pip.params(act)) }
+    }
+    DisposableEffect(act) {
+        val leave = Runnable {
+            // Android 8 à 11 : on entre nous-mêmes dans la fenêtre flottante.
+            if (Build.VERSION.SDK_INT < 31 && Vp.key != null && Vp.playing) Pip.enter(act)
+        }
+        val mode = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            Vp.inPip = info.isInPictureInPictureMode
+            if (!info.isInPictureInPictureMode) {
+                // Fenêtre fermée avec la croix : l'appli n'est plus visible, on met en pause.
+                act.window.decorView.postDelayed({
+                    if (!act.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) Vp.pause()
+                }, 400)
+            }
+        }
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && !Vp.inPip) Vp.pause() }
+        val rx = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) { Vp.toggle() }
+        }
+        act.addOnUserLeaveHintListener(leave)
+        act.addOnPictureInPictureModeChangedListener(mode)
+        act.lifecycle.addObserver(obs)
+        ContextCompat.registerReceiver(act, rx, IntentFilter(Pip.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose {
+            act.removeOnUserLeaveHintListener(leave)
+            act.removeOnPictureInPictureModeChangedListener(mode)
+            act.lifecycle.removeObserver(obs)
+            runCatching { act.unregisterReceiver(rx) }
+        }
+    }
+}
+
+/** Ce qu'on voit dans la fenêtre flottante d'Android : seulement la vidéo. */
+@Composable
+fun PipScreen() {
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        VideoSurface(Modifier.fillMaxSize())
+    }
 }
