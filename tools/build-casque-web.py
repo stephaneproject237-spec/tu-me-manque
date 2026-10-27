@@ -42,9 +42,10 @@ def main():
     cfg = re.sub(r'APK_URL: "[^"]*"', 'APK_URL: "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-5/casque.apk"', cfg)
     cfg = re.sub(r'VERSION: "[^"]*"', 'VERSION: "%s",\n  CASQUE: true' % VERSION, cfg)
     big = [cfg]
+    # Le lecteur est chargé AVANT app.js : app.js l'appelle dès son premier affichage.
+    big.append(rd(os.path.join(W, "player.js")))
     for f in "lock.js emoji.js chat.js extras.js ios.js photoedit.js hotpic.js nowpic.js jeux.js support.js rappels.js appel.js app.js".split():
         big.append(js(f))
-    big.append(rd(os.path.join(W, "player.js")))
     big.append("window.__tmmReady=true;")
     tmp = os.path.join(OUT, "dist", "_all.js")
     wr(tmp, "\n;\n".join(big))
@@ -58,6 +59,14 @@ def main():
 
     # Page d'accueil
     ix = skin.words(skin.skin_css(rd(os.path.join(W, "index.html"))))
+    ix = ix.replace(' media="print" onload="this.media=\'all\'"', "")
+    diag = ("<script>(function(){function s(m){var d=document.getElementById('cq-err');if(!d){d=document.createElement('pre');d.id='cq-err';"
+            "d.style.cssText='position:fixed;z-index:99999;left:8px;right:8px;top:60px;background:#400;color:#fff;padding:10px;font:12px monospace;white-space:pre-wrap;border-radius:8px';"
+            "(document.body||document.documentElement).appendChild(d)}d.textContent+=m+'\\n'}"
+            "addEventListener('error',function(e){s((e.message||'erreur')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno)});"
+            "addEventListener('unhandledrejection',function(e){s('promesse: '+(e.reason&&e.reason.message||e.reason))})})();</script>")
+    ix = ix.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  ' + diag, 1)
+    ix = ix.replace("rgba(110,80,220,.26)", "rgba(47,123,255,.22)")
     ix = re.sub(r"dist/app\.min\.(js|css)\?v=[A-Za-z0-9]*", lambda m: "dist/app.min.%s?v=%s" % (m.group(1), h), ix)
     ix = ix.replace('<div id="chat" hidden></div>', '<div id="chat" hidden></div>\n  <div id="player" hidden></div>')
     ix = ix.replace('<meta name="apple-mobile-web-app-title" content="Casque">', '<meta name="apple-mobile-web-app-title" content="Casque">')

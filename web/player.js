@@ -21,7 +21,10 @@
   let db = null;
   function openDb() {
     return new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error("idb-timeout")), 4000); // Safari bloque parfois l'ouverture
       const r = indexedDB.open("casque", 1);
+      const ok = res;
+      res = (v) => { clearTimeout(to); ok(v); };
       r.onupgradeneeded = () => {
         const d = r.result;
         d.createObjectStore("tracks", { keyPath: "id" });
