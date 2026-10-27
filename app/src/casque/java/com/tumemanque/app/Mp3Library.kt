@@ -140,6 +140,21 @@ object Lib {
         _byId.value = l.associateBy { it.id }
     }
 
+    /** Ajoute un morceau téléchargé dans Casque (il apparaît tout de suite dans les Audios). */
+    // Morceaux téléchargés : on les garde même si Android ne les a pas encore analysés.
+    private val pinned: MutableSet<String> by lazy {
+        runCatching { val a = JSONArray(prefs().getString("pinned", "[]")); (0 until a.length()).map { a.getString(it) }.toMutableSet() }
+            .getOrDefault(mutableSetOf())
+    }
+
+    fun addTrack(t: Track) {
+        synchronized(pinned) { pinned.add(t.id); prefs().edit().putString("pinned", JSONArray(pinned.toList()).toString()).apply() }
+        if (t.id in hiddenTracks) { hiddenTracks = hiddenTracks - t.id; saveHidden() }
+        if (t.folder in hiddenDirs) { hiddenDirs = hiddenDirs - t.folder; saveHidden() }
+        publish(listOf(t) + _tracks.value.filterNot { it.id == t.id })
+        save()
+    }
+
     /** Retire des morceaux de Casque (le fichier reste sur le téléphone) : bibliothèque, playlists, favoris et file d'attente. */
     fun deleteTracks(ids: Collection<String>) {
         if (ids.isEmpty()) return
@@ -216,7 +231,7 @@ object Lib {
                 withTimeoutOrNull(40_000) { indexFiles(ctx, extra) }
             }
             val store = withContext(Dispatchers.IO) { queryStore(ctx) }
-            val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") }
+            val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") || it.id in pinned }
             val merged = (store + folderTracks).distinctBy { it.id }
             publish(merged)
             withContext(Dispatchers.IO) { save() }
@@ -253,7 +268,8 @@ object Lib {
                     }.awaitAll()
                 }
             }
-            val store = _tracks.value.filter { it.id.startsWith("content://media/") }
+            // On garde les morceaux connus d'Android et ceux téléchargés dans Casque.
+            val store = _tracks.value.filter { it.id.startsWith("content://media/") || it.id.startsWith("file://") }
             val merged = (store + found).distinctBy { it.id }
             publish(merged)
             withContext(Dispatchers.IO) { save() }
@@ -267,7 +283,7 @@ object Lib {
     suspend fun quickRefresh(ctx: Context) {
         if (_scan.value.running || !hasPermission(ctx)) return
         val store = withContext(Dispatchers.IO) { queryStore(ctx) }
-        val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") }
+        val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") || it.id in pinned }
         val merged = (store + folderTracks).distinctBy { it.id }
         if (visible(merged).map { it.id } != _tracks.value.map { it.id }) {
             publish(merged)

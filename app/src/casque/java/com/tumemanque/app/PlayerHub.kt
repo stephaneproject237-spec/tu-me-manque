@@ -56,9 +56,10 @@ object Art {
         val key = "${t.id}@$px"
         cache.get(key)?.let { return it }
         if (synchronized(misses) { key in misses }) return null
-        var bmp: Bitmap? = null
+        // Morceau téléchargé dans Casque : la pochette prise sur YouTube.
+        var bmp: Bitmap? = Covers.load(ctx, t.id, px)
         val uri = t.uri
-        if (Build.VERSION.SDK_INT >= 29 && t.id.startsWith("content://media/")) {
+        if (bmp == null && Build.VERSION.SDK_INT >= 29 && t.id.startsWith("content://media/")) {
             bmp = runCatching { ctx.contentResolver.loadThumbnail(uri, Size(px, px), null) }.getOrNull()
         }
         if (bmp == null && Build.VERSION.SDK_INT < 29 && t.albumId > 0) {

@@ -99,6 +99,9 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
     var searching by rememberSaveable { mutableStateOf(false) }
     var stack by remember { mutableStateOf(listOf<Detail>()) }
     var showNow by rememberSaveable { mutableStateOf(false) }
+    // Ouverture du lecteur demandée depuis le mini-lecteur flottant.
+    LaunchedEffect(Shell.openNow) { if (Shell.openNow > 0) { Shell.openNow = 0; showNow = true } }
+    LaunchedEffect(showNow) { Shell.nowOpen = showNow }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var pickFor by remember { mutableStateOf<List<String>?>(null) }
     var infoFor by remember { mutableStateOf<Track?>(null) }
@@ -162,13 +165,8 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                     RoundBtn(Ic.Delete, { deleteTracksFor = selected.toList() }, fill = P.danger, tint = Color.White)
                 }
             } else if (detail == null) {
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(38.dp).clip(CircleShape).background(Brush.linearGradient(listOf(P.blue, P.blueDeep))),
-                        contentAlignment = Alignment.Center,
-                    ) { CIcon(Ic.Headphones, Color.White, 22.dp) }
-                    Spacer(Modifier.width(10.dp))
-                    Text("Casque", color = P.text, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Audios", color = P.text, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp, modifier = Modifier.weight(1f))
                     RoundBtn(Ic.Search, { searching = !searching; if (!searching) query = ""; if (searching) tab = 0 }, fill = if (searching) P.blue else P.card, tint = if (searching) Color.White else P.text)
                     Spacer(Modifier.width(8.dp))
                     RoundBtn(Ic.Refresh, { scope.launch { if (Lib.hasPermission(ctx)) Lib.refreshAll(ctx) else scanPhone() } })
@@ -180,15 +178,15 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                 }
                 if (searching) {
                     Box(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(14.dp)).background(P.card)
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).glass(RoundedCornerShape(22.dp), 0.08f)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                     ) {
                         BasicTextField(
                             value = query, onValueChange = { query = it }, singleLine = true,
                             textStyle = TextStyle(color = P.text, fontSize = 16.sp), cursorBrush = SolidColor(P.blue),
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        if (query.isEmpty()) Text("Titre, artiste, album…", color = P.sub, fontSize = 16.sp)
+                        if (query.isEmpty()) Text("Chercher dans tes audios…", color = P.sub, fontSize = 16.sp)
                     }
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -293,9 +291,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                 }
             }
 
-            // ---------------------------------------------------------------- mini-lecteur
-            if (currentTrack != null) MiniPlayer(currentTrack) { showNow = true }
-            Spacer(Modifier.navigationBarsPadding())
+            // Le mini-lecteur et la barre d'onglets flottent par-dessus (voir CasqueShell).
         }
 
         AnimatedVisibility(
@@ -411,7 +407,7 @@ fun NameDialog(title: String, initial: String, ok: String, onCancel: () -> Unit,
 
 @Composable
 private fun Onboarding(message: String, onScan: () -> Unit, onFolder: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 32.dp + LocalBottomInset.current), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
             Modifier.size(110.dp).clip(CircleShape).background(Brush.linearGradient(listOf(P.blue, P.blueDeep))),
             contentAlignment = Alignment.Center,
@@ -442,7 +438,7 @@ private fun TrackList(
     onDelete: ((List<String>) -> Unit)? = null,
 ) {
     val selecting = selected.isNotEmpty()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
         if (header != null) item(key = "header") { header() }
         if (list.isEmpty()) item(key = "empty") {
             Text(empty, color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center)
@@ -474,7 +470,7 @@ private fun AlbumsGrid(tracks: List<Track>, onOpen: (String) -> Unit) {
     if (albums.isEmpty()) { Text("Aucun album", color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center); return }
     LazyVerticalGrid(
         GridCells.Fixed(2), Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp + LocalBottomInset.current),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         gridItems(albums, key = { it.first }) { (name, artist, l) ->
@@ -493,7 +489,7 @@ private fun AlbumsGrid(tracks: List<Track>, onOpen: (String) -> Unit) {
 private fun ArtistsList(tracks: List<Track>, onOpen: (String) -> Unit) {
     val artists = remember(tracks) { tracks.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() } }
     if (artists.isEmpty()) { Text("Aucun artiste", color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center); return }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
         items(artists, key = { it.first }) { (name, l) ->
             Row(Modifier.fillMaxWidth().clickable { onOpen(name) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(P.card2), contentAlignment = Alignment.Center) {
@@ -514,7 +510,7 @@ private fun ArtistsList(tracks: List<Track>, onOpen: (String) -> Unit) {
 private fun PlaylistsTab(
     tracks: List<Track>, playlists: List<Playlist>, favs: Set<String>, onOpen: (String) -> Unit, onNew: () -> Unit,
 ) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
         item {
             Row(Modifier.fillMaxWidth().clickable { onNew() }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(P.blue), contentAlignment = Alignment.Center) { CIcon(Ic.Add, Color.White, 28.dp) }
@@ -552,7 +548,7 @@ private fun FoldersTab(
 ) {
     val selecting = selectedDirs.isNotEmpty()
     val dirs = remember(tracks) { tracks.groupBy { it.folder }.toList().sortedBy { it.first.lowercase() } }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

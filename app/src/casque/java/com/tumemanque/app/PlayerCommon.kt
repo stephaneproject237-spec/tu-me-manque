@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -194,16 +195,19 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.clip(RoundedCornerShape(50)).background(if (selected) P.blue else P.card)
-            .combinedClickableSimple(onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+        (if (selected) Modifier.clip(RoundedCornerShape(50)).background(Brush.verticalGradient(listOf(P.blueSoft, P.blue)))
+        else Modifier.glass(RoundedCornerShape(50), 0.06f))
+            .pressable(onClick).padding(horizontal = 16.dp, vertical = 9.dp),
     ) { Text(label, color = if (selected) Color.White else P.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable
 fun BlueButton(label: String, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, outlined: Boolean = false, onClick: () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(50)).background(if (outlined) P.card else P.blue)
-            .combinedClickableSimple(onClick).padding(horizontal = 18.dp, vertical = 12.dp),
+        (if (outlined) modifier.glass(RoundedCornerShape(50), 0.07f)
+        else modifier.clip(RoundedCornerShape(50)).background(Brush.verticalGradient(listOf(P.blueSoft, P.blue)))
+            .border(0.7.dp, Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x00FFFFFF))), RoundedCornerShape(50)))
+            .pressable(onClick).padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) { CIcon(icon, if (outlined) P.blueSoft else Color.White, 18.dp); Spacer(Modifier.width(8.dp)) }

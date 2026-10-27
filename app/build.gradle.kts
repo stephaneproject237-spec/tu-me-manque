@@ -43,6 +43,9 @@ android {
             buildConfigField("String", "WEB_URL", "\"https://stephaneproject237-spec.github.io/tu-me-manque/casque/\"")
             buildConfigField("String", "OAUTH_SCHEME", "\"casque\"")
             manifestPlaceholders["scheme"] = "casque"
+            // Le moteur de téléchargement (Python + yt-dlp + FFmpeg) demande Android 7 minimum.
+            minSdk = 24
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
 
@@ -60,6 +63,11 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+    }
+
+    // Les bibliothèques natives du moteur doivent être extraites à l'installation.
+    packaging {
+        jniLibs { useLegacyPackaging = true }
     }
 
     buildFeatures {
@@ -125,4 +133,12 @@ dependencies {
     "casqueImplementation"("androidx.media3:media3-exoplayer:1.4.1")
     "casqueImplementation"("androidx.media3:media3-session:1.4.1")
     "casqueImplementation"("androidx.documentfile:documentfile:1.0.1")
+    "casqueImplementation"("androidx.media3:media3-ui:1.4.1")
+
+    // Recherche et téléchargements YouTube (yt-dlp + FFmpeg embarqués).
+    "casqueImplementation"("io.github.junkfood02.youtubedl-android:library:0.17.3")
+    "casqueImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3")
+
+    // Effet « verre » flou façon iOS 26.
+    "casqueImplementation"("dev.chrisbanes.haze:haze:1.0.0")
 }
