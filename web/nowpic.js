@@ -4,7 +4,7 @@
   const A = () => window.TMM_API;
   const rpc = (n, b) => A().authed("POST", "/rest/v1/rpc/" + n, b || {});
   const handled = new Set(), toasted = new Set();
-  let box = null, cur = null, timer = null, busy = false;
+  let auto = false, box = null, cur = null, timer = null, busy = false;
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const partner = () => (A() && A().partner && A().partner()) || "";
@@ -22,7 +22,7 @@
     if (!s) { ui(""); return; }
     if (s.state === "pending" && !s.by_me) {
       ui('<div class="np-card"><div class="np-ic">📸</div><b>@' + esc(partner()) + ' veut faire un Now Pic !</b><span>Une photo prise en même temps, tout de suite. On y va ?</span>' +
-        '<button class="np-yes" data-n="yes">Oui, allons-y 📸</button><button class="np-no" data-n="no">Pas maintenant</button></div>');
+        '<button class="np-yes" data-n="yes">Oui, toujours 📸</button><button class="np-once" data-n="once">Oui, seulement cette fois</button><button class="np-no" data-n="no">Pas maintenant</button><small>« Toujours » : vos prochains Now Pic s\'ouvrent sans redemander. Tu peux couper ça dans le menu ⚡.</small></div>');
     } else if (s.state === "pending" && s.by_me) {
       ui('<div class="np-wait">⏳ Now Pic envoyé à @' + esc(partner()) + '… <button data-n="cancel">Annuler</button></div>');
     } else if (s.state === "declined" && s.by_me) {
@@ -43,7 +43,7 @@
     busy = true;
     try {
       const j = await rpc("nowpic_state");
-      if (j && j.status === "ok") { cur = j.session || null; paint(); }
+      if (j && j.status === "ok") { cur = j.session || null; auto = !!j.auto; paint(); }
     } catch (e) { /* hors ligne */ }
     busy = false;
   }
@@ -52,7 +52,8 @@
     if (!t || !cur) return;
     const a = t.dataset.n;
     try {
-      if (a === "yes") await rpc("nowpic_respond", { p_id: cur.id, p_accept: true });
+      if (a === "yes") { await rpc("nowpic_respond", { p_id: cur.id, p_accept: true, p_always: true }); auto = true; }
+      else if (a === "once") await rpc("nowpic_respond", { p_id: cur.id, p_accept: true, p_always: false });
       else if (a === "no") await rpc("nowpic_respond", { p_id: cur.id, p_accept: false });
       else if (a === "cancel") await rpc("nowpic_cancel", { p_id: cur.id });
     } catch (e) { toast("Connexion impossible. Réessaie."); }
@@ -66,8 +67,11 @@
       else toast("Impossible d'envoyer le Now Pic.");
     } catch (e) { toast("Connexion impossible. Réessaie."); }
   }
+  async function autoOff() {
+    try { await rpc("nowpic_auto_off"); auto = false; toast("Now Pic automatique coupé : il faudra de nouveau un Oui à chaque fois."); } catch (e) { toast("Connexion impossible. Réessaie."); }
+  }
   function init() { clearInterval(timer); timer = setInterval(poll, 2500); poll(); }
-  window.TMM_NOW = { request, init, poll };
+  window.TMM_NOW = { request, init, poll, autoOff, isAuto: () => auto };
   const tryInit = () => { if (A()) init(); else setTimeout(tryInit, 500); };
   tryInit();
 })();
