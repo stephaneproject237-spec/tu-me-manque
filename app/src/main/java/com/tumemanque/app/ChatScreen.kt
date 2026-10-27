@@ -307,7 +307,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                         beginRecording()
                     } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
-                onPhoto = { showCam = true },
+                onPhoto = { showHot = true },
                 onSend = {
                     val em = editing
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
@@ -354,20 +354,18 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             confirmButton = { TextButton(onClick = { confirmDel = false }) { Text("Annuler", color = Color.Gray) } },
         )
     }
-    if (showCam) {
-        CameraChoice(
-            onDismiss = { showCam = false },
-            onPhoto = { showCam = false; withCam { takePicture.launch(newCamFile(".jpg").second) } },
-            onVideo = { showCam = false; withCam { captureVideo.launch(newCamFile(".mp4").second) } },
-            onGallery = { showCam = false; photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
-        )
-    }
     if (askText) SendChoiceSheet("Envoyer ce message", canOnce = true) { o -> askText = false; if (o != null) { vm.sendText(text, o); text = "" } }
     askVideo?.let { (f, mt) -> SendChoiceSheet("Envoyer cette vidéo", canOnce = true) { o -> askVideo = null; if (o != null) vm.sendVideoFile(f, mt, o) } }
     if (showSched) ScheduledListDialog { showSched = false }
-    if (showHot) HotPicFlow("Hot pic", onResult = { ph, once -> vm.sendEdited(ph, once) }, onClose = { showHot = false })
+    if (showHot) HotPicFlow(
+        "", icon = null, allowSched = true,
+        onVideoRecord = { withCam { captureVideo.launch(newCamFile(".mp4").second) } },
+        onVideoPicked = { uri, mime -> vm.onVideoPicked(context.applicationContext, uri, mime) { f, mt -> askVideo = f to mt } },
+        onResult = { ph, once, at -> vm.sendEdited(ph, once, at) },
+        onClose = { showHot = false },
+    )
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
-    state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showCam = true }) }
+    state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showHot = true }) }
     viewer?.let { m -> if (m.once) OnceViewer(m, vm) { viewer = null } else if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }
 }
 

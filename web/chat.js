@@ -689,7 +689,7 @@
       o.start(t0); o.stop(t0 + 0.24);
     } catch (e) { /* ignoré */ }
   }
-  // Son d'envoi : « pop » doux et grave (≈ 0,3 s) qui monte légèrement, avec un petit souffle au départ.
+  // Son d'envoi : « pop » doux et grave (≈ 0,3 s), une seule note pure qui monte légèrement.
   function sentSound() {
     try {
       unlockAudio();
@@ -706,13 +706,7 @@
         const v = actx.createGain(); v.gain.value = vol;
         o.connect(g); g.connect(v); v.connect(out); o.start(t0); o.stop(t0 + D + 0.02);
       };
-      tone(1, 1); tone(2, 0.12);
-      const nb = actx.createBuffer(1, Math.floor(actx.sampleRate * 0.14), actx.sampleRate), d = nb.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-      const ns = actx.createBufferSource(); ns.buffer = nb;
-      const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600;
-      const ng = actx.createGain(); ng.gain.value = 0.12;
-      ns.connect(lp); lp.connect(ng); ng.connect(out); ns.start(t0);
+      tone(1, 1);
     } catch (e) { /* ignoré */ }
   }
   const popSound = () => {};
@@ -1522,7 +1516,15 @@
       case "mic": startRec(); break;
       case "recCancel": stopRec(false); break;
       case "recSend": stopRec(true); break;
-      case "attach": $("ch-cam").hidden = false; break;
+      case "attach":
+        if (window.TMM_HOT) window.TMM_HOT.start({
+          allowVideo: true,
+          onResult: (r) => sendImage(r.blob, r.w, r.h, "", { once: !!r.once, at: r.at ? new Date(r.at) : null }),
+          onVideoCapture: () => $("ch-filev").click(),
+          onVideo: async (f) => { const o = await window.TMM_X.choose({ title: "Envoyer cette vidéo", canOnce: true }); if (o) sendVideo(f, o); },
+        });
+        else $("ch-cam").hidden = false;
+        break;
       case "camClose": if (ev.target === t || t.classList.contains("ch-wpclose")) $("ch-cam").hidden = true; break;
       case "camPhoto": $("ch-cam").hidden = true; $("ch-filep").click(); ev.stopPropagation(); break;
       case "camVideo": $("ch-cam").hidden = true; $("ch-filev").click(); ev.stopPropagation(); break;

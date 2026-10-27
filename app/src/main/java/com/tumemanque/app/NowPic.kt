@@ -99,7 +99,7 @@ fun NowPicHost(label: String) {
     if (!NowPic.camera && s != null && s.state == "pending" && !s.byMe) {
         Dialog(onDismissRequest = {}) {
             Column(
-                Modifier.fillMaxWidth(0.84f).glassSurface(RoundedCornerShape(38.dp), listOf(Color(0xE6786A76), Color(0xF0322230))).padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 20.dp),
+                Modifier.fillMaxWidth(0.84f).softEnter().glassSurface(RoundedCornerShape(38.dp), listOf(Color(0xE6786A76), Color(0xF0322230))).padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.size(72.dp).glassSurface(CircleShape, listOf(Color(0xFFFF5F96), Color(0xCCFF2D78))), Alignment.Center) { Ico(R.drawable.ic_nowpic, Color.White, 38.dp) }
@@ -134,7 +134,7 @@ fun NowPicHost(label: String) {
     if (NowPic.camera) {
         HotPicFlow(
             "Now Pic", R.drawable.ic_nowpic,
-            onResult = { ph, once ->
+            onResult = { ph, once, _ ->
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { NowPic.sendPhoto(ph, once) }
                     NowPic.toast = if (ok) "Photo envoyée !" else "Photo non envoyée. Vérifie ta connexion."

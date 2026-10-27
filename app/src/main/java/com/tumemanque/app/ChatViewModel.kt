@@ -511,8 +511,8 @@ class ChatViewModel : ViewModel() {
     }
 
     /** Photo retouchée (Hot pic / Now pic) : permanente ou éphémère. */
-    fun sendEdited(ph: PreparedPhoto, once: Boolean) {
-        viewModelScope.launch { sendPhotoBytes(ph, null, if (once) SendOpts(once = true) else null) }
+    fun sendEdited(ph: PreparedPhoto, once: Boolean, at: Long = 0) {
+        viewModelScope.launch { sendPhotoBytes(ph, null, if (once || at > 0) SendOpts(once = once, at = at) else null) }
     }
 
     /** Envoie une photo déjà prête (normale, éphémère ou programmée). */

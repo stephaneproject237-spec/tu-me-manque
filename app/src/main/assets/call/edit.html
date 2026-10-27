@@ -5,18 +5,18 @@
 <link rel="stylesheet" href="photoedit.css">
 <style>html,body{margin:0;height:100%;background:#0c0709;overflow:hidden;position:relative}</style>
 </head><body>
-<script>window.onerror=function(m){var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;z-index:99;color:#fff;background:#a00;padding:10px;border-radius:12px;font:13px sans-serif';d.textContent='Erreur: '+m;document.body.appendChild(d)};</script>
-<script>try{Native.ready();}catch(e){}</script>
+<script>window.onerror=function(m){try{Native.stage('ERREUR '+m);}catch(x){}var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;z-index:99;color:#fff;background:#a00;padding:10px;border-radius:12px;font:13px sans-serif';d.textContent='Erreur: '+m;document.body.appendChild(d)};</script>
+<script>try{Native.stage("page");}catch(e){}</script>
 <script src="emoji.js"></script>
 <script src="ios.js"></script>
 <script src="photoedit.js"></script>
 <script>
   // Éditeur de photo de l'appli Android : même code que le web. La photo arrive par adresse, le résultat repart vers l'appli (objet Native).
   const q = new URLSearchParams(location.search);
-  TMM_EDIT.open(q.get("src"), { title: q.get("title") || "Retouche", parent: document.body }).then((r) => {
+  TMM_EDIT.open(q.get("src"), { title: q.get("title") || "", parent: document.body, sched: q.get("sched") !== "0" }).then((r) => {
     if (!r) { Native.cancel(); return; }
     const fr = new FileReader();
-    fr.onload = () => Native.done(String(fr.result).split(",")[1] || "", r.w, r.h, !!r.once);
+    fr.onload = () => Native.done(String(fr.result).split(",")[1] || "", r.w, r.h, !!r.once, Number(r.at) || 0);
     fr.readAsDataURL(r.blob);
   }).catch((e) => { var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;color:#fff;background:#a00;padding:10px;border-radius:12px;font:13px sans-serif';d.textContent='Erreur: '+e; document.body.appendChild(d); });
 </script>

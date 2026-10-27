@@ -80,16 +80,35 @@ import java.net.URLEncoder
  * [onResult] reçoit la photo finale et le choix « éphémère ou permanent ».
  */
 @Composable
-fun HotPicFlow(title: String, icon: Int = R.drawable.ic_flame, onResult: (PreparedPhoto, Boolean) -> Unit, onClose: () -> Unit) {
+fun HotPicFlow(
+    title: String, icon: Int? = R.drawable.ic_flame, allowSched: Boolean = false,
+    onVideoRecord: (() -> Unit)? = null, onVideoPicked: ((Uri, String) -> Unit)? = null,
+    onResult: (PreparedPhoto, Boolean, Long) -> Unit, onClose: () -> Unit,
+) {
     var shot by remember { mutableStateOf<File?>(null) }
-    val f = shot
-    if (f == null) HotCamera(title, icon, onShot = { shot = it }, onClose = onClose)
-    else PhotoEditor(f, title, onResult = { ph, once -> onResult(ph, once); onClose() }, onCancel = { shot = null })
+    BackHandler { if (shot != null) shot = null else onClose() }
+    // Une seule fenêtre pour la caméra et la retouche : fondu enchaîné, jamais de « trou » noir entre les deux.
+    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    Dialog(onDismissRequest = { if (shot != null) shot = null else onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black).graphicsLayer {
+                alpha = enter.value
+                val k = 1.04f - 0.04f * enter.value
+                scaleX = k; scaleY = k
+            },
+        ) {
+            androidx.compose.animation.Crossfade(targetState = shot, animationSpec = androidx.compose.animation.core.tween(320), label = "hotflow") { f ->
+                if (f == null) HotCamera(title, icon, onVideoRecord, onVideoPicked, onShot = { shot = it }, onClose = onClose)
+                else PhotoEditor(f, title, allowSched, onResult = { ph, once, at -> onResult(ph, once, at); onClose() }, onCancel = { shot = null })
+            }
+        }
+    }
 }
 
 @SuppressLint("UnsafeOptInUsageWarning")
 @Composable
-private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose: () -> Unit) {
+private fun HotCamera(title: String, icon: Int?, onVideoRecord: (() -> Unit)?, onVideoPicked: ((Uri, String) -> Unit)?, onShot: (File) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     var allowed by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
@@ -127,22 +146,23 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
     }
 
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) {
+        val mime = if (uri != null) context.contentResolver.getType(uri) ?: "" else ""
+        if (uri != null && mime.startsWith("video/") && onVideoPicked != null) { onVideoPicked(uri, mime); onClose() }
+        else if (uri != null) {
             val out = File.createTempFile("pick", ".jpg", File(context.cacheDir, "cam").apply { mkdirs() })
             val ok = runCatching { context.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { i.copyTo(it) } } }.isSuccess
             if (ok && out.length() > 0) onShot(out) else error = "Impossible de lire cette photo."
         }
     }
 
-    BackHandler { onClose() }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    var videoMode by remember { mutableStateOf(false) }
+    run {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (allowed) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
             Box(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp)) {
                 GlassCircle(44.dp, Modifier.align(Alignment.CenterStart), onClick = { onClose() }) { Ico(R.drawable.ic_xmark, Color.White, 20.dp) }
-                GlassPill(Modifier.align(Alignment.Center), height = 38.dp, onClick = null) {
-                    Ico(icon, Color(0xFFFFB454), 18.dp)
-                    Spacer(Modifier.width(7.dp))
+                if (title.isNotEmpty()) GlassPill(Modifier.align(Alignment.Center), height = 38.dp, onClick = null) {
+                    if (icon != null) { Ico(icon, Color(0xFFFFB454), 18.dp); Spacer(Modifier.width(7.dp)) }
                     Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
             }
@@ -151,13 +171,28 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
                 color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(32.dp),
             )
             error?.let { Text(it, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(32.dp)) }
+            if (onVideoRecord != null) {
+                Row(
+                    Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 156.dp).glassSurface(RoundedCornerShape(50), listOf(Color(0x40000000), Color(0x30000000))).padding(3.dp),
+                ) {
+                    listOf("Photo" to false, "Vidéo" to true).forEach { (t, v) ->
+                        val on = videoMode == v
+                        Box(
+                            Modifier.clip(RoundedCornerShape(50)).background(if (on) Color(0x59FFFFFF) else Color.Transparent)
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { videoMode = v }
+                                .padding(horizontal = 22.dp, vertical = 7.dp),
+                            Alignment.Center,
+                        ) { Text(t, color = if (on) Color.White else Color(0xB3FFFFFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    }
+                }
+            }
             // 3 colonnes égales : galerie à gauche, déclencheur pile au centre, caméra à droite.
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 64.dp, start = 28.dp, end = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f), Alignment.CenterStart) {
-                    GlassCircle(52.dp, onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Ico(R.drawable.ic_photos, Color.White, 24.dp) }
+                    GlassCircle(52.dp, onClick = { gallery.launch(PickVisualMediaRequest(if (onVideoPicked != null) ActivityResultContracts.PickVisualMedia.ImageAndVideo else ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Ico(R.drawable.ic_photos, Color.White, 24.dp) }
                 }
                 val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                 val down by src.collectIsPressedAsState()
@@ -165,7 +200,8 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
                 Box(Modifier.size(80.dp).clip(CircleShape).border(4.dp, Color.White.copy(alpha = 0.95f), CircleShape), Alignment.Center) {
                     Box(
                         Modifier.size(62.dp).graphicsLayer { scaleX = k; scaleY = k }.clip(CircleShape).background(if (busy) Color(0xFFBBBBBB) else Color.White)
-                            .clickable(interactionSource = src, indication = null, enabled = allowed && !busy) {
+                            .clickable(interactionSource = src, indication = null, enabled = (allowed || videoMode) && !busy) {
+                                if (videoMode) { onVideoRecord?.invoke(); onClose(); return@clickable }
                                 busy = true
                                 val file = File.createTempFile("hot", ".jpg", File(context.cacheDir, "cam").apply { mkdirs() })
                                 capture.takePicture(
@@ -187,16 +223,19 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
     }
 }
 
-private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val onCancel: () -> Unit, val onReady: () -> Unit = {}) {
+private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean, Long) -> Unit, val onCancel: () -> Unit, val onReady: () -> Unit = {}, val onStage: (String) -> Unit = {}) {
     private val main = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
     fun ready() { main.post { onReady() } }
 
     @JavascriptInterface
-    fun done(b64: String, w: Int, h: Int, once: Boolean) {
+    fun stage(s: String) { main.post { onStage(s) } }
+
+    @JavascriptInterface
+    fun done(b64: String, w: Int, h: Int, once: Boolean, at: Double) {
         val bytes = try { Base64.decode(b64, Base64.DEFAULT) } catch (e: Exception) { ByteArray(0) }
-        main.post { if (bytes.isEmpty()) onCancel() else onDone(bytes, w, h, once) }
+        main.post { if (bytes.isEmpty()) onCancel() else onDone(bytes, w, h, once, at.toLong()) }
     }
 
     @JavascriptInterface
@@ -206,12 +245,12 @@ private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val
 /** L'éditeur de photo (le même code que sur le web) dans une page de l'appli. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boolean) -> Unit, onCancel: () -> Unit) {
-    BackHandler { onCancel() }
+private fun PhotoEditor(file: File, title: String, allowSched: Boolean, onResult: (PreparedPhoto, Boolean, Long) -> Unit, onCancel: () -> Unit) {
     var pageReady by remember { mutableStateOf(false) }
     var stuck by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(7000); if (!pageReady) stuck = true }
-    Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    var stage by remember { mutableStateOf("") }
+    run {
         Box(Modifier.fillMaxSize().background(Color(0xFF0C0709)).statusBarsPadding().navigationBarsPadding().imePadding()) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -233,15 +272,16 @@ private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boo
                                 return true
                             }
                         }
-                        addJavascriptInterface(EditBridge({ bytes, w, h, once -> onResult(PreparedPhoto(bytes, w, h), once) }, onCancel, { pageReady = true }), "Native")
+                        addJavascriptInterface(EditBridge({ bytes, w, h, once, at -> onResult(PreparedPhoto(bytes, w, h), once, at) }, onCancel, { pageReady = true }, { stage = it }), "Native")
                         val src = "https://appassets.androidplatform.net/cam/" + URLEncoder.encode(file.name, "UTF-8")
-                        loadUrl("https://appassets.androidplatform.net/assets/call/edit.html?src=${URLEncoder.encode(src, "UTF-8")}&title=${URLEncoder.encode(title, "UTF-8")}")
+                        loadUrl("https://appassets.androidplatform.net/assets/call/edit.html?src=${URLEncoder.encode(src, "UTF-8")}&title=${URLEncoder.encode(title, "UTF-8")}&sched=${if (allowSched) 1 else 0}")
                     }
                 },
                 onRelease = { runCatching { it.destroy() } },
             )
             if (stuck && !pageReady) Column(Modifier.fillMaxSize().background(Color(0xFF0C0709)).padding(30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
                 Text("L'éditeur n'a pas pu s'ouvrir.", color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center)
+                if (stage.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text("Étape : $stage", color = Color(0x99FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center) }
                 Spacer(Modifier.height(16.dp))
                 GlassPill(onClick = onCancel) { Text("Fermer", color = Color.White, fontWeight = FontWeight.SemiBold) }
             }
@@ -283,4 +323,17 @@ internal fun GlassPill(
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
     ) { content() }
+}
+
+/** Entrée douce d'une fenêtre : elle grossit légèrement avec un petit rebond et apparaît en fondu. */
+@Composable
+internal fun Modifier.softEnter(): Modifier {
+    val p = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) { p.animateTo(1f, androidx.compose.animation.core.spring(0.7f, 420f)) }
+    return this.graphicsLayer {
+        val v = p.value
+        val k = 0.88f + 0.12f * v
+        scaleX = k; scaleY = k
+        alpha = v.coerceIn(0f, 1f)
+    }
 }

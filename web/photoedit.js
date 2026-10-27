@@ -219,11 +219,14 @@
   const TABS = [["filtres", "filters", "Filtres"], ["texte", "text", "Texte"], ["dessin", "pencil", "Dessin"], ["stickers", "smile", "Stickers"], ["tape", "tape", "Tape"]];
   const DRAW_SIZES = [.007, .014, .026];
 
+  const st = (t) => { try { window.Native && window.Native.stage && window.Native.stage(String(t)); } catch (e) { /* ignoré */ } };
+
   function open(source, opts) {
     opts = opts || {};
     return new Promise(async (resolve) => {
       let B;
       // On affiche tout de suite un écran « Chargement » : jamais d'écran noir muet.
+      st("chargement de la photo");
       const wait = $e("div", "pe" + (opts.fixed ? " fixed" : ""), '<div class="pe-load"><span>Chargement de la photo…</span></div>');
       (opts.parent || document.body).appendChild(wait);
       try {
@@ -234,6 +237,7 @@
         return;
       }
       wait.remove();
+      st("photo " + B.width + "x" + B.height);
       const ps = Math.min(1, PREVIEW / Math.max(B.width, B.height));
       const PW = Math.round(B.width * ps), PH = Math.round(B.height * ps);
       const P = document.createElement("canvas"); P.width = PW; P.height = PH; P.getContext("2d").drawImage(B, 0, 0, PW, PH);
@@ -245,11 +249,11 @@
       root.innerHTML =
         '<div class="pe-stage"><canvas class="pe-cv"></canvas></div>' +
         '<div class="pe-top"><button class="glass round" data-p="cancel" aria-label="Fermer">' + I("xmark", 20) + '</button>' +
-        '<div class="pe-title glass pill">' + esc(opts.title || "Retouche") + '</div>' +
+        '<div class="pe-title glass pill">' + esc(opts.title || "") + '</div>' +
         '<div class="pe-topr"><button class="glass round" data-p="undo" aria-label="Annuler le dernier ajout" hidden>' + I("undo", 20) + '</button><button class="glass round danger" data-p="del" aria-label="Supprimer" hidden>' + I("trash", 20) + '</button></div></div>' +
         '<div class="pe-dock"><div class="pe-panel glass" id="pe-panel"></div>' +
         '<div class="pe-tabs glass pill" id="pe-tabs"><i class="lens"></i>' + TABS.map((t, i) => '<button data-p="tab" data-t="' + t[0] + '" data-i="' + i + '" aria-label="' + t[2] + '">' + I(t[1], 24) + "</button>").join("") + "</div>" +
-        '<div class="pe-send"><button class="glass pill hot" data-p="once">' + I("flame", 19) + '<span>Éphémère</span></button><button class="glass pill tint" data-p="send">' + I("send", 19) + "<span>Envoyer</span></button></div></div>" +
+        '<div class="pe-send' + (opts.sched === false ? " nosched" : "") + '">' + (opts.sched === false ? "" : '<button class="glass round big" data-p="sched" aria-label="Programmer l\'envoi">' + I("clock", 22) + "</button>") + '<button class="glass pill hot" data-p="once">' + I("flame", 19) + '<span>Éphémère</span></button><button class="glass pill tint" data-p="send">' + I("send", 19) + "<span>Envoyer</span></button></div></div>" +
         '<div class="pe-tx" hidden></div>';
       if (opts.fixed) root.classList.add("fixed");
       (opts.parent || document.body).appendChild(root);
@@ -417,8 +421,35 @@
       cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
       cv.addEventListener("wheel", (e) => { if (sel) { e.preventDefault(); sel.scl = Math.max(.15, Math.min(6, (sel.scl || 1) * (e.deltaY < 0 ? 1.08 : .92))); render(); } }, { passive: false });
 
+      // ----- Programmer l'envoi -----
+      const pad2 = (n) => String(n).padStart(2, "0");
+      const localIn = (d) => d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+      function pickTime() {
+        return new Promise((res) => {
+          const now = new Date(), at = (h, add) => { const d = new Date(now); d.setDate(d.getDate() + add); d.setHours(h, 0, 0, 0); return d; };
+          const ps = [["Dans 1 heure", new Date(now.getTime() + 3600000)]];
+          if (now.getHours() < 20) ps.push(["Ce soir · 20:00", at(20, 0)]);
+          ps.push(["Demain · 08:00", at(8, 1)], ["Demain · 20:00", at(20, 1)]);
+          const sh = $e("div", "pe-sheet");
+          sh.innerHTML = '<div class="pe-card glass"><b>Programmer l\'envoi</b>' +
+            ps.map((p, i) => '<button class="pe-opt" data-s="p' + i + '">' + I("clock", 18) + "<span>" + p[0] + "</span></button>").join("") +
+            '<div class="pe-dt"><input type="datetime-local" min="' + localIn(new Date(Date.now() + 60000)) + '" value="' + localIn(ps[0][1]) + '"></div>' +
+            '<button class="glass pill tint big" data-s="go"><span>Programmer</span></button><button class="glass pill big" data-s="no"><span>Annuler</span></button></div>';
+          const end = (v) => { sh.remove(); res(v); };
+          sh.addEventListener("click", (ev) => {
+            const t = ev.target.closest("[data-s]");
+            if (!t) { if (ev.target === sh) end(null); return; }
+            const k = t.dataset.s;
+            if (k === "no") end(null);
+            else if (k === "go") { const d = new Date(sh.querySelector("input").value); if (!isNaN(d) && d.getTime() > Date.now() + 5000) end(d); else sh.querySelector("input").classList.add("bad"); }
+            else end(ps[Number(k.slice(1))][1]);
+          });
+          root.appendChild(sh);
+        });
+      }
+
       // ----- Export -----
-      const finish = async (once) => {
+      const finish = async (once, at) => {
         let blob = null, W = B.width, H = B.height;
         for (const k of [1, .75, .55]) {
           W = Math.round(B.width * k); H = Math.round(B.height * k);
@@ -430,7 +461,7 @@
           } catch (e) { blob = null; }
           if (blob && blob.size > 2000) break;
         }
-        done(blob ? { blob, w: W, h: H, once: !!once } : null);
+        done(blob ? { blob, w: W, h: H, once: !!once, at: at ? at.getTime() : 0 } : null);
       };
       const done = (v) => { root.remove(); resolve(v); };
 
@@ -441,6 +472,7 @@
         if (a === "cancel") done(null);
         else if (a === "send") { t.disabled = true; finish(false); }
         else if (a === "once") { t.disabled = true; finish(true); }
+        else if (a === "sched") { pickTime().then((d) => { if (d) { root.querySelectorAll(".pe-send button").forEach((b) => { b.disabled = true; }); finish(false, d); } }); }
         else if (a === "tab") { setTab(t.dataset.t); if (t.dataset.t === "texte" && !(sel && sel.t === "text")) compose(null); }
         else if (a === "filter") { fi = Number(t.dataset.i); applyFilterPreview(); render(); panel.querySelectorAll(".pe-f").forEach((b, i) => b.classList.toggle("on", i === fi)); }
         else if (a === "del") { if (sel) { items = items.filter((x) => x !== sel); sel = null; render(); if (tab === "texte") fillPanel(); } }
@@ -457,6 +489,7 @@
       });
 
       applyFilterPreview(); render(); setTab("filtres");
+      try { window.Native && window.Native.ready && window.Native.ready(); } catch (e) { /* ignoré */ }
       root._test = { items: () => items, compose, setTab };
     });
   }

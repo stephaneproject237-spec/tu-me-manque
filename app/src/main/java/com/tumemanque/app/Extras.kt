@@ -105,6 +105,7 @@ fun SendChoiceSheet(title: String, canOnce: Boolean, startOnce: Boolean = false,
     var step by remember { mutableStateOf(0) }
     var once by remember { mutableStateOf(startOnce) }
     androidx.compose.material3.AlertDialog(
+        modifier = Modifier.softEnter(),
         onDismissRequest = { onResult(null) },
         containerColor = Color(0xF2261820),
         shape = RoundedCornerShape(24.dp),
