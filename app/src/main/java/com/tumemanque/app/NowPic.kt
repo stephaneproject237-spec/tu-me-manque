@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -51,7 +54,7 @@ object NowPic {
     suspend fun request(): String {
         val st = try { Backend.nowpicRequest() } catch (e: Exception) { "net" }
         return when (st) {
-            "ok" -> { poll(); "📸 Now Pic envoyé." }
+            "ok" -> { poll(); "Now Pic envoyé." }
             "no_partner" -> "Vous n'êtes plus partenaires."
             "net" -> "Connexion impossible. Réessaie."
             else -> "Impossible d'envoyer le Now Pic."
@@ -96,45 +99,45 @@ fun NowPicHost(label: String) {
     if (!NowPic.camera && s != null && s.state == "pending" && !s.byMe) {
         Dialog(onDismissRequest = {}) {
             Column(
-                Modifier.clip(RoundedCornerShape(26.dp)).background(Color(0xF5241620)).padding(24.dp),
+                Modifier.fillMaxWidth(0.84f).glassSurface(RoundedCornerShape(38.dp), listOf(Color(0xE6786A76), Color(0xF0322230))).padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("📸", fontSize = 52.sp)
-                Spacer(Modifier.height(8.dp))
-                Text("@$partner veut faire un Now Pic !", color = Color(0xFFF5EEF2), fontSize = 19.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Box(Modifier.size(72.dp).glassSurface(CircleShape, listOf(Color(0xFFFF5F96), Color(0xCCFF2D78))), Alignment.Center) { Ico(R.drawable.ic_nowpic, Color.White, 38.dp) }
+                Spacer(Modifier.height(12.dp))
+                Text("@$partner veut faire un Now Pic", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(6.dp))
-                Text("Une photo prise en même temps, tout de suite. On y va ?", color = Color(0xB3F5EEF2), fontSize = 14.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))))
-                        .clickable { scope.launch { try { Backend.nowpicRespond(s.id, true) } catch (e: Exception) { /* ignoré */ }; NowPic.poll(partner) } }.padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("Oui, allons-y 📸", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { scope.launch { try { Backend.nowpicRespond(s.id, false) } catch (e: Exception) { /* ignoré */ }; NowPic.session = null } }) {
-                    Text("Pas maintenant", color = Color(0xFFD8B8C8))
-                }
+                Text("Une photo prise en même temps, tout de suite. On y va ?", color = Color(0xC7FFFFFF), fontSize = 14.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(18.dp))
+                GlassPill(Modifier.fillMaxWidth(), height = 50.dp, tint = listOf(Color(0xFFFF5F96), Color(0xCCFF2D78)), onClick = {
+                    scope.launch { try { Backend.nowpicRespond(s.id, true) } catch (e: Exception) { /* ignoré */ }; NowPic.poll(partner) }
+                }) { Text("Oui, allons-y", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
+                Spacer(Modifier.height(10.dp))
+                GlassPill(Modifier.fillMaxWidth(), height = 50.dp, onClick = {
+                    scope.launch { try { Backend.nowpicRespond(s.id, false) } catch (e: Exception) { /* ignoré */ }; NowPic.session = null }
+                }) { Text("Pas maintenant", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
             }
         }
     }
     if (!NowPic.camera && s != null && s.state == "pending" && s.byMe) {
         Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp), Alignment.BottomCenter) {
-            Row(
-                Modifier.clip(RoundedCornerShape(22.dp)).background(Color(0xEB241620)).padding(start = 14.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("⏳ Now Pic envoyé à @$partner…", color = Color(0xFFF5EEF2), fontSize = 14.sp)
-                TextButton(onClick = { scope.launch { try { Backend.nowpicCancel(s.id) } catch (e: Exception) { /* ignoré */ }; NowPic.session = null } }) { Text("Annuler", color = Color(0xFFFF8FB4)) }
+            GlassPill(height = 48.dp, tint = listOf(Color(0xE6504650), Color(0xE6342A34)), onClick = null) {
+                Ico(R.drawable.ic_timer, Color.White, 20.dp)
+                Spacer(Modifier.width(10.dp))
+                Text("En attente de @$partner…", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(10.dp))
+                GlassPill(height = 34.dp, onClick = { scope.launch { try { Backend.nowpicCancel(s.id) } catch (e: Exception) { /* ignoré */ }; NowPic.session = null } }) {
+                    Text("Annuler", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
     if (NowPic.camera) {
         HotPicFlow(
-            "📸 Now Pic — maintenant !",
+            "Now Pic", R.drawable.ic_nowpic,
             onResult = { ph, once ->
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { NowPic.sendPhoto(ph, once) }
-                    NowPic.toast = if (ok) "📸 Photo envoyée !" else "Photo non envoyée. Vérifie ta connexion."
+                    NowPic.toast = if (ok) "Photo envoyée !" else "Photo non envoyée. Vérifie ta connexion."
                 }
             },
             onClose = { NowPic.camera = false },

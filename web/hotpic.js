@@ -7,9 +7,12 @@
   function start(opts) {
     opts = opts || {};
     const root = $e("div", "hp");
-    root.innerHTML = '<video class="hp-v" autoplay playsinline muted></video><div class="hp-top"><button class="hp-x" data-h="close" aria-label="Fermer">✕</button><b>' + (opts.title || "Photo") + '</b><span></span></div>' +
-      '<div class="hp-msg" hidden></div>' +
-      '<div class="hp-bar"><button class="hp-side" data-h="gal" aria-label="Galerie">🖼</button><button class="hp-shutter" data-h="shot" aria-label="Prendre la photo"><i></i></button><button class="hp-side" data-h="flip" aria-label="Changer de caméra">🔄</button></div>' +
+    const ic = (n, z) => (window.IOS ? window.IOS.icon(n, z) : "");
+    root.innerHTML = '<video class="hp-v" autoplay playsinline muted></video>' +
+      '<div class="hp-top"><button class="glass round" data-h="close" aria-label="Fermer">' + ic("xmark", 20) + '</button>' +
+      '<div class="hp-title glass pill">' + ic(opts.icon || "flame", 18) + "<span>" + (opts.title || "Photo") + "</span></div><span></span></div>" +
+      '<div class="hp-msg glass" hidden></div>' +
+      '<div class="hp-bar"><button class="glass round gal" data-h="gal" aria-label="Galerie">' + ic("photos", 24) + '</button><button class="hp-shutter" data-h="shot" aria-label="Prendre la photo"><i></i></button><button class="glass round flip" data-h="flip" aria-label="Changer de caméra">' + ic("flip", 24) + "</button></div>" +
       '<input type="file" accept="image/*" hidden>';
     const chatEl = document.getElementById("chat");
     const inChat = !!(chatEl && window.TMM_CHAT && window.TMM_CHAT.isOpen());

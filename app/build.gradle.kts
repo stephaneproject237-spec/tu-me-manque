@@ -44,7 +44,7 @@ android {
 
 // La page d'appel de l'appli réutilise exactement le code web des appels.
 val syncCallAssets by tasks.registering(Copy::class) {
-    from("../web/appel.js", "../web/appel.css", "../web/photoedit.js", "../web/photoedit.css", "../web/emoji.js")
+    from("../web/appel.js", "../web/appel.css", "../web/photoedit.js", "../web/ios.js", "../web/photoedit.css", "../web/emoji.js")
     into("src/main/assets/call")
 }
 tasks.named("preBuild") { dependsOn(syncCallAssets) }

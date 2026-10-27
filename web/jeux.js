@@ -34,12 +34,13 @@
       let menu = "";
       if (boltOpen) {
         let i = 0;
+        const ic = (n) => (window.IOS ? window.IOS.icon(n, 18, "nowic") : "");
         const it = (g, label) => '<button class="gm-chip gm-pop" style="animation-delay:' + (i++) * 70 + 'ms" data-g="' + g + '">' + label + "</button>";
         if (!gameActive) menu += it("open", "🎮 Jeux");
         if (!remActive) menu += it("rp", "⏰ Rappels");
-        menu += it("sched", "🕐 Programmés");
-        menu += it("hot", "🔥 Hot pic");
-        menu += it("now", '<svg class="nowic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="15" height="14" rx="2.5"/><circle cx="8" cy="9.5" r="1.4"/><path d="M2 15.5l4.5-4 3.5 3 2.5-2L17 15"/><circle cx="18.5" cy="16.5" r="4.6" fill="#281C24"/><path d="M18.5 14v2.7l1.7 1"/></svg> Now pic');
+        menu += it("sched", ic("clock") + " Programmés");
+        menu += it("hot", ic("flame") + " Hot pic");
+        menu += it("now", ic("nowpic") + " Now pic");
       }
       h += '<div class="gm-boltwrap"><button class="gm-bolt' + (boltOpen ? " open" : "") + '" data-g="bolt" aria-label="Fonctions">⚡</button>' + (menu ? '<div class="gm-menu">' + menu + "</div>" : "") + "</div>";
     }
@@ -158,7 +159,7 @@
     }
     else if (a === "bolt") { boltOpen = !boltOpen; if (boltOpen) chime(); paintChip(); }
     else if (a === "open") { boltOpen = false; paintChip(); openOverlay(); }
-    else if (a === "hot") { boltOpen = false; paintChip(); if (window.TMM_HOT && window.TMM_CHAT) window.TMM_HOT.start({ title: "🔥 Hot pic", onResult: (r) => window.TMM_CHAT._x.sendImage(r.blob, r.w, r.h, "", { once: r.once }) }); }
+    else if (a === "hot") { boltOpen = false; paintChip(); if (window.TMM_HOT && window.TMM_CHAT) window.TMM_HOT.start({ title: "Hot pic", onResult: (r) => window.TMM_CHAT._x.sendImage(r.blob, r.w, r.h, "", { once: r.once }) }); }
     else if (a === "now") { boltOpen = false; paintChip(); if (window.TMM_NOW) window.TMM_NOW.request(); }
     else if (a === "sched") { boltOpen = false; paintChip(); if (window.TMM_X) window.TMM_X.openList(); }
     else if (a === "rp") { boltOpen = false; paintChip(); if (window.TMM_RAPPELS) window.TMM_RAPPELS.open(); }

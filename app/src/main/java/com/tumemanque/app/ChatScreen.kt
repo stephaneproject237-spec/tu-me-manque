@@ -363,7 +363,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     if (askText) SendChoiceSheet("Envoyer ce message", canOnce = true) { o -> askText = false; if (o != null) { vm.sendText(text, o); text = "" } }
     askVideo?.let { (f, mt) -> SendChoiceSheet("Envoyer cette vidéo", canOnce = true) { o -> askVideo = null; if (o != null) vm.sendVideoFile(f, mt, o) } }
     if (showSched) ScheduledListDialog { showSched = false }
-    if (showHot) HotPicFlow("🔥 Hot pic", onResult = { ph, once -> vm.sendEdited(ph, once) }, onClose = { showHot = false })
+    if (showHot) HotPicFlow("Hot pic", onResult = { ph, once -> vm.sendEdited(ph, once) }, onClose = { showHot = false })
     WallpaperMenu(showWall, { showWall = false }, onWall, { vm.showToast(it) })
     state.photo?.let { ph -> PhotoPreview(ph, vm, onRetake = { vm.cancelPhoto(); showCam = true }) }
     viewer?.let { m -> if (m.once) OnceViewer(m, vm) { viewer = null } else if (m.kind == "video") VideoViewer(m) { viewer = null } else PhotoViewer(m) { viewer = null } }

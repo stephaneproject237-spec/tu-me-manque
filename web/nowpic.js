@@ -6,6 +6,7 @@
   const handled = new Set(), toasted = new Set();
   let box = null, cur = null, timer = null, busy = false;
 
+  const ic = (n, z) => (window.IOS ? window.IOS.icon(n, z) : "");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const partner = () => (A() && A().partner && A().partner()) || "";
   function toast(t) {
@@ -21,10 +22,10 @@
     const s = cur;
     if (!s) { ui(""); return; }
     if (s.state === "pending" && !s.by_me) {
-      ui('<div class="np-card"><div class="np-ic">📸</div><b>@' + esc(partner()) + ' veut faire un Now Pic !</b><span>Une photo prise en même temps, tout de suite. On y va ?</span>' +
-        '<button class="np-yes" data-n="yes">Oui, allons-y 📸</button><button class="np-no" data-n="no">Pas maintenant</button></div>');
+      ui('<div class="np-card"><div class="np-ic glass tint">' + ic("nowpic", 38) + '</div><b>@' + esc(partner()) + ' veut faire un Now Pic</b><span>Une photo prise en même temps, tout de suite. On y va ?</span>' +
+        '<button class="glass pill tint np-yes" data-n="yes">Oui, allons-y</button><button class="glass pill np-no" data-n="no">Pas maintenant</button></div>');
     } else if (s.state === "pending" && s.by_me) {
-      ui('<div class="np-wait">⏳ Now Pic envoyé à @' + esc(partner()) + '… <button data-n="cancel">Annuler</button></div>');
+      ui('<div class="np-wait glass pill">' + ic("timer", 20) + '<span>En attente de @' + esc(partner()) + '…</span><button class="glass pill" data-n="cancel">Annuler</button></div>');
     } else if (s.state === "declined" && s.by_me) {
       ui("");
       if (!toasted.has(s.id)) { toasted.add(s.id); toast("@" + partner() + " ne veut pas faire de Now Pic pour l'instant."); }
@@ -34,7 +35,7 @@
   function camera(s) {
     if (!window.TMM_HOT || !window.TMM_CHAT) return;
     window.TMM_HOT.start({
-      title: "📸 Now Pic — maintenant !",
+      title: "Now Pic", icon: "nowpic",
       onResult: (r) => window.TMM_CHAT.sendPhotoAny(r.blob, r.w, r.h, r.once, true),
     });
   }
@@ -61,7 +62,7 @@
   async function request() {
     try {
       const j = await rpc("nowpic_request");
-      if (j && j.status === "ok") { toast("📸 Now Pic envoyé à @" + partner() + "."); poll(); }
+      if (j && j.status === "ok") { toast("Now Pic envoyé à @" + partner() + "."); poll(); }
       else if (j && j.status === "no_partner") toast("Vous n'êtes plus partenaires.");
       else toast("Impossible d'envoyer le Now Pic.");
     } catch (e) { toast("Connexion impossible. Réessaie."); }

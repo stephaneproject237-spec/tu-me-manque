@@ -323,8 +323,8 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () 
     Column(Modifier.fillMaxWidth()) {
     Column(Modifier.padding(start = 12.dp)) {
         BoltItem(open, 280) { GPill("Now pic", false, icon = R.drawable.ic_nowpic) { open = false; onNow() } }
-        BoltItem(open, 210) { GPill("🔥 Hot pic", false) { open = false; onHot() } }
-        BoltItem(open, 140) { GPill("🕐 Programmés", false) { open = false; onSched() } }
+        BoltItem(open, 210) { GPill("Hot pic", false, icon = R.drawable.ic_flame) { open = false; onHot() } }
+        BoltItem(open, 140) { GPill("Programmés", false, icon = R.drawable.ic_clock) { open = false; onSched() } }
         if (!remActive) BoltItem(open, 70) { GPill("⏰ Rappels", false) { open = false; rem.overlay = true } }
         if (!gameActive) BoltItem(open, 0) { GPill("🎮 Jeux", false) { open = false; ctl.openOverlay() } }
     }

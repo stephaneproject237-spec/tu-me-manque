@@ -31,6 +31,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -66,16 +80,16 @@ import java.net.URLEncoder
  * [onResult] reçoit la photo finale et le choix « éphémère ou permanent ».
  */
 @Composable
-fun HotPicFlow(title: String, onResult: (PreparedPhoto, Boolean) -> Unit, onClose: () -> Unit) {
+fun HotPicFlow(title: String, icon: Int = R.drawable.ic_flame, onResult: (PreparedPhoto, Boolean) -> Unit, onClose: () -> Unit) {
     var shot by remember { mutableStateOf<File?>(null) }
     val f = shot
-    if (f == null) HotCamera(title, onShot = { shot = it }, onClose = onClose)
+    if (f == null) HotCamera(title, icon, onShot = { shot = it }, onClose = onClose)
     else PhotoEditor(f, title, onResult = { ph, once -> onResult(ph, once); onClose() }, onCancel = { shot = null })
 }
 
 @SuppressLint("UnsafeOptInUsageWarning")
 @Composable
-private fun HotCamera(title: String, onShot: (File) -> Unit, onClose: () -> Unit) {
+private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     var allowed by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
@@ -124,38 +138,50 @@ private fun HotCamera(title: String, onShot: (File) -> Unit, onClose: () -> Unit
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (allowed) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0x73000000)).clickable { onClose() }, Alignment.Center) { Ico(R.drawable.ic_close, Color.White, 22.dp) }
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-                Box(Modifier.size(42.dp))
+            Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                GlassCircle(44.dp, Modifier.align(Alignment.CenterStart), onClick = { onClose() }) { Ico(R.drawable.ic_xmark, Color.White, 20.dp) }
+                GlassPill(Modifier.align(Alignment.Center), height = 38.dp, onClick = null) {
+                    Ico(icon, Color(0xFFFFB454), 18.dp)
+                    Spacer(Modifier.width(7.dp))
+                    Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                }
             }
             if (!allowed && denied) Text(
-                "Autorise la caméra dans les réglages du téléphone, ou choisis une photo dans la galerie 🖼.",
+                "Autorise la caméra dans les réglages du téléphone, ou choisis une photo dans la galerie.",
                 color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(32.dp),
             )
             error?.let { Text(it, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(32.dp)) }
+            // 3 colonnes égales : galerie à gauche, déclencheur pile au centre, caméra à droite.
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 26.dp, start = 12.dp, end = 12.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 30.dp, start = 28.dp, end = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceAround,
             ) {
-                Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0x2EFFFFFF)).clickable { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, Alignment.Center) { Text("🖼", fontSize = 24.sp) }
-                Box(
-                    Modifier.size(80.dp).clip(CircleShape).border(4.dp, Color.White, CircleShape).padding(7.dp).clip(CircleShape).background(if (busy) Color(0xFFBBBBBB) else Color.White)
-                        .clickable(enabled = allowed && !busy) {
-                            busy = true
-                            val file = File.createTempFile("hot", ".jpg", File(context.cacheDir, "cam").apply { mkdirs() })
-                            capture.takePicture(
-                                ImageCapture.OutputFileOptions.Builder(file).build(),
-                                ContextCompat.getMainExecutor(context),
-                                object : ImageCapture.OnImageSavedCallback {
-                                    override fun onImageSaved(r: ImageCapture.OutputFileResults) { busy = false; onShot(file) }
-                                    override fun onError(e: ImageCaptureException) { busy = false; error = "La photo n'a pas pu être prise. Réessaie." }
-                                },
-                            )
-                        },
-                ) {}
-                Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0x2EFFFFFF)).clickable { front = !front }, Alignment.Center) { Text("🔄", fontSize = 24.sp) }
+                Box(Modifier.weight(1f), Alignment.CenterStart) {
+                    GlassCircle(52.dp, onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Ico(R.drawable.ic_photos, Color.White, 24.dp) }
+                }
+                val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val down by src.collectIsPressedAsState()
+                val k by animateFloatAsState(if (down) 0.84f else 1f, spring(0.45f, 600f), label = "shutter")
+                Box(Modifier.size(80.dp).clip(CircleShape).border(4.dp, Color.White.copy(alpha = 0.95f), CircleShape), Alignment.Center) {
+                    Box(
+                        Modifier.size(62.dp).graphicsLayer { scaleX = k; scaleY = k }.clip(CircleShape).background(if (busy) Color(0xFFBBBBBB) else Color.White)
+                            .clickable(interactionSource = src, indication = null, enabled = allowed && !busy) {
+                                busy = true
+                                val file = File.createTempFile("hot", ".jpg", File(context.cacheDir, "cam").apply { mkdirs() })
+                                capture.takePicture(
+                                    ImageCapture.OutputFileOptions.Builder(file).build(),
+                                    ContextCompat.getMainExecutor(context),
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(r: ImageCapture.OutputFileResults) { busy = false; onShot(file) }
+                                        override fun onError(e: ImageCaptureException) { busy = false; error = "La photo n'a pas pu être prise. Réessaie." }
+                                    },
+                                )
+                            },
+                    ) {}
+                }
+                Box(Modifier.weight(1f), Alignment.CenterEnd) {
+                    GlassCircle(52.dp, onClick = { front = !front }) { Ico(R.drawable.ic_flip, Color.White, 24.dp) }
+                }
             }
         }
     }
@@ -180,7 +206,7 @@ private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val
 private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boolean) -> Unit, onCancel: () -> Unit) {
     BackHandler { onCancel() }
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Box(Modifier.fillMaxSize().background(Color(0xFF0C0709)).statusBarsPadding().navigationBarsPadding()) {
+        Box(Modifier.fillMaxSize().background(Color(0xFF0C0709)).statusBarsPadding().navigationBarsPadding().imePadding()) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
@@ -210,4 +236,40 @@ private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boo
             )
         }
     }
+}
+
+// ---- Liquid Glass (iOS 26) : reflet en haut, bord lumineux, forme ronde. Le flou réel derrière n'est pas possible sur l'aperçu caméra. ----
+internal fun Modifier.glassSurface(shape: Shape, tint: List<Color>? = null): Modifier = this
+    .shadow(10.dp, shape, ambientColor = Color(0x55000000), spotColor = Color(0x55000000))
+    .clip(shape)
+    .background(Brush.linearGradient(tint ?: listOf(Color(0x52FFFFFF), Color(0x1FFFFFFF), Color(0x2EFFFFFF))))
+    .border(0.8.dp, Brush.verticalGradient(listOf(Color(0xA6FFFFFF), Color(0x2EFFFFFF), Color(0x40FFFFFF))), shape)
+
+@Composable
+internal fun GlassCircle(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val down by src.collectIsPressedAsState()
+    val k by animateFloatAsState(if (down) 0.9f else 1f, spring(0.45f, 600f), label = "glassC")
+    Box(
+        modifier.size(size).graphicsLayer { scaleX = k; scaleY = k }.glassSurface(CircleShape)
+            .clickable(interactionSource = src, indication = null) { onClick() },
+        Alignment.Center,
+    ) { content() }
+}
+
+@Composable
+internal fun GlassPill(
+    modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp = 44.dp, tint: List<Color>? = null,
+    onClick: (() -> Unit)?, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    val src = remember { MutableInteractionSource() }
+    val down by src.collectIsPressedAsState()
+    val k by animateFloatAsState(if (down && onClick != null) 0.93f else 1f, spring(0.45f, 600f), label = "glassP")
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier.height(height).graphicsLayer { scaleX = k; scaleY = k }.glassSurface(shape, tint)
+            .let { if (onClick != null) it.clickable(interactionSource = src, indication = null) { onClick() } else it }
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+    ) { content() }
 }
