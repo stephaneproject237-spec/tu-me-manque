@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths-ignore:
       - 'web/**'
+      - 'app/src/casque/**'
+      - 'tools/casque-sql.py'
+      - '.github/workflows/casque.yml'
       - 'supabase/**'
       - 'README.md'
   workflow_dispatch:
@@ -40,13 +43,13 @@ jobs:
         shell: bash
         run: |
           set +e
-          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle :app:assembleTmmDebug --no-daemon --stacktrace 2>&1 | tee build.log
           code=${PIPESTATUS[0]}
           grep -E '^e: ' build.log | head -20 | while read -r l; do echo "::error::$l"; done
           exit $code
 
       - name: Préparer le fichier
-        run: cp app/build/outputs/apk/debug/app-debug.apk tu-me-manque.apk
+        run: cp app/build/outputs/apk/tmm/debug/app-tmm-debug.apk tu-me-manque.apk
 
       - uses: actions/upload-artifact@v4
         with:

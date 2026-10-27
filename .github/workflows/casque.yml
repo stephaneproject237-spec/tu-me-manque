@@ -1,0 +1,63 @@
+name: Compiler Casque
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'web/**'
+      - 'app/src/tmm/**'
+      - 'supabase/**'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier la configuration Firebase
+        run: |
+          if [ ! -f app/google-services.json ]; then
+            echo "::error::Le fichier app/google-services.json est manquant. Ajoute-le au dépôt."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compiler l'APK
+        env:
+          APK_URL: https://github.com/${{ github.repository }}/releases/download/casque-${{ github.run_number }}/casque.apk
+        shell: bash
+        run: |
+          set +e
+          gradle :app:assembleCasqueDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          grep -E '^e: ' build.log | head -20 | while read -r l; do echo "::error::$l"; done
+          exit $code
+
+      - name: Préparer le fichier
+        run: cp app/build/outputs/apk/casque/debug/app-casque-debug.apk casque.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: casque
+          path: casque.apk
+
+      - name: Publier l'APK (lien de téléchargement)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: casque-${{ github.run_number }}
+          name: Casque ${{ github.run_number }}
+          files: casque.apk
+          make_latest: false

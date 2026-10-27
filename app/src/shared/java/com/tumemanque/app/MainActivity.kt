@@ -72,7 +72,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
     /** Retour de « Continuer avec Google » : tumemanque://auth?code=… */
     private fun handleLink(intent: Intent?) {
         val uri = intent?.data ?: return
-        if (uri.scheme != "tumemanque") return
+        if (uri.scheme != BuildConfig.OAUTH_SCHEME) return
         intent.data = null
         authViewModel.handleLink(uri) { viewModel.start() }
     }
@@ -175,6 +175,12 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
         return
     }
+    // « Casque » : la première page est le lecteur audio ; la messagerie est derrière « Paramètres » → « Aide ».
+    var casqueScreen by rememberSaveable { mutableStateOf("player") }
+    if (BuildConfig.CASQUE && casqueScreen != "help") {
+        CasqueMain(casqueScreen, updateVm, updState.available != null) { casqueScreen = it }
+        return
+    }
     val authState by authVm.state.collectAsStateWithLifecycle()
     var askedContacts by rememberSaveable { mutableStateOf(false) }
     val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -235,6 +241,9 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
         }
     }
 
+    if (BuildConfig.CASQUE) {
+        androidx.activity.compose.BackHandler(enabled = !showSettings && !showSupport && !(showChat && state.partnerName != null)) { casqueScreen = "settings" }
+    }
     if (showSettings) {
         SettingsScreen(updateVm, state.username, state.partnerName, state.supportUnread, onSupport = { showSettings = false; showSupport = true }) { showSettings = false }
     } else if (showSupport) {
@@ -250,6 +259,13 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
             onWall = { vm.setWall(it) },
             onBack = { showChat = false },
             onRead = { vm.setUnread(0) },
+        )
+    } else if (BuildConfig.CASQUE && !state.loading && !state.needAuth && state.error == null && state.username != null && !(state.needContact && !skipContact)) {
+        CasqueFriends(
+            state, vm, chatVm,
+            onBack = { casqueScreen = "settings" },
+            onInvite = { shareApp(context, state.username) },
+            onOpenChat = { showChat = true },
         )
     } else Column(
         modifier = Modifier
@@ -303,7 +319,12 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     val onHome = !showSettings && !showSupport && !(showChat && state.partnerName != null)
-    if (onHome && !state.loading && !state.needAuth && state.error == null && state.username != null) {
+    if (BuildConfig.CASQUE && onHome && (state.loading || state.needAuth || state.error != null || state.username == null || state.needContact && !skipContact)) {
+        Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), Alignment.TopStart) {
+            TextButton(onClick = { casqueScreen = "settings" }) { Text("‹ Retour") }
+        }
+    }
+    if (!BuildConfig.CASQUE && onHome && !state.loading && !state.needAuth && state.error == null && state.username != null) {
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), Alignment.TopEnd) {
             SettingsGear(hasUpdate = updState.available != null) { showSettings = true }
         }

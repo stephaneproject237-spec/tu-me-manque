@@ -101,7 +101,7 @@ class AuthViewModel : ViewModel() {
 
     /** Retour de Google / Apple : tumemanque://auth?code=… */
     fun handleLink(uri: Uri, onDone: () -> Unit) {
-        if (uri.scheme != "tumemanque") return
+        if (uri.scheme != BuildConfig.OAUTH_SCHEME) return
         val code = uri.getQueryParameter("code")
         val err = uri.getQueryParameter("error_description")
         viewModelScope.launch {

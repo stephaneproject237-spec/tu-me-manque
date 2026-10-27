@@ -10,13 +10,45 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tumemanque.app"
         minSdk = 21
         targetSdk = 35
         val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionCode = build
         versionName = "1.$build"
         buildConfigField("String", "APK_URL", "\"${System.getenv("APK_URL") ?: ""}\"")
+    }
+
+    flavorDimensions += "brand"
+    productFlavors {
+        // « Tu me manques » : l'application d'origine (code partagé tel quel).
+        create("tmm") {
+            dimension = "brand"
+            applicationId = "com.tumemanque.app"
+            buildConfigField("boolean", "CASQUE", "false")
+            buildConfigField("String", "UPDATE_JSON", "\"web/update.json\"")
+            buildConfigField("String", "APK_PREFIX", "\"tu-me-manque\"")
+            buildConfigField("String", "WEB_URL", "\"https://stephaneproject237-spec.github.io/tu-me-manque/\"")
+            buildConfigField("String", "OAUTH_SCHEME", "\"tumemanque\"")
+            manifestPlaceholders["scheme"] = "tumemanque"
+        }
+        // « Casque » : application parallèle (lecteur audio + messagerie en noir / gris / bleu).
+        create("casque") {
+            dimension = "brand"
+            applicationId = "com.casque.app"
+            buildConfigField("boolean", "CASQUE", "true")
+            buildConfigField("String", "UPDATE_JSON", "\"web/casque/update.json\"")
+            buildConfigField("String", "APK_PREFIX", "\"casque\"")
+            buildConfigField("String", "WEB_URL", "\"https://stephaneproject237-spec.github.io/tu-me-manque/casque/\"")
+            buildConfigField("String", "OAUTH_SCHEME", "\"casque\"")
+            manifestPlaceholders["scheme"] = "casque"
+        }
+    }
+
+    // Le code partagé sert tel quel à « Tu me manques » ; « Casque » reçoit la même copie habillée en bleu/gris (tools/skin.py).
+    sourceSets {
+        getByName("tmm").java.srcDir("src/shared/java")
+        getByName("casque").java.srcDir(layout.buildDirectory.dir("skin/java"))
+        getByName("casque").assets.srcDir(layout.buildDirectory.dir("skin/assets"))
     }
 
     signingConfigs {
@@ -47,7 +79,15 @@ val syncCallAssets by tasks.registering(Copy::class) {
     from("../web/appel.js", "../web/appel.css", "../web/photoedit.js", "../web/ios.js", "../web/photoedit.css", "../web/emoji.js")
     into("src/main/assets/call")
 }
-tasks.named("preBuild") { dependsOn(syncCallAssets) }
+val skinCasque by tasks.registering(Exec::class) {
+    workingDir = rootDir
+    commandLine("python3", "tools/skin.py")
+    inputs.dir("src/shared/java")
+    inputs.dir("../web")
+    inputs.file("../tools/skin.py")
+    outputs.dir(layout.buildDirectory.dir("skin"))
+}
+tasks.named("preBuild") { dependsOn(syncCallAssets, skinCasque) }
 
 dependencies {
     // Firebase sert uniquement aux notifications (gratuit, sans carte bancaire).
@@ -73,4 +113,9 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+
+    // Lecteur audio de « Casque » (lecture en arrière-plan, notification, écran verrouillé, Bluetooth).
+    "casqueImplementation"("androidx.media3:media3-exoplayer:1.4.1")
+    "casqueImplementation"("androidx.media3:media3-session:1.4.1")
+    "casqueImplementation"("androidx.documentfile:documentfile:1.0.1")
 }

@@ -106,9 +106,27 @@ object Backend {
 
     fun hasSession(): Boolean = store().getString("refresh", null) != null
 
+    /** « Casque » a ses propres tables et fonctions (préfixe c_), dans la même base que « Tu me manques ». */
+    private val CASQUE_TABLES = setOf(
+        "profiles", "requests", "notifications", "messages", "typing", "once_secrets", "scheduled_messages",
+        "game_rounds", "game_answers", "game_guesses", "call_signals", "nowpic_sessions", "reminders", "support_messages",
+    )
+
+    private fun route(path: String): String {
+        if (!BuildConfig.CASQUE) return path
+        val rpc = "/rest/v1/rpc/"
+        if (path.startsWith(rpc)) return rpc + "c_" + path.removePrefix(rpc)
+        val rest = "/rest/v1/"
+        if (path.startsWith(rest)) {
+            val tail = path.removePrefix(rest)
+            if (tail.substringBefore("?") in CASQUE_TABLES) return rest + "c_" + tail
+        }
+        return path
+    }
+
     private suspend fun http(method: String, path: String, body: String?, token: String?): Pair<Int, String> =
         withContext(Dispatchers.IO) {
-            val conn = URL(Config.SUPABASE_URL + path).openConnection() as HttpURLConnection
+            val conn = URL(Config.SUPABASE_URL + route(path)).openConnection() as HttpURLConnection
             try {
                 conn.requestMethod = method
                 conn.connectTimeout = 15000
@@ -249,7 +267,7 @@ object Backend {
             JSONArray(authed("GET", "/rest/v1/profiles?select=wall&id=eq.$uid")).optJSONObject(0)?.str("wall")
         }.getOrNull()
         // (nombre de messages, non lus) de la messagerie @admin ; (0, 0) si elle n'existe pas encore.
-        val support = runCatching {
+        val support = if (BuildConfig.CASQUE) Pair(0, 0) else runCatching {
             val arr = JSONArray(authed("GET", "/rest/v1/support_messages?select=from_admin,read_at&limit=200"))
             var unread = 0
             for (i in 0 until arr.length()) {
@@ -330,7 +348,7 @@ object Backend {
             if (phone != null) editor.putString("phone", phone)
         }
         editor.apply()
-        val redirect = URLEncoder.encode("tumemanque://auth", "UTF-8")
+        val redirect = URLEncoder.encode("${BuildConfig.OAUTH_SCHEME}://auth", "UTF-8")
         return Uri.parse(
             "${Config.SUPABASE_URL}/auth/v1/authorize?provider=$provider&redirect_to=$redirect" +
                 "&code_challenge=$challenge&code_challenge_method=s256"

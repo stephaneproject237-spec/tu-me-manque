@@ -69,7 +69,7 @@ class UpdateViewModel : ViewModel() {
         val t = System.currentTimeMillis()
         val sources = listOf(
             Config.WEB_URL + "update.json?t=$t",
-            "https://raw.githubusercontent.com/stephaneproject237-spec/tu-me-manque/main/web/update.json?t=$t",
+            "https://raw.githubusercontent.com/stephaneproject237-spec/tu-me-manque/main/${BuildConfig.UPDATE_JSON}?t=$t",
         )
         val result = CompletableDeferred<UpdateInfo?>()
         val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -169,7 +169,7 @@ class UpdateViewModel : ViewModel() {
             if (old >= 0) runCatching { dm.remove(old) }
             val dir = dlDir(app)
             dir.listFiles()?.forEach { it.delete() }
-            val f = File(dir, "tu-me-manque-${info.code}.apk")
+            val f = File(dir, "${BuildConfig.APK_PREFIX}-${info.code}.apk")
             val req = DownloadManager.Request(Uri.parse(info.apk))
                 .setTitle("Tu me manques ${info.name}")
                 .setDescription("Téléchargement de la mise à jour")

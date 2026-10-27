@@ -4,7 +4,7 @@ package com.tumemanque.app
 object Config {
     const val SUPABASE_URL = "https://ahwxssgcwqzkxitpfvxy.supabase.co"
     /** Version web pour iPhone. */
-    const val WEB_URL = "https://stephaneproject237-spec.github.io/tu-me-manque/"
+    val WEB_URL: String = BuildConfig.WEB_URL
     /** Passe à true quand « Se connecter avec Apple » est configuré (compte développeur Apple). */
     const val APPLE_LOGIN = false
     const val SUPABASE_ANON_KEY = "sb_publishable_Q8zNDzwWjXlnlazogk3k9A_YbmxI_qM"
