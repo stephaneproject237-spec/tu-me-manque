@@ -100,9 +100,9 @@ private fun SheetBtn(label: String, sub: String? = null, hot: Boolean = false, o
  * [onResult] reçoit null si on annule.
  */
 @Composable
-fun SendChoiceSheet(title: String, canOnce: Boolean, startOnce: Boolean = false, onResult: (SendOpts?) -> Unit) {
+fun SendChoiceSheet(title: String, canOnce: Boolean, startOnce: Boolean = false, startSched: Boolean = false, onResult: (SendOpts?) -> Unit) {
     val context = LocalContext.current
-    var step by remember { mutableStateOf(0) }
+    var step by remember { mutableStateOf(if (startSched) 1 else 0) }
     var once by remember { mutableStateOf(startOnce) }
     androidx.compose.material3.AlertDialog(
         modifier = Modifier.softEnter(),
@@ -138,7 +138,7 @@ fun SendChoiceSheet(title: String, canOnce: Boolean, startOnce: Boolean = false,
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (step == 1) step = 0 else onResult(null) }) { Text(if (step == 1) "Retour" else "Annuler", color = Color.Gray) } },
+        confirmButton = { TextButton(onClick = { if (step == 1 && !startSched) step = 0 else onResult(null) }) { Text(if (step == 1 && !startSched) "Retour" else "Annuler", color = Color.Gray) } },
     )
 }
 

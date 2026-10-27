@@ -100,7 +100,7 @@ fun HotPicFlow(
         ) {
             androidx.compose.animation.Crossfade(targetState = shot, animationSpec = androidx.compose.animation.core.tween(320), label = "hotflow") { f ->
                 if (f == null) HotCamera(title, icon, onVideoRecord, onVideoPicked, onShot = { shot = it }, onClose = onClose)
-                else PhotoEditor(f, title, allowSched, onResult = { ph, once, at -> onResult(ph, once, at); onClose() }, onCancel = { shot = null })
+                else PhotoEditorNative(f, title, allowSched, onResult = { ph, once, at -> onResult(ph, once, at); onClose() }, onCancel = { shot = null })
             }
         }
     }
@@ -218,72 +218,6 @@ private fun HotCamera(title: String, icon: Int?, onVideoRecord: (() -> Unit)?, o
                 Box(Modifier.weight(1f), Alignment.CenterEnd) {
                     GlassCircle(52.dp, onClick = { front = !front }) { Ico(R.drawable.ic_flip, Color.White, 24.dp) }
                 }
-            }
-        }
-    }
-}
-
-private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean, Long) -> Unit, val onCancel: () -> Unit, val onReady: () -> Unit = {}, val onStage: (String) -> Unit = {}) {
-    private val main = Handler(Looper.getMainLooper())
-
-    @JavascriptInterface
-    fun ready() { main.post { onReady() } }
-
-    @JavascriptInterface
-    fun stage(s: String) { main.post { onStage(s) } }
-
-    @JavascriptInterface
-    fun done(b64: String, w: Int, h: Int, once: Boolean, at: Double) {
-        val bytes = try { Base64.decode(b64, Base64.DEFAULT) } catch (e: Exception) { ByteArray(0) }
-        main.post { if (bytes.isEmpty()) onCancel() else onDone(bytes, w, h, once, at.toLong()) }
-    }
-
-    @JavascriptInterface
-    fun cancel() { main.post { onCancel() } }
-}
-
-/** L'éditeur de photo (le même code que sur le web) dans une page de l'appli. */
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-private fun PhotoEditor(file: File, title: String, allowSched: Boolean, onResult: (PreparedPhoto, Boolean, Long) -> Unit, onCancel: () -> Unit) {
-    var pageReady by remember { mutableStateOf(false) }
-    var stuck by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(7000); if (!pageReady) stuck = true }
-    var stage by remember { mutableStateOf("") }
-    run {
-        Box(Modifier.fillMaxSize().background(Color(0xFF0C0709)).statusBarsPadding().navigationBarsPadding().imePadding()) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        setBackgroundColor(0xFF0C0709.toInt())
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        val loader = WebViewAssetLoader.Builder()
-                            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(ctx))
-                            .addPathHandler("/cam/", WebViewAssetLoader.InternalStoragePathHandler(ctx, File(ctx.cacheDir, "cam")))
-                            .build()
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                                loader.shouldInterceptRequest(request.url)
-
-                            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
-                                Handler(Looper.getMainLooper()).post { onCancel() }
-                                return true
-                            }
-                        }
-                        addJavascriptInterface(EditBridge({ bytes, w, h, once, at -> onResult(PreparedPhoto(bytes, w, h), once, at) }, onCancel, { pageReady = true }, { stage = it }), "Native")
-                        val src = "https://appassets.androidplatform.net/cam/" + URLEncoder.encode(file.name, "UTF-8")
-                        loadUrl("https://appassets.androidplatform.net/assets/call/edit.html?src=${URLEncoder.encode(src, "UTF-8")}&title=${URLEncoder.encode(title, "UTF-8")}&sched=${if (allowSched) 1 else 0}")
-                    }
-                },
-                onRelease = { runCatching { it.destroy() } },
-            )
-            if (stuck && !pageReady) Column(Modifier.fillMaxSize().background(Color(0xFF0C0709)).padding(30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-                Text("L'éditeur n'a pas pu s'ouvrir.", color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center)
-                if (stage.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text("Étape : $stage", color = Color(0x99FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center) }
-                Spacer(Modifier.height(16.dp))
-                GlassPill(onClick = onCancel) { Text("Fermer", color = Color.White, fontWeight = FontWeight.SemiBold) }
             }
         }
     }
