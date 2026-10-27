@@ -64,6 +64,7 @@ import java.util.Date
 import java.util.Locale
 
 private val Flame = Color(0xFFFF8A50)
+private val Rose = Color(0xFFE91E63)
 
 fun whenLabel(t: Long): String {
     val now = Calendar.getInstance()
