@@ -1,7 +1,7 @@
 {
  "version": "web 1.1",
- "notes": "Recherche YouTube avec lecteur vidéo, téléchargements MP3 / M4A / MP4, onglets Vidéos et Téléchargements, nouveau style en verre.",
- "versionCode": 14,
- "versionName": "1.14",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-14/casque.apk"
+ "notes": "Lecture des vidéos dans la recherche corrigée, message d'erreur plus clair avec « Réessayer », barre en verre plus lisible.",
+ "versionCode": 15,
+ "versionName": "1.15",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-15/casque.apk"
 }
