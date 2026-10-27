@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -88,6 +90,11 @@ val skinCasque by tasks.registering(Exec::class) {
     outputs.dir(layout.buildDirectory.dir("skin"))
 }
 tasks.named("preBuild") { dependsOn(syncCallAssets, skinCasque) }
+
+// Media3 marque une partie de son API « instable » : on l'accepte pour « Casque ».
+tasks.withType<KotlinCompile>().configureEach {
+    if (name.contains("Casque")) compilerOptions.freeCompilerArgs.add("-opt-in=androidx.media3.common.util.UnstableApi")
+}
 
 dependencies {
     // Firebase sert uniquement aux notifications (gratuit, sans carte bancaire).
