@@ -29,6 +29,18 @@
     draft: { partner: "" },
     needAuth: false,
   };
+  // « Casque » : même code, tables à part (préfixe c_), lecteur audio en première page et plusieurs amis.
+  const CAS = !!CFG.CASQUE;
+  S.cs = /[?&]code=|access_token=/.test(location.search + location.hash) ? "help" : "player"; // écran de Casque : player | settings | help (messagerie)
+  S.friends = null;
+  S.removeFriend = null;
+  const CAS_TABLES = ["profiles", "requests", "notifications", "messages", "typing", "once_secrets", "scheduled_messages", "game_rounds", "game_answers", "game_guesses", "call_signals", "nowpic_sessions", "reminders", "support_messages"];
+  function casPath(p) {
+    if (!CAS) return p;
+    if (p.indexOf("/rest/v1/rpc/") === 0) return "/rest/v1/rpc/c_" + p.slice(13);
+    if (p.indexOf("/rest/v1/") === 0 && CAS_TABLES.indexOf(p.slice(9).split("?")[0]) >= 0) return "/rest/v1/c_" + p.slice(9);
+    return p;
+  }
   let lastSnapshotKey = "";
 
   // ---------- Connexion à Supabase ----------
@@ -47,7 +59,7 @@
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 25000);
     try {
-      const res = await fetch(CFG.SUPABASE_URL + path, {
+      const res = await fetch(CFG.SUPABASE_URL + casPath(path), {
         method,
         headers,
         signal: ctl.signal,
@@ -131,7 +143,7 @@
       } catch (e) { /* le chat n'est peut-être pas encore installé côté serveur */ }
     }
     let supportUnread = 0, supportHas = false;
-    try {
+    if (!CAS) try {
       const r = await authed("GET", "/rest/v1/support_messages?select=from_admin,read_at&limit=200");
       supportHas = (r || []).length > 0;
       supportUnread = (r || []).filter((x) => x.from_admin && !x.read_at).length;
@@ -628,7 +640,90 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     invite: () => { S.offerInvite = null; shareApp(); render(); },
     shareOnly: () => shareApp(),
     enablePush: () => enableNotifications(),
+    // ----- Casque -----
+    casqueBack: () => { S.cs = "settings"; render(); },
+    openFriend: (id) => act(async () => {
+      const f = (S.friends || []).find((x) => x.id === id);
+      if (!f) return;
+      const c = chat();
+      if (!f.selected) {
+        const j = await authed("POST", "/rest/v1/rpc/select_peer", { p_id: id });
+        if (!j || j.status !== "ok") { say("Impossible d'ouvrir cette conversation."); return; }
+      }
+      S.openAfter = true;
+      S.partnerName = f.username;
+      if (c && c.reset) c.reset();
+    }),
+    askRemoveFriend: (id) => { const f = (S.friends || []).find((x) => x.id === id); if (f) { S.removeFriend = f; render(); } },
+    cancelRemoveFriend: () => { S.removeFriend = null; render(); },
+    removeFriend: () => {
+      const f = S.removeFriend;
+      S.removeFriend = null;
+      if (!f) return;
+      return act(async () => {
+        await authed("POST", "/rest/v1/rpc/remove_friend", { p_id: f.id });
+        const c = chat(); if (c && c.reset) c.reset();
+        await loadFriends();
+      });
+    },
   };
+
+  async function loadFriends() {
+    if (!CAS) return false;
+    try {
+      const f = await authed("POST", "/rest/v1/rpc/friends_list", {});
+      const key = JSON.stringify(f);
+      const changed = key !== JSON.stringify(S.friends);
+      S.friends = f || [];
+      return changed;
+    } catch (e) { return false; }
+  }
+
+  const casTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const n = new Date();
+    return d.toDateString() === n.toDateString()
+      ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  };
+  const casPreview = (f) => {
+    const k = f.last_kind;
+    const base = !k ? "Dis bonjour !" : k === "text" ? (f.last_body || "") : k === "image" ? "Photo" : k === "voice" ? "Message vocal" : k === "video" ? "Vidéo" : k === "gif" ? "GIF" : k === "sticker" ? "Sticker" : "Message";
+    return f.last_mine && k ? "Toi : " + base : base;
+  };
+
+  function friendsScreen() {
+    const incoming = S.incoming.map((r) => `<div class="carte" style="align-items:stretch;text-align:left">
+        <p><b>@${esc(r.fromName)}</b> veut devenir ton ami</p>
+        <div class="rangee">
+          <button class="principal" style="align-self:auto" data-action="accept" data-id="${esc(r.id)}" ${S.busy ? "disabled" : ""}>Accepter</button>
+          <button class="secondaire" data-action="refuse" data-id="${esc(r.id)}" ${S.busy ? "disabled" : ""}>Refuser</button>
+        </div></div>`).join("");
+    const outgoing = S.outgoing.map((r) => `<p class="gris" style="text-align:left">En attente de @${esc(r.toName)}…</p>`).join("");
+    const list = S.friends === null ? '<div class="spin" style="align-self:center"></div>'
+      : S.friends.length === 0 ? '<p class="gris" style="text-align:left">Tu n\'as pas encore d\'ami. Ajoute quelqu\'un avec son pseudo ou son numéro, ou invite-le à installer Casque.</p>'
+      : S.friends.map((f) => `<div class="fr-row" data-action="openFriend" data-id="${esc(f.id)}">
+          <span class="fr-av">${esc(String(f.username || "?").charAt(0).toUpperCase())}</span>
+          <span class="fr-mid"><span class="fr-top"><b>@${esc(f.username)}</b><small${f.unread ? ' class="new"' : ""}>${esc(casTime(f.last_at))}</small></span>
+          <span class="fr-pre${f.unread ? " new" : ""}">${esc(casPreview(f))}${f.unread ? '<span class="ce-badge">' + (f.unread > 99 ? "99+" : f.unread) + "</span>" : ""}</span></span>
+          <button class="fr-del" data-action="askRemoveFriend" data-id="${esc(f.id)}" aria-label="Retirer">✕</button></div>`).join("");
+    return `<div class="col fr-col">
+      <div class="fr-head"><h2>Aide · Messagerie</h2><p class="gris">Mon pseudo : @${esc(S.username)}</p></div>
+      ${incoming}
+      <div class="fr-add">
+        <div class="champ" style="flex:1"><input id="f-partner" data-field="partner" value="${esc(S.draft.partner)}"
+          autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="24" placeholder="Ajouter un ami : pseudo ou +237 6…"></div>
+        <button class="principal fr-plus" data-action="addPartner" ${S.draft.partner.trim().length >= 3 && !S.busy ? "" : "disabled"}>+</button>
+      </div>
+      ${messageBlock()}
+      ${outgoing}
+      <p class="fr-title">MES AMIS</p>
+      ${list}
+      <button class="lien" data-action="shareOnly">Inviter quelqu'un à installer Casque</button>
+    </div>`;
+  }
 
   async function shareApp() {
     const text =
@@ -890,6 +985,13 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
         <div class="rangee"><button class="lien" data-action="closeInvite">Annuler</button>
         <button class="lien" style="color:var(--rose)" data-action="invite">Envoyer l'application</button></div></div></div>`;
     }
+    if (S.removeFriend) {
+      html += `<div class="fond"><div class="boite">
+        <h2 style="font-size:20px">Retirer @${esc(S.removeFriend.username)} ?</h2>
+        <p>Vous ne serez plus amis. La conversation est conservée : elle reviendra si vous redevenez amis.</p>
+        <div class="rangee"><button class="lien" data-action="cancelRemoveFriend">Annuler</button>
+        <button class="lien" style="color:var(--rose)" data-action="removeFriend">Retirer</button></div></div></div>`;
+    }
     if (S.confirmRemove) {
       html += `<div class="fond"><div class="boite">
         <h2 style="font-size:20px">Retirer @${esc(S.partnerName)} ?</h2>
@@ -905,6 +1007,17 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     const activeId = active && active.id ? active.id : null;
     const selStart = active && typeof active.selectionStart === "number" ? active.selectionStart : null;
 
+    if (CAS) {
+      const P = window.TMM_PLAYER;
+      if (S.cs !== "help") {
+        root.style.display = "none";
+        root.innerHTML = "";
+        if (P) P.show(S.cs);
+        return;
+      }
+      root.style.display = "";
+      if (P) P.hide();
+    }
     let html;
     if (isIOS && !isStandalone) html = installScreen();
     else if (S.loading) html = '<div class="spin"></div>';
@@ -912,10 +1025,12 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     else if (S.needAuth) html = authScreen();
     else if (!S.username) html = usernameScreen();
     else if (S.needContact && !S.contactSkip) html = contactScreen();
+    else if (CAS) html = friendsScreen();
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
 
-    root.innerHTML = html + settingsBtn() + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
+    const back = CAS && S.cs === "help" && !(chat() && chat().isOpen()) ? '<button class="cas-back" data-action="casqueBack" aria-label="Retour">‹</button>' : "";
+    root.innerHTML = html + (CAS ? back : settingsBtn()) + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
 
     if (activeId) {
       const el = document.getElementById(activeId);
@@ -964,6 +1079,11 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     setSupportUnread(n) { if (S.supportUnread !== n) { S.supportUnread = n; lastSnapshotKey = ""; render(); } },
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },
+    casque: {
+      help() { S.cs = "help"; render(); if (!S.loading && !S.needAuth && S.username) loadFriends().then(() => render()); },
+      screen(v) { S.cs = v; render(); },
+      version: () => CFG.VERSION,
+    },
     love() { haptic(); flutter(true); },
     burst(id) { stickerBurst(id); },
   };
@@ -997,8 +1117,11 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
 
   async function refresh() {
     if (S.loading || S.error || S.busy || S.needAuth || !S.username || document.visibilityState !== "visible") return;
+    if (CAS && S.cs !== "help") return;
     try {
-      if (applySnapshot(await loadSnapshot())) render();
+      let ch = applySnapshot(await loadSnapshot());
+      if (CAS && (await loadFriends())) ch = true;
+      if (ch) render();
     } catch (e) { /* pas de réseau : on garde l'écran */ }
   }
 

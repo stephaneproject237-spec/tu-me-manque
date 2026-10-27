@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Casque</title>
+  <meta name="theme-color" content="#0C0D0E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Casque">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://ahwxssgcwqzkxitpfvxy.supabase.co" crossorigin>
+  <link rel="stylesheet" href="dist/app.min.css?v=f0edd6e9" media="print" onload="this.media='all'">
+  <style>
+    :root { --rose: #1F73E0; --rose-clair: #CDE2FD; --gris: #757575; --texte: #212121; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: #FFFFFF; color: var(--texte);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; gap: 12px;
+      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); }
+    .col { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    h1 { margin: 0; font-size: 28px; }
+    h2 { margin: 0; font-size: 24px; }
+    p { margin: 0; line-height: 1.4; }
+    .coeur { font-size: 56px; }
+    .gris { color: var(--gris); }
+    .petit { font-size: 12px; color: #BDBDBD; }
+    .msg { color: var(--rose); }
+    label { align-self: stretch; text-align: left; font-size: 13px; color: var(--gris); }
+    .champ { align-self: stretch; display: flex; align-items: center; border: 1.5px solid #BDBDBD; border-radius: 12px; padding: 0 12px; }
+    .champ:focus-within { border-color: var(--rose); }
+    .champ span { color: var(--gris); margin-right: 4px; }
+    .champ input { flex: 1; border: 0; outline: 0; font-size: 18px; padding: 14px 0; background: transparent; min-width: 0; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 24px; padding: 14px 22px; font-size: 16px; font-weight: 600; }
+    button:disabled { opacity: .45; cursor: default; }
+    .principal { background: var(--rose); color: #FFFFFF; align-self: stretch; }
+    .secondaire { background: #FFFFFF; color: var(--rose); border: 1.5px solid var(--rose); }
+    .lien { background: none; color: var(--gris); font-weight: 500; padding: 10px; }
+    .gros { width: 240px; height: 240px; border-radius: 50%; font-size: 24px; line-height: 1.2; margin: 18px 0; }
+    .carte { align-self: stretch; border: 1px solid #E0E0E0; border-radius: 16px; padding: 16px; background: #FAFAFA;
+      display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .rangee { display: flex; gap: 8px; justify-content: center; }
+    .pseudo { color: var(--rose); font-weight: 600; text-decoration: underline; cursor: pointer; padding: 8px; font-size: 18px; }
+    .etapes { text-align: left; margin: 0; padding-left: 20px; line-height: 1.6; }
+    .fond { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center;
+      justify-content: center; padding: 24px; z-index: 10; }
+    .boite { background: #FFFFFF; border-radius: 20px; padding: 22px; max-width: 360px; width: 100%; display: flex;
+      flex-direction: column; gap: 14px; text-align: left; }
+    .boite .rangee { justify-content: flex-end; }
+    .sombre { background: #111111; color: #FFFFFF; align-self: stretch; }
+    .avail { min-height: 18px; font-size: 13px; color: var(--gris); align-self: flex-start; text-align: left; }
+    .avail.available { color: #2E7D32; } .avail.taken, .avail.invalid, .avail.error { color: #C62828; }
+    .col .principal, .col .secondaire, .col .sombre { align-self: stretch; }
+    .spin { width: 40px; height: 40px; border: 4px solid var(--rose-clair); border-top-color: var(--rose);
+      border-radius: 50%; animation: tourne 1s linear infinite; }
+    @keyframes tourne { to { transform: rotate(360deg); } }
+
+    /* ---- Look « liquid glass » ---- */
+    html { background: linear-gradient(135deg, #D6E7FD 0%, #F3E5FF 50%, #FFEFE0 100%) fixed; }
+    body { background: transparent; }
+    body::before, body::after { content: ""; position: fixed; z-index: -1; border-radius: 50%; filter: blur(50px); pointer-events: none; }
+    body::before { width: 70vmax; height: 70vmax; left: -25vmax; top: -20vmax;
+      background: radial-gradient(circle, rgba(115,173,249,.55), transparent 68%); animation: derive 16s ease-in-out infinite alternate; }
+    body::after { width: 70vmax; height: 70vmax; right: -25vmax; bottom: -25vmax;
+      background: radial-gradient(circle, rgba(170,140,255,.5), transparent 68%); animation: derive 20s ease-in-out infinite alternate-reverse; }
+    @keyframes derive { to { transform: translate(7vmax, 5vmax) scale(1.12); } }
+    .carte, .boite { background: linear-gradient(135deg, rgba(255,255,255,.66), rgba(255,255,255,.34));
+      -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
+      border: 1px solid rgba(255,255,255,.8); border-radius: 24px;
+      box-shadow: 0 10px 34px rgba(31,115,224,.13), inset 0 1px 0 rgba(255,255,255,.95); }
+    .champ { background: rgba(255,255,255,.55); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,.85); border-radius: 18px; box-shadow: inset 0 1px 3px rgba(0,0,0,.06); }
+    .champ:focus-within { border-color: #79B1F9; box-shadow: 0 0 0 3px rgba(31,115,224,.15); }
+    button { transition: transform .15s ease, box-shadow .2s ease; }
+    button:active:not(:disabled) { transform: scale(.96); }
+    .principal { background: linear-gradient(135deg, #66A5F9, #1F73E0 60%, #226BCA);
+      box-shadow: 0 8px 20px rgba(31,115,224,.35), inset 0 1px 0 rgba(255,255,255,.5); }
+    .secondaire { background: rgba(255,255,255,.6); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,.9); color: var(--rose);
+      box-shadow: 0 6px 18px rgba(31,115,224,.12), inset 0 1px 0 rgba(255,255,255,.95); }
+    .gros { position: relative; overflow: hidden; border: 0; color: #FFFFFF; font-weight: 700;
+      background: radial-gradient(circle at 35% 25%, #95C1FB 0%, #1F73E0 55%, #1E60B6 100%);
+      box-shadow: 0 20px 44px rgba(31,115,224,.42), inset 0 2px 8px rgba(255,255,255,.55), inset 0 -12px 26px rgba(0,0,0,.14);
+      animation: bat 1.7s ease-in-out infinite; }
+    .gros::before { content: ""; position: absolute; top: 5%; left: 15%; width: 70%; height: 38%; border-radius: 50%;
+      background: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,0)); pointer-events: none; }
+    @keyframes bat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+    .gros:active:not(:disabled) { animation: none; transform: scale(.95); }
+    .pseudo { text-shadow: 0 1px 8px rgba(31,115,224,.2); }
+    .gear { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 14px; width: 46px; height: 46px; padding: 0; border-radius: 50%; color: var(--rose); z-index: 9;
+      display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.6); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,.85); box-shadow: 0 6px 18px rgba(31,115,224,.15); }
+    /* ===== Thème sombre, plus mature (inspiré d'iMessage) ===== */
+    :root { --texte: #F0F1F3; --gris: #AAACB0; color-scheme: dark; }
+    html, body { background: #0C0D0E; color: var(--texte); }
+    html { background: linear-gradient(135deg, #0C0D0E 0%, #231224 50%, #100E1A 100%) fixed; }
+    body::before { background: radial-gradient(circle, rgba(31,115,224,.30), transparent 68%); }
+    body::after { background: radial-gradient(circle, rgba(110,80,220,.26), transparent 68%); }
+    .petit { color: #6D6F73; }
+    .carte, .boite { background: linear-gradient(135deg, rgba(30,31,34,.78), rgba(20,21,23,.62)); border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 12px 34px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06); color: var(--texte); }
+    .champ { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); box-shadow: none; }
+    .champ input { color: var(--texte); } .champ input::placeholder { color: #818488; } .champ span { color: var(--gris); }
+    .champ:focus-within { border-color: #4C97F8; box-shadow: 0 0 0 3px rgba(31,115,224,.25); }
+    .secondaire { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: #79B1F9; box-shadow: none; }
+    .principal { box-shadow: 0 8px 22px rgba(31,115,224,.4); }
+    .sombre { background: #000000; border: 1px solid rgba(255,255,255,.15); }
+    .lien { color: var(--gris); }
+    .avail.available { color: #66BB6A; } .avail.taken, .avail.invalid, .avail.error { color: #EF5350; }
+    .msg { color: #66A5F9; }
+    .gear { background: rgba(30,31,34,.7); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 6px 18px rgba(0,0,0,.4); color: #66A5F9; }
+    .pseudo { text-shadow: none; }
+    .fond { background: rgba(0,0,0,.6); }
+    .spin { border-color: rgba(255,255,255,.12); border-top-color: var(--rose); }
+    .badge { background: var(--rose); }
+    a { color: #79B1F9; }
+    /* ---- Cœurs et papillons ---- */
+    .fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
+    .fx span { position: absolute; bottom: -60px; opacity: 0; animation: vole linear forwards; filter: drop-shadow(0 2px 4px rgba(31,115,224,.25)); }
+    @keyframes vole {
+      0% { transform: translate(0, 0) rotate(-10deg) scale(.8); opacity: 0; }
+      10% { opacity: 1; }
+      50% { transform: translate(var(--dx), -55vh) rotate(10deg) scale(1.05); }
+      100% { transform: translate(calc(var(--dx) * -1), -118vh) rotate(-10deg) scale(1); opacity: 0; }
+    }
+    .bp-g { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; }
+    .bp-y { grid-template-columns: repeat(4, 1fr); } .bp-m { grid-template-columns: repeat(3, 1fr); } .bp-d { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .bp-c { border: 0; border-radius: 12px; padding: 11px 2px; font: 600 14px inherit; font-family: inherit; cursor: pointer; background: rgba(255,255,255,.1); color: inherit; }
+    .bp-c:active { background: var(--rose); color: #FFFFFF; }
+    /* La grosse bille « Casque » : bien centrée (le sélecteur .col .principal l'étirait vers la gauche) */
+    .col .gros { align-self: center; flex: none; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 24px; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  <div id="app"><div class="coeur">🎧</div><div class="spin"></div><p class="gris">Chargement…</p></div>
+  <div id="chat" hidden></div>
+  <div id="player" hidden></div>
+  <div id="support" hidden></div>
+  <script src="dist/app.min.js?v=f0edd6e9" defer></script>
+  <script>
+    // Si le réseau est trop lent, on le dit au lieu de laisser un écran vide.
+    setTimeout(function () {
+      if (window.__tmmReady) return;
+      var a = document.getElementById("app");
+      if (a) a.innerHTML = '<div class="col"><div class="coeur">🎧</div><h2>Connexion lente</h2><p class="gris">L\'application n\'a pas pu se charger sur ce réseau.</p><button class="principal" onclick="location.reload()">Réessayer</button><p class="petit">Astuce : essaie le Wi-Fi, ou l\'autre carte SIM.</p></div>';
+    }, 15000);
+    if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  </script>
+</body>
+</html>

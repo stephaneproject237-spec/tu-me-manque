@@ -306,6 +306,7 @@
   // ---------- Ouverture / fermeture ----------
   async function open(name) {
     build();
+    if (name && partner && name !== partner) reset();
     partner = name || partner;
     $("ch-name").textContent = "@" + partner;
     if (opened) return;
@@ -1606,6 +1607,7 @@
     toast,
     open,
     close,
+    reset,
     isOpen: () => opened,
     setWall,
     _x: { markOpened, mediaUrl, partner: () => partner, uploadFile, addPending, removePending, deliver, sendImage, sendVideo, toast },

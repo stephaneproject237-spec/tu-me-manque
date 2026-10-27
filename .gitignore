@@ -7,3 +7,4 @@ functions/node_modules/
 .firebase/
 app/src/main/assets/call/appel.js
 app/src/main/assets/call/appel.css
+__pycache__/
