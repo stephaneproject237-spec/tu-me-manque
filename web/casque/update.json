@@ -1,7 +1,7 @@
 {
  "version": "web 1.0",
- "notes": "Le bouton « Aide » devient « À propos ».",
- "versionCode": 8,
- "versionName": "1.8",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-8/casque.apk"
+ "notes": "Appui long sur un morceau ou un dossier pour le supprimer de Casque (il disparaît aussi des playlists).",
+ "versionCode": 10,
+ "versionName": "1.10",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-10/casque.apk"
 }

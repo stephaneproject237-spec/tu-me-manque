@@ -8,6 +8,8 @@ on:
       - 'app/src/tmm/**'
       - 'supabase/**'
       - 'README.md'
+      - 'tools/casque-android.json'
+      - 'tools/build-casque-web.py'
   workflow_dispatch:
 
 permissions:
