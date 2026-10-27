@@ -6,6 +6,6 @@ object Config {
     /** Version web pour iPhone. */
     val WEB_URL: String = BuildConfig.WEB_URL
     /** Passe à true quand « Se connecter avec Apple » est configuré (compte développeur Apple). */
-    const val APPLE_LOGIN = false
+    val APPLE_LOGIN: Boolean = !BuildConfig.CASQUE
     const val SUPABASE_ANON_KEY = "sb_publishable_Q8zNDzwWjXlnlazogk3k9A_YbmxI_qM"
 }

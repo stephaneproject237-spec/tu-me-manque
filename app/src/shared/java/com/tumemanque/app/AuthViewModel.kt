@@ -27,6 +27,10 @@ data class AuthState(
     val code: String = "",
     val busy: Boolean = false,
     val msg: String? = null,
+    /** E-mail du compte Google / Apple connecté. */
+    val email: String = "",
+    /** Le numéro est déjà connu (compte Google / Apple / SMS) : on ne le redemande pas. */
+    val phoneKnown: Boolean = false,
 ) {
     /** Date au format AAAA-MM-JJ, ou null si elle est invalide. */
     val birthIso: String? get() = parseBirth(birth)?.first
@@ -94,9 +98,36 @@ class AuthViewModel : ViewModel() {
     /** Ouvre le navigateur pour se connecter avec Google ou Apple. */
     fun startOAuth(context: Context, provider: String) {
         val s = _state.value
+        if (provider == "apple" && !BuildConfig.CASQUE) {
+            viewModelScope.launch {
+                if (!Backend.providerEnabled("apple")) {
+                    _state.update { it.copy(msg = "La connexion avec Apple n'est pas encore activée. Utilise Google pour le moment.") }
+                } else openOAuth(context, provider)
+            }
+            return
+        }
+        openOAuth(context, provider)
+    }
+
+    private fun openOAuth(context: Context, provider: String) {
+        val s = _state.value
         val uri = if (s.mode == "create") Backend.oauthUri(provider, s.pseudo, s.age, s.birthIso, s.phone)
         else Backend.oauthUri(provider, null, null, null, null)
         context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** Reprend l'e-mail et le numéro du compte connecté : on ne redemande pas ce qu'on connaît déjà. */
+    fun loadKnown() {
+        if (BuildConfig.CASQUE) return
+        val email = Backend.sessionEmail()
+        val ph = Backend.sessionPhone()
+        _state.update {
+            it.copy(
+                email = email,
+                phone = if (ph.length >= 8) "+$ph" else it.phone,
+                phoneKnown = ph.length >= 8,
+            )
+        }
     }
 
     /** Retour de Google / Apple : tumemanque://auth?code=… */
@@ -195,6 +226,7 @@ class AuthViewModel : ViewModel() {
     }
 
     private suspend fun finish(onDone: () -> Unit) {
+        loadKnown()
         val s = _state.value
         val note = Backend.finishAuth(s.pseudo.ifEmpty { null }, s.age, s.birthIso, s.phone)
         if (note != null) {

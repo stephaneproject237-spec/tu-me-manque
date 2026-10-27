@@ -70,7 +70,7 @@ fun ContactFields(s: AuthState, vm: AuthViewModel) {
     }
     if (picker) BirthPickerDialog(onPick = { vm.setBirth(it); picker = false }, onDismiss = { picker = false })
     Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
+    if (!s.phoneKnown) OutlinedTextField(
         value = s.phone,
         onValueChange = { vm.setPhone(it) },
         label = { Text("Ton numéro de téléphone (avec l'indicatif)") },
@@ -103,7 +103,7 @@ fun ContactScreen(s: AuthState, vm: AuthViewModel, onSkip: () -> Unit, onDone: (
 }
 
 @Composable
-private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean) {
+private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean, sms: Boolean = true) {
     val context = LocalContext.current
     val enabled = !s.busy && (!needOk || s.canContinue)
     Button(
@@ -120,12 +120,14 @@ private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean) {
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Continuer avec Apple") }
     }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(
-        onClick = { vm.phoneStart() },
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
-    ) { Text("Recevoir un code par SMS") }
+    if (sms) {
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { vm.phoneStart() },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Recevoir un code par SMS") }
+    }
 }
 
 /** Accueil, création de compte, connexion, numéro de téléphone et code SMS. */
@@ -133,7 +135,19 @@ private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean) {
 fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         when (s.screen) {
-            "create" -> {
+            "create" -> if (!BuildConfig.CASQUE) {
+                Text("💗", fontSize = 56.sp)
+                Text("Créer mon compte", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Crée ton compte avec ton compte Google ou ton compte Apple (iOS). Tu choisiras ton pseudo juste après.",
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                MethodButtons(s, vm, needOk = false, sms = false)
+                Msg(s.msg)
+                TextButton(onClick = { vm.goWelcome() }) { Text("Retour") }
+            } else {
                 Text("💗", fontSize = 56.sp)
                 Text("Créer mon compte", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -147,7 +161,20 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
                 Msg(s.msg)
                 TextButton(onClick = { vm.goWelcome() }) { Text("Retour") }
             }
-            "login" -> {
+            "login" -> if (!BuildConfig.CASQUE) {
+                Text("💗", fontSize = 56.sp)
+                Text("Me connecter", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Connecte-toi avec ton compte Google ou ton compte Apple (iOS) pour retrouver ton pseudo et tes conversations.",
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                MethodButtons(s, vm, needOk = false, sms = false)
+                Msg(s.msg)
+                TextButton(onClick = { vm.phoneStart() }) { Text("Compte créé avec un numéro de téléphone ?") }
+                TextButton(onClick = { vm.goWelcome() }) { Text("Retour") }
+            } else {
                 Text("💗", fontSize = 56.sp)
                 Text("Me connecter", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -226,10 +253,12 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
 /** Connecté mais sans pseudo : on demande le pseudo et l'âge. */
 @Composable
 fun ProfileScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
+    androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadKnown() }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("💗", fontSize = 56.sp)
         Spacer(Modifier.height(8.dp))
         Text("Bienvenue", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        if (s.email.isNotEmpty()) Text("Compte : ${s.email}", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         Text("Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.", textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))

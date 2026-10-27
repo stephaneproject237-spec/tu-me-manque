@@ -48,6 +48,7 @@
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fdate = (t) => (t ? new Date(t).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : "date inconnue");
+  const fbirth = (d) => { const x = new Date(String(d).slice(0, 10) + "T12:00:00"); return isNaN(x) ? String(d) : x.toLocaleDateString("fr-FR", { dateStyle: "long" }); };
   const phone = (p) => (p ? "+" + p : "—");
 
   const S = {
@@ -259,6 +260,7 @@
       <div class="grid">
         <span class="k">E-mail</span><span class="v">${esc(u.email || "—")}</span>
         <span class="k">Téléphone</span><span class="v">${esc(phone(u.phone))}</span>
+        <span class="k">Date de naissance</span><span class="v">${u.birthdate ? esc(fbirth(u.birthdate)) : "—"}</span>
         <span class="k">Âge</span><span class="v">${u.age != null ? esc(u.age) + " ans" : "—"}</span>
         <span class="k">Appareil</span><span class="v">${esc(u.device || "inconnu (compte ancien)")}</span>
         <span class="k">Dernière activité</span><span class="v">${u.last_sign_in_at ? esc(fdate(u.last_sign_in_at)) : "jamais"}</span>

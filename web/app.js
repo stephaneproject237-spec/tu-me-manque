@@ -31,6 +31,8 @@
   };
   // « Casque » : même code, tables à part (préfixe c_), lecteur audio en première page et plusieurs amis.
   const CAS = !!CFG.CASQUE;
+  // Nouveau parcours de connexion (Google / Apple d'abord) : uniquement pour « Tu me manques ».
+  const NEWAUTH = !CAS;
   S.cs = /[?&]code=|access_token=/.test(location.search + location.hash) ? "help" : "player"; // écran de Casque : player | settings | help (messagerie)
   S.friends = null;
   S.removeFriend = null;
@@ -75,6 +77,8 @@
       access: j.access_token,
       refresh: j.refresh_token,
       uid: j.user.id,
+      email: (j.user && j.user.email) || "",
+      phone: (j.user && j.user.phone) || "",
       expires: j.expires_at || now + (j.expires_in || 3600),
     });
   }
@@ -322,7 +326,21 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
 
   const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+  async function providerEnabled(provider) {
+    try {
+      const r = await http("GET", "/auth/v1/settings");
+      if (r.code !== 200) return true; // on ne bloque pas si on ne sait pas
+      const j = JSON.parse(r.text);
+      return !(j && j.external) || j.external[provider] !== false;
+    } catch (e) { return true; }
+  }
+
   async function startOAuth(provider) {
+    if (NEWAUTH && provider === "apple" && !(await providerEnabled("apple"))) {
+      S.auth.msg = "La connexion avec Apple n'est pas encore activée. Utilise Google pour le moment.";
+      render();
+      return;
+    }
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
     lsSet(PKCE, verifier);
@@ -769,6 +787,10 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
   }
 
   const methodButtons = (needOk) => {
+    if (NEWAUTH) {
+      return `<button class="principal" data-action="oauthGoogle">Continuer avec Google</button>` +
+        `<button class="sombre" data-action="oauthApple">Continuer avec Apple</button>`;
+    }
     const flag = needOk ? "data-needok" : "";
     const dis = needOk && !canContinue() ? "disabled" : "";
     return `<button class="principal" data-action="oauthGoogle" ${flag} ${dis}>Continuer avec Google</button>` +
@@ -786,12 +808,25 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
   const contactFields = () => `
       <label>Ta date de naissance</label>
       <button class="secondaire" data-action="pickBirth">🎂 ${S.auth.birth && birthOk(S.auth.birth) ? esc(birthPretty(S.auth.birth)) : "Choisir ma date de naissance"}</button>
-      <label for="f-phone">Ton numéro de téléphone (avec l'indicatif)</label>
-      <div class="champ"><input id="f-phone" data-afield="phone" value="${esc(S.auth.phone)}" inputmode="tel" autocomplete="tel" maxlength="20"></div>`;
+      ${S.auth.phoneKnown ? "" : `<label for="f-phone">Ton numéro de téléphone (avec l'indicatif)</label>
+      <div class="champ"><input id="f-phone" data-afield="phone" value="${esc(S.auth.phone)}" inputmode="tel" autocomplete="tel" maxlength="20"></div>`}`;
 
   function authScreen() {
     const a = S.auth;
     const msg = a.msg ? '<p class="msg">' + esc(a.msg) + "</p>" : "";
+    if (NEWAUTH && a.screen === "create") {
+      return `<div class="col"><div class="coeur">💗</div><h1>Créer mon compte</h1>
+        <p>Crée ton compte avec ton compte Google ou ton compte Apple (iOS). Tu choisiras ton pseudo juste après.</p>
+        ${methodButtons(false)}${msg}
+        <button class="lien" data-action="goWelcome">Retour</button></div>`;
+    }
+    if (NEWAUTH && a.screen === "login") {
+      return `<div class="col"><div class="coeur">💗</div><h1>Me connecter</h1>
+        <p>Connecte-toi avec ton compte Google ou ton compte Apple (iOS) pour retrouver ton pseudo et tes conversations.</p>
+        ${methodButtons(false)}${msg}
+        <button class="lien" data-action="phoneStart">Compte créé avec un numéro de téléphone ?</button>
+        <button class="lien" data-action="goWelcome">Retour</button></div>`;
+    }
     if (a.screen === "create") {
       return `<div class="col"><div class="coeur">💗</div><h1>Créer mon compte</h1>
         <p>Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.</p>
@@ -830,7 +865,14 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
 
   // Connecté mais sans pseudo : on demande le pseudo et l'âge.
   function usernameScreen() {
+    if (NEWAUTH && !S.auth.known) {
+      S.auth.known = true;
+      const ss = store.get() || {};
+      S.auth.email = ss.email || "";
+      if (phoneDigits(ss.phone).length >= 8) { S.auth.phone = "+" + phoneDigits(ss.phone); S.auth.phoneKnown = true; }
+    }
     return `<div class="col"><div class="coeur">💗</div><h1>Bienvenue</h1>
+      ${S.auth.email ? '<p class="gris">Compte : ' + esc(S.auth.email) + "</p>" : ""}
       <p>Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.</p>
       ${pseudoAgeFields()}
       <button class="principal" data-action="createProfile" data-needok ${canContinue() && !S.busy ? "" : "disabled"}>Créer mon compte</button>

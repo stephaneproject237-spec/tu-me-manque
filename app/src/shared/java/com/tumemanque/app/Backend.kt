@@ -156,6 +156,8 @@ object Backend {
             .putString("access", json.getString("access_token"))
             .putString("refresh", json.getString("refresh_token"))
             .putString("uid", json.getJSONObject("user").getString("id"))
+            .putString("email", json.getJSONObject("user").optString("email", ""))
+            .putString("phone", json.getJSONObject("user").optString("phone", ""))
             .putLong("expires", expires)
             .apply()
     }
@@ -329,6 +331,16 @@ object Backend {
         saveSession(JSONObject(text))
         return true
     }
+
+    /** E-mail et numéro du compte Google / Apple / SMS connecté (vides s'ils ne sont pas connus). */
+    fun sessionEmail(): String = store().getString("email", "") ?: ""
+    fun sessionPhone(): String = (store().getString("phone", "") ?: "").filter { it.isDigit() }
+
+    /** Est-ce que ce fournisseur de connexion (apple, google…) est activé sur le serveur ? En cas de doute : oui. */
+    suspend fun providerEnabled(provider: String): Boolean = try {
+        val (code, text) = http("GET", "/auth/v1/settings", null, null)
+        if (code != 200) true else JSONObject(text).optJSONObject("external")?.let { it.optBoolean(provider, true) } ?: true
+    } catch (e: Exception) { true }
 
     private fun b64url(bytes: ByteArray): String =
         Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
