@@ -185,8 +185,15 @@
   async function loadBase(src) {
     let bmp;
     if (src instanceof HTMLCanvasElement) bmp = src;
-    else {
-      const blob = src instanceof Blob ? src : await (await fetch(src)).blob();
+    else if (typeof src === "string") {
+      // Adresse (appli Android) : une simple balise image, plus fiable qu'un téléchargement par fetch.
+      try { bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image")); i.src = src; }); }
+      catch (e) {
+        const blob = await (await fetch(src)).blob();
+        bmp = await createImageBitmap(blob);
+      }
+    } else {
+      const blob = src;
       try { bmp = await createImageBitmap(blob, { imageOrientation: "from-image" }); }
       catch (e) {
         bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(blob); });
@@ -216,7 +223,17 @@
     opts = opts || {};
     return new Promise(async (resolve) => {
       let B;
-      try { B = await loadBase(source); } catch (e) { resolve(null); return; }
+      // On affiche tout de suite un écran « Chargement » : jamais d'écran noir muet.
+      const wait = $e("div", "pe" + (opts.fixed ? " fixed" : ""), '<div class="pe-load"><span>Chargement de la photo…</span></div>');
+      (opts.parent || document.body).appendChild(wait);
+      try {
+        B = await Promise.race([loadBase(source), new Promise((_, rej) => setTimeout(() => rej(new Error("délai dépassé")), 25000))]);
+      } catch (e) {
+        wait.querySelector(".pe-load").innerHTML = "<span>Impossible d'ouvrir la photo (" + esc(e && e.message || e) + ')</span><button class="glass pill">Fermer</button>';
+        wait.querySelector("button").onclick = () => { wait.remove(); resolve(null); };
+        return;
+      }
+      wait.remove();
       const ps = Math.min(1, PREVIEW / Math.max(B.width, B.height));
       const PW = Math.round(B.width * ps), PH = Math.round(B.height * ps);
       const P = document.createElement("canvas"); P.width = PW; P.height = PH; P.getContext("2d").drawImage(B, 0, 0, PW, PH);

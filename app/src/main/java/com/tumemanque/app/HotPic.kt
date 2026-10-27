@@ -187,8 +187,11 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
     }
 }
 
-private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val onCancel: () -> Unit) {
+private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val onCancel: () -> Unit, val onReady: () -> Unit = {}) {
     private val main = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun ready() { main.post { onReady() } }
 
     @JavascriptInterface
     fun done(b64: String, w: Int, h: Int, once: Boolean) {
@@ -205,6 +208,9 @@ private class EditBridge(val onDone: (ByteArray, Int, Int, Boolean) -> Unit, val
 @Composable
 private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boolean) -> Unit, onCancel: () -> Unit) {
     BackHandler { onCancel() }
+    var pageReady by remember { mutableStateOf(false) }
+    var stuck by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(7000); if (!pageReady) stuck = true }
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color(0xFF0C0709)).statusBarsPadding().navigationBarsPadding().imePadding()) {
             AndroidView(
@@ -227,13 +233,18 @@ private fun PhotoEditor(file: File, title: String, onResult: (PreparedPhoto, Boo
                                 return true
                             }
                         }
-                        addJavascriptInterface(EditBridge({ bytes, w, h, once -> onResult(PreparedPhoto(bytes, w, h), once) }, onCancel), "Native")
+                        addJavascriptInterface(EditBridge({ bytes, w, h, once -> onResult(PreparedPhoto(bytes, w, h), once) }, onCancel, { pageReady = true }), "Native")
                         val src = "https://appassets.androidplatform.net/cam/" + URLEncoder.encode(file.name, "UTF-8")
                         loadUrl("https://appassets.androidplatform.net/assets/call/edit.html?src=${URLEncoder.encode(src, "UTF-8")}&title=${URLEncoder.encode(title, "UTF-8")}")
                     }
                 },
                 onRelease = { runCatching { it.destroy() } },
             )
+            if (stuck && !pageReady) Column(Modifier.fillMaxSize().background(Color(0xFF0C0709)).padding(30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+                Text("L'éditeur n'a pas pu s'ouvrir.", color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                GlassPill(onClick = onCancel) { Text("Fermer", color = Color.White, fontWeight = FontWeight.SemiBold) }
+            }
         }
     }
 }
