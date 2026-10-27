@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="photoedit.css">
 <style>html,body{margin:0;height:100%;background:#0c0709;overflow:hidden;position:relative}</style>
 </head><body>
+<script>window.onerror=function(m){var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;z-index:99;color:#fff;background:#a00;padding:10px;border-radius:12px;font:13px sans-serif';d.textContent='Erreur: '+m;document.body.appendChild(d)};</script>
 <script src="emoji.js"></script>
 <script src="ios.js"></script>
 <script src="photoedit.js"></script>
@@ -16,6 +17,6 @@
     const fr = new FileReader();
     fr.onload = () => Native.done(String(fr.result).split(",")[1] || "", r.w, r.h, !!r.once);
     fr.readAsDataURL(r.blob);
-  }).catch(() => Native.cancel());
+  }).catch((e) => { var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;color:#fff;background:#a00;padding:10px;border-radius:12px;font:13px sans-serif';d.textContent='Erreur: '+e; document.body.appendChild(d); });
 </script>
 </body></html>

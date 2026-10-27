@@ -193,9 +193,18 @@
       }
     }
     const w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight;
-    const s = Math.min(1, MAXPX / Math.max(w0, h0));
-    const B = document.createElement("canvas"); B.width = Math.max(1, Math.round(w0 * s)); B.height = Math.max(1, Math.round(h0 * s));
-    B.getContext("2d").drawImage(bmp, 0, 0, B.width, B.height);
+    // Certains téléphones n'arrivent pas à dessiner un très grand canevas (il reste noir) : on vérifie et on réduit si besoin.
+    let B = null;
+    for (const lim of [MAXPX, 3072, 2304, 1600, 1100]) {
+      const s = Math.min(1, lim / Math.max(w0, h0));
+      const C = document.createElement("canvas"); C.width = Math.max(1, Math.round(w0 * s)); C.height = Math.max(1, Math.round(h0 * s));
+      try {
+        const c = C.getContext("2d"); c.drawImage(bmp, 0, 0, C.width, C.height);
+        const px = c.getImageData(C.width >> 1, C.height >> 1, 1, 1).data, px2 = c.getImageData(C.width >> 2, C.height >> 2, 1, 1).data;
+        if (px[3] > 0 || px2[3] > 0) { B = C; break; }
+      } catch (e) { /* on réduit */ }
+    }
+    if (!B) throw new Error("canvas");
     if (bmp.close) try { bmp.close(); } catch (e) { /* ignoré */ }
     return B;
   }
@@ -393,11 +402,17 @@
 
       // ----- Export -----
       const finish = async (once) => {
-        const W = B.width, H = B.height;
-        const out = document.createElement("canvas"); out.width = W; out.height = H;
-        const c = out.getContext("2d"); c.drawImage(B, 0, 0); filterBands(c, W, H, FILTERS[fi].f);
-        items.forEach((it) => drawItem(c, it, W, H));
-        const blob = await new Promise((r) => out.toBlob(r, "image/jpeg", .93));
+        let blob = null, W = B.width, H = B.height;
+        for (const k of [1, .75, .55]) {
+          W = Math.round(B.width * k); H = Math.round(B.height * k);
+          try {
+            const out = document.createElement("canvas"); out.width = W; out.height = H;
+            const c = out.getContext("2d"); c.drawImage(B, 0, 0, W, H); filterBands(c, W, H, FILTERS[fi].f);
+            items.forEach((it) => drawItem(c, it, W, H));
+            blob = await new Promise((r) => out.toBlob(r, "image/jpeg", .93));
+          } catch (e) { blob = null; }
+          if (blob && blob.size > 2000) break;
+        }
         done(blob ? { blob, w: W, h: H, once: !!once } : null);
       };
       const done = (v) => { root.remove(); resolve(v); };

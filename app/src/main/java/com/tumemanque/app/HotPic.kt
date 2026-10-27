@@ -138,7 +138,7 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (allowed) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Box(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp)) {
                 GlassCircle(44.dp, Modifier.align(Alignment.CenterStart), onClick = { onClose() }) { Ico(R.drawable.ic_xmark, Color.White, 20.dp) }
                 GlassPill(Modifier.align(Alignment.Center), height = 38.dp, onClick = null) {
                     Ico(icon, Color(0xFFFFB454), 18.dp)
@@ -153,7 +153,7 @@ private fun HotCamera(title: String, icon: Int, onShot: (File) -> Unit, onClose:
             error?.let { Text(it, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(32.dp)) }
             // 3 colonnes égales : galerie à gauche, déclencheur pile au centre, caméra à droite.
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 30.dp, start = 28.dp, end = 28.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 64.dp, start = 28.dp, end = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f), Alignment.CenterStart) {
