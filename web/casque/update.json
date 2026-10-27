@@ -1,7 +1,7 @@
 {
  "version": "web 1.1",
- "notes": "Appui long sur un morceau ou un dossier pour le supprimer de Casque (il disparaît aussi des playlists).",
- "versionCode": 10,
- "versionName": "1.10",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-10/casque.apk"
+ "notes": "Recherche YouTube avec lecteur vidéo, téléchargements MP3 / M4A / MP4, onglets Vidéos et Téléchargements, nouveau style en verre.",
+ "versionCode": 14,
+ "versionName": "1.14",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-14/casque.apk"
 }
