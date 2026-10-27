@@ -171,7 +171,7 @@ fun TrackMenu(
             CIcon(Ic.More, P.sub, 20.dp)
         }
         DropdownMenu(open, { open = false }, containerColor = P.card2) {
-            fun item(label: String, f: () -> Unit) = DropdownMenuItem(
+            @Composable fun item(label: String, f: () -> Unit) = DropdownMenuItem(
                 text = { Text(label, color = P.text) }, onClick = { open = false; f() },
             )
             item("Lire ensuite") { Hub.playNext(t) }
