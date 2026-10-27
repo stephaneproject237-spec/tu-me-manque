@@ -279,7 +279,7 @@ object Hub {
         }
     }
 
-    fun setSpeed(v: Float) {
+    fun changeSpeed(v: Float) {
         speed = v
         player.playbackParameters = PlaybackParameters(v)
         prefs().edit().putFloat("speed", v).apply()
@@ -338,7 +338,7 @@ object Hub {
     fun eqLevel(band: Int): Int = eq?.getBandLevel(band.toShort())?.toInt() ?: 0
     fun eqPresets(): List<String> = eq?.let { e -> (0 until e.numberOfPresets).map { e.getPresetName(it.toShort()) } } ?: emptyList()
 
-    fun setEqEnabled(on: Boolean) {
+    fun changeEq(on: Boolean) {
         eqEnabled = on
         runCatching { eq?.enabled = on }
         prefs().edit().putBoolean("eq_on", on).apply()
@@ -352,7 +352,7 @@ object Hub {
     fun usePreset(i: Int) {
         runCatching { eq?.usePreset(i.toShort()) }
         saveEq()
-        setEqEnabled(true)
+        changeEq(true)
     }
 
     private fun saveEq() {

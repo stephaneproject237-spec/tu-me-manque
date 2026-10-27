@@ -309,7 +309,7 @@ private fun SpeedSheet(onDone: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
             Box(Modifier.weight(1f)) {
-                Pill("${v.toString().trimEnd('0').trimEnd('.').replace('.', ',')}×", Hub.speed == v) { Hub.setSpeed(v); onDone() }
+                Pill("${v.toString().trimEnd('0').trimEnd('.').replace('.', ',')}×", Hub.speed == v) { Hub.changeSpeed(v); onDone() }
             }
         }
     }
@@ -327,7 +327,7 @@ private fun EqSheet() {
     Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Activer l'égaliseur", color = P.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
-            Switch(Hub.eqEnabled, { Hub.setEqEnabled(it) }, colors = SwitchDefaults.colors(checkedTrackColor = P.blue))
+            Switch(Hub.eqEnabled, { Hub.changeEq(it) }, colors = SwitchDefaults.colors(checkedTrackColor = P.blue))
         }
         val presets = Hub.eqPresets()
         if (presets.isNotEmpty()) {
@@ -342,7 +342,7 @@ private fun EqSheet() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(if (f >= 1000) "${f / 1000} kHz" else "$f Hz", color = P.sub, fontSize = 12.sp, modifier = Modifier.width(56.dp))
                     Slider(
-                        v, { v = it; Hub.setBand(b, it.toInt()); if (!Hub.eqEnabled) Hub.setEqEnabled(true) },
+                        v, { v = it; Hub.setBand(b, it.toInt()); if (!Hub.eqEnabled) Hub.changeEq(true) },
                         valueRange = lo.toFloat()..hi.toFloat(), modifier = Modifier.weight(1f),
                         colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = P.blue, inactiveTrackColor = Color(0x33FFFFFF)),
                     )
