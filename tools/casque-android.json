@@ -1,6 +1,6 @@
 {
- "versionCode": 17,
- "versionName": "1.17",
- "notes": "Vidéo flottante quand tu quittes l'appli, et mini-fenêtre réductible dans l'appli.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-17/casque.apk"
+ "versionCode": 19,
+ "versionName": "1.19",
+ "notes": "La recherche rouvre ta dernière page ; titres et artistes des téléchargements conservés.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-19/casque.apk"
 }
