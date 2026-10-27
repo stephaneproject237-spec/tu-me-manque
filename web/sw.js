@@ -1,5 +1,5 @@
 // Service worker : notifications + mémoire locale (l'appli s'ouvre vite même avec un réseau lent).
-const CACHE = "tmm-8eed916e";
+const CACHE = "tmm-3715144a";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(
   caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("tmm-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())

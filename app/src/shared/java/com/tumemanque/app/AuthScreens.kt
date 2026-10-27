@@ -140,7 +140,7 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
                 Text("Créer mon compte", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Crée ton compte avec ton compte Google ou ton compte Apple (iOS). Tu choisiras ton pseudo juste après.",
+                    "Crée ton compte avec ton compte Google. Tu choisiras ton pseudo juste après.",
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -166,7 +166,7 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
                 Text("Me connecter", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Connecte-toi avec ton compte Google ou ton compte Apple (iOS) pour retrouver ton pseudo et tes conversations.",
+                    "Connecte-toi avec ton compte Google pour retrouver ton pseudo et tes conversations.",
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))

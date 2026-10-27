@@ -788,8 +788,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
 
   const methodButtons = (needOk) => {
     if (NEWAUTH) {
-      return `<button class="principal" data-action="oauthGoogle">Continuer avec Google</button>` +
-        `<button class="sombre" data-action="oauthApple">Continuer avec Apple</button>`;
+      return `<button class="principal" data-action="oauthGoogle">Continuer avec Google</button>`;
     }
     const flag = needOk ? "data-needok" : "";
     const dis = needOk && !canContinue() ? "disabled" : "";
@@ -816,13 +815,13 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     const msg = a.msg ? '<p class="msg">' + esc(a.msg) + "</p>" : "";
     if (NEWAUTH && a.screen === "create") {
       return `<div class="col"><div class="coeur">💗</div><h1>Créer mon compte</h1>
-        <p>Crée ton compte avec ton compte Google ou ton compte Apple (iOS). Tu choisiras ton pseudo juste après.</p>
+        <p>Crée ton compte avec ton compte Google. Tu choisiras ton pseudo juste après.</p>
         ${methodButtons(false)}${msg}
         <button class="lien" data-action="goWelcome">Retour</button></div>`;
     }
     if (NEWAUTH && a.screen === "login") {
       return `<div class="col"><div class="coeur">💗</div><h1>Me connecter</h1>
-        <p>Connecte-toi avec ton compte Google ou ton compte Apple (iOS) pour retrouver ton pseudo et tes conversations.</p>
+        <p>Connecte-toi avec ton compte Google pour retrouver ton pseudo et tes conversations.</p>
         ${methodButtons(false)}${msg}
         <button class="lien" data-action="phoneStart">Compte créé avec un numéro de téléphone ?</button>
         <button class="lien" data-action="goWelcome">Retour</button></div>`;
