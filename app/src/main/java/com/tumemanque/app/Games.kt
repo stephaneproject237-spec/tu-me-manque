@@ -313,7 +313,7 @@ private fun Hourglass(size: androidx.compose.ui.unit.TextUnit) {
 }
 
 @Composable
-fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () -> Unit = {}, onHot: () -> Unit = {}, onNow: () -> Unit = {}, onNowOff: () -> Unit = {}) {
+fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () -> Unit = {}, onHot: () -> Unit = {}, onNow: () -> Unit = {}) {
     ctl.partner = partner
     val r = ctl.round
     var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -322,7 +322,6 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () 
     // Les fonctions sortent de l'éclair vers le haut, avec une petite animation fluide.
     Column(Modifier.fillMaxWidth()) {
     Column(Modifier.padding(start = 12.dp)) {
-        if (NowPic.auto) BoltItem(open, 350) { GPill("⛔ Couper Now pic auto", false) { open = false; onNowOff() } }
         BoltItem(open, 280) { GPill("Now pic", false, icon = R.drawable.ic_nowpic) { open = false; onNow() } }
         BoltItem(open, 210) { GPill("🔥 Hot pic", false) { open = false; onHot() } }
         BoltItem(open, 140) { GPill("🕐 Programmés", false) { open = false; onSched() } }

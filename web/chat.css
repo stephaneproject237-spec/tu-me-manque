@@ -548,5 +548,3 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .np-toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 95; background: rgba(0,0,0,.8); color: #fff; padding: 10px 16px; border-radius: 18px; font-size: 14px; max-width: 86vw; text-align: center; }
 .hp.fixed, .pe.fixed { position: fixed; }
 .nowic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 2px; }
-.np-once { border: 0; border-radius: 26px; padding: 13px; font: 600 15px inherit; font-family: inherit; background: rgba(255,255,255,.14); color: #fff; }
-.np-card small { opacity: .6; font-size: 12px; }

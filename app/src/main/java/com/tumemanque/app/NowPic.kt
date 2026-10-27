@@ -44,7 +44,6 @@ import org.json.JSONObject
 object NowPic {
     var session by mutableStateOf<NowSession?>(null)
     var camera by mutableStateOf(false)
-    var auto by mutableStateOf(false)
     var toast by mutableStateOf<String?>(null)
     private val handled = HashSet<Long>()
     private val toasted = HashSet<Long>()
@@ -108,17 +107,10 @@ fun NowPicHost(label: String) {
                 Spacer(Modifier.height(16.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))))
-                        .clickable { scope.launch { try { Backend.nowpicRespond(s.id, true, true) } catch (e: Exception) { /* ignoré */ }; NowPic.poll(partner) } }.padding(vertical = 14.dp),
+                        .clickable { scope.launch { try { Backend.nowpicRespond(s.id, true) } catch (e: Exception) { /* ignoré */ }; NowPic.poll(partner) } }.padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text("Oui, toujours 📸", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+                ) { Text("Oui, allons-y 📸", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
                 Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Color(0x24FFFFFF))
-                        .clickable { scope.launch { try { Backend.nowpicRespond(s.id, true, false) } catch (e: Exception) { /* ignoré */ }; NowPic.poll(partner) } }.padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("Oui, seulement cette fois", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
-                Spacer(Modifier.height(6.dp))
-                Text("« Toujours » : vos prochains Now Pic s'ouvrent sans redemander. Tu peux couper ça dans le menu ⚡.", color = Color(0x99F5EEF2), fontSize = 12.sp, textAlign = TextAlign.Center)
                 TextButton(onClick = { scope.launch { try { Backend.nowpicRespond(s.id, false) } catch (e: Exception) { /* ignoré */ }; NowPic.session = null } }) {
                     Text("Pas maintenant", color = Color(0xFFD8B8C8))
                 }

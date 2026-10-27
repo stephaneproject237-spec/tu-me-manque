@@ -82,7 +82,7 @@ data class SendOpts(val once: Boolean = false, val at: Long = 0)
 /** Contenu d'un message éphémère, remis une seule fois au destinataire. */
 class OnceContent(val kind: String, val body: String?, val media: String?)
 
-class NowSession(val id: Long, val state: String, val byMe: Boolean, val auto: Boolean = false)
+class NowSession(val id: Long, val state: String, val byMe: Boolean)
 
 /** Un message programmé, pas encore parti. */
 data class Sched(val id: Long, val kind: String, val body: String?, val once: Boolean, val sendAt: Long)
@@ -614,15 +614,11 @@ object Backend {
     /** La demande de Now pic en cours (la mienne ou celle de l'autre), ou null. */
     suspend fun nowpicState(): NowSession? {
         val j = JSONObject(authed("POST", "/rest/v1/rpc/nowpic_state", "{}"))
-        val auto = j.optBoolean("auto", false)
-        NowPic.auto = auto
         val o = j.optJSONObject("session") ?: return null
-        return NowSession(o.optLong("id"), o.optString("state"), o.optBoolean("by_me"), auto)
+        return NowSession(o.optLong("id"), o.optString("state"), o.optBoolean("by_me"))
     }
 
-    suspend fun nowpicRespond(id: Long, accept: Boolean, always: Boolean = false) { rpc("nowpic_respond", JSONObject().put("p_id", id).put("p_accept", accept).put("p_always", always)) }
-
-    suspend fun nowpicAutoOff() { rpc("nowpic_auto_off") }
+    suspend fun nowpicRespond(id: Long, accept: Boolean) { rpc("nowpic_respond", JSONObject().put("p_id", id).put("p_accept", accept)) }
 
     suspend fun nowpicCancel(id: Long) { rpc("nowpic_cancel", JSONObject().put("p_id", id)) }
 
