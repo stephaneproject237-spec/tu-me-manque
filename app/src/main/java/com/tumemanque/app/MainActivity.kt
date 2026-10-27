@@ -280,6 +280,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
 
     ReminderAlarmHost(remVm, state.partnerName != null, partnerLabel(state))
     if (state.partnerName != null) CallHost(partnerLabel(state))
+    if (state.partnerName != null) NowPicHost(partnerLabel(state))
 
     state.offerInvite?.let { name ->
         AlertDialog(

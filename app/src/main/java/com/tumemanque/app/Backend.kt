@@ -82,6 +82,8 @@ data class SendOpts(val once: Boolean = false, val at: Long = 0)
 /** Contenu d'un message éphémère, remis une seule fois au destinataire. */
 class OnceContent(val kind: String, val body: String?, val media: String?)
 
+class NowSession(val id: Long, val state: String, val byMe: Boolean)
+
 /** Un message programmé, pas encore parti. */
 data class Sched(val id: Long, val kind: String, val body: String?, val once: Boolean, val sendAt: Long)
 
@@ -604,6 +606,21 @@ object Backend {
     suspend fun scheduledCancel(id: Long) { rpc("scheduled_cancel", JSONObject().put("p_id", id)) }
 
     suspend fun deliverScheduled() { runCatching { rpc("deliver_scheduled") } }
+
+    // ---------- Now pic ----------
+
+    suspend fun nowpicRequest(): String = JSONObject(authed("POST", "/rest/v1/rpc/nowpic_request", "{}")).optString("status", "error")
+
+    /** La demande de Now pic en cours (la mienne ou celle de l'autre), ou null. */
+    suspend fun nowpicState(): NowSession? {
+        val j = JSONObject(authed("POST", "/rest/v1/rpc/nowpic_state", "{}"))
+        val o = j.optJSONObject("session") ?: return null
+        return NowSession(o.optLong("id"), o.optString("state"), o.optBoolean("by_me"))
+    }
+
+    suspend fun nowpicRespond(id: Long, accept: Boolean) { rpc("nowpic_respond", JSONObject().put("p_id", id).put("p_accept", accept)) }
+
+    suspend fun nowpicCancel(id: Long) { rpc("nowpic_cancel", JSONObject().put("p_id", id)) }
 
     /** « Est en train d'écrire » : tout est silencieux si la fonction n'existe pas encore côté serveur. */
     suspend fun partnerTyping(): Boolean = runCatching {

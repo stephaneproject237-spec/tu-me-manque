@@ -271,7 +271,7 @@ val LocalChatMsgs = androidx.compose.runtime.compositionLocalOf<List<ChatMsg>> {
 
 // ---------- Pastille dans le chat ----------
 @Composable
-private fun GPill(text: String, on: Boolean, onClick: () -> Unit) {
+private fun GPill(text: String, on: Boolean, icon: Int? = null, onClick: () -> Unit) {
     Box(
         Modifier.clip(RoundedCornerShape(50))
             .background(if (on) Brush.linearGradient(listOf(Color(0xFFFF4F86), Color(0xFFD81B60))) else Brush.linearGradient(listOf(Color(0xB3281C24), Color(0xB3281C24))))
@@ -279,7 +279,11 @@ private fun GPill(text: String, on: Boolean, onClick: () -> Unit) {
             .clickable { onClick() }.padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         val col = if (on) Color.White else GSoft
-        if (text.startsWith("⏳")) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (icon != null) Row(verticalAlignment = Alignment.CenterVertically) {
+            Ico(icon, col, 18.dp)
+            Spacer(Modifier.width(6.dp))
+            Text(text, color = col, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        } else if (text.startsWith("⏳")) Row(verticalAlignment = Alignment.CenterVertically) {
             Hourglass(14.sp)
             Text(text.removePrefix("⏳"), color = col, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         } else Text(text, color = col, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -309,7 +313,7 @@ private fun Hourglass(size: androidx.compose.ui.unit.TextUnit) {
 }
 
 @Composable
-fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () -> Unit = {}, onHot: () -> Unit = {}) {
+fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () -> Unit = {}, onHot: () -> Unit = {}, onNow: () -> Unit = {}) {
     ctl.partner = partner
     val r = ctl.round
     var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -318,6 +322,7 @@ fun GameChip(ctl: GameCtl, partner: String, rem: ReminderViewModel, onSched: () 
     // Les fonctions sortent de l'éclair vers le haut, avec une petite animation fluide.
     Column(Modifier.fillMaxWidth()) {
     Column(Modifier.padding(start = 12.dp)) {
+        BoltItem(open, 280) { GPill("Now pic", false, icon = R.drawable.ic_nowpic) { open = false; onNow() } }
         BoltItem(open, 210) { GPill("🔥 Hot pic", false) { open = false; onHot() } }
         BoltItem(open, 140) { GPill("🕐 Programmés", false) { open = false; onSched() } }
         if (!remActive) BoltItem(open, 70) { GPill("⏰ Rappels", false) { open = false; rem.overlay = true } }

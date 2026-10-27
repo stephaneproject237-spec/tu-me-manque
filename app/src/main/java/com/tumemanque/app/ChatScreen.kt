@@ -284,7 +284,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { botPx = it.height }
                 .navigationBarsPadding().imePadding(),
         ) {
-            if (!recording) GameChip(game, partner, remVm, onSched = { showSched = true }, onHot = { showHot = true })
+            if (!recording) GameChip(game, partner, remVm, onSched = { showSched = true }, onHot = { showHot = true }, onNow = { gameScope.launch { vm.showToast(NowPic.request()) } })
             if (state.typing && !recording) TypingBubble()
             editing?.let { em -> ReplyBar(Reply(em.id, true, "text", em.body ?: ""), partner, "✏️  Modifier le message") { editing = null; text = "" } }
             if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
