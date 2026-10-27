@@ -10,11 +10,10 @@ begin
      or not exists (select 1 from public.profiles where id = p_to) then
     return json_build_object('status', 'invalid');
   end if;
-  -- On libère d'abord les anciens partenaires (conversation, jeux et rappels de ces anciens liens effacés).
+  -- On libère d'abord les anciens partenaires (les conversations sont conservées : elles reviendront si ces deux comptes sont reliés de nouveau ; les jeux en cours et les rappels communs sont arrêtés).
   foreach x in array array[p_user, p_to] loop
     select partner_id into px from public.profiles where id = x;
     if px is not null and px <> (case when x = p_user then p_to else p_user end) then
-      delete from public.messages where sender_id in (x, px) and recipient_id in (x, px);
       update public.game_rounds set status = 'cancelled'
         where status in ('invite', 'playing') and user_a in (x, px) and user_b in (x, px);
       delete from public.reminders where creator in (x, px) and other in (x, px);
@@ -31,8 +30,6 @@ begin
     return json_build_object('status', 'ok');
   end if;
   perform public._link(p_user, p_to);
-  insert into public.notifications (to_id, title, body)
-    select p_to, 'Vous êtes partenaires 💗', '@' || username || ' et toi êtes maintenant partenaires' from public.profiles where id = p_user;
   return json_build_object('status', 'ok');
 end $$;
 

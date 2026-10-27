@@ -351,7 +351,7 @@
     } else if (m.type === "link") {
       el.innerHTML = `<div class="fond"><div class="box">
         <h2 style="margin:0">Relier ${esc(name)} à…</h2>
-        <p class="v">${u.partner_name ? "Son partenaire actuel @" + esc(u.partner_name) + " sera libéré. " : ""}Si l'autre compte a déjà un partenaire, il sera libéré aussi. Les conversations, jeux et rappels de ces anciens liens seront effacés.</p>
+        <p class="v">${u.partner_name ? "Son partenaire actuel @" + esc(u.partner_name) + " sera libéré. " : ""}Si l'autre compte a déjà un partenaire, il sera libéré aussi. Personne n'est prévenu et les conversations sont conservées : elles reviennent si ces deux comptes sont reliés de nouveau. Les jeux en cours et les rappels communs sont arrêtés.</p>
         <p class="k">Pseudo du compte à relier :</p>
         <input class="mi" id="m-in" autocomplete="off" autocapitalize="none" placeholder="pseudo">
         <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="p" data-a="mlink">${S.busy ? "…" : "Relier"}</button></div></div></div>`;
