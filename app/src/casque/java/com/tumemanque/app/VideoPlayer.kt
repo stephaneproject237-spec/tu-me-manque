@@ -301,6 +301,8 @@ fun VideoFullscreen() {
         ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         ctl?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
+            // Hors de la recherche, il n'y a pas de petit lecteur : on met en pause en quittant le plein écran.
+            if (Shell.tab != "search") Vp.pause()
             act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             ctl?.show(WindowInsetsCompat.Type.systemBars())
         }

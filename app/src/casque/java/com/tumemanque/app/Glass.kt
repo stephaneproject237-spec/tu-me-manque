@@ -149,6 +149,8 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val inset = navBottom + 10.dp + 62.dp + (if (current != null) 66.dp else 0.dp) + 12.dp
 
     BackHandler(enabled = Shell.tab != "audios" && !Vp.fullscreen && !Shell.nowOpen) { Shell.tab = "audios" }
+    // La vidéo de la recherche s'arrête quand on change d'onglet.
+    LaunchedEffect(Shell.tab) { if (Shell.tab != "search" && !Vp.fullscreen) Vp.pause() }
 
     Box(Modifier.fillMaxSize().background(P.bg)) {
         Box(Modifier.fillMaxSize().haze(haze)) {
