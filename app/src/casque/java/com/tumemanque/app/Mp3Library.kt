@@ -232,7 +232,7 @@ object Lib {
             }
             val store = withContext(Dispatchers.IO) { queryStore(ctx) }
             val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") || it.id in pinned }
-            val merged = (store + folderTracks).distinctBy { it.id }
+            val merged = (folderTracks.filter { it.id in pinned } + store + folderTracks).distinctBy { it.id }
             publish(merged)
             withContext(Dispatchers.IO) { save() }
             _scan.value = ScanState(false, "${merged.size} morceau(x) trouvé(s)", merged.size)
@@ -284,7 +284,7 @@ object Lib {
         if (_scan.value.running || !hasPermission(ctx)) return
         val store = withContext(Dispatchers.IO) { queryStore(ctx) }
         val folderTracks = _tracks.value.filter { !it.id.startsWith("content://media/") || it.id in pinned }
-        val merged = (store + folderTracks).distinctBy { it.id }
+        val merged = (folderTracks.filter { it.id in pinned } + store + folderTracks).distinctBy { it.id }
         if (visible(merged).map { it.id } != _tracks.value.map { it.id }) {
             publish(merged)
             withContext(Dispatchers.IO) { save() }

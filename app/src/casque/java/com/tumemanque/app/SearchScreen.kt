@@ -81,10 +81,13 @@ fun SearchScreen() {
     val bottom = LocalBottomInset.current
     val tracks by Lib.tracks.collectAsState()
 
-    var query by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf("") }
-    var resultsJson by rememberSaveable { mutableStateOf("") }
-    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    // On retrouve la dernière recherche (même après avoir fermé l'appli).
+    val last = remember { Yt.lastSearch() }
+    var query by rememberSaveable { mutableStateOf(last?.first ?: "") }
+    var submitted by rememberSaveable { mutableStateOf(last?.first ?: "") }
+    var resultsJson by rememberSaveable { mutableStateOf(last?.second ?: "") }
+    var selectedId by rememberSaveable { mutableStateOf(last?.third) }
+    LaunchedEffect(submitted, resultsJson, selectedId) { if (resultsJson.isNotEmpty()) Yt.saveLastSearch(submitted, resultsJson, selectedId) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var focused by remember { mutableStateOf(false) }

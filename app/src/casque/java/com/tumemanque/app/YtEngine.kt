@@ -266,6 +266,15 @@ object Yt {
         prefs().edit().putString("history", JSONArray(history().filterNot { it == q }).toString()).apply()
     }
 
+    fun lastSearch(): Triple<String, String, String?>? = runCatching {
+        val o = JSONObject(prefs().getString("last", null) ?: return null)
+        Triple(o.getString("q"), o.getString("r"), o.optString("s").ifEmpty { null })
+    }.getOrNull()
+
+    fun saveLastSearch(q: String, results: String, selected: String?) {
+        prefs().edit().putString("last", JSONObject().put("q", q).put("r", results).put("s", selected ?: "").toString()).apply()
+    }
+
     fun clearHistory() { prefs().edit().putString("history", "[]").apply() }
 }
 
