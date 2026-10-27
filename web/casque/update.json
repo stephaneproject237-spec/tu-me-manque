@@ -1,7 +1,7 @@
 {
  "version": "web 1.1",
- "notes": "La recherche rouvre ta dernière page ; titres et artistes des téléchargements conservés.",
- "versionCode": 19,
- "versionName": "1.19",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-19/casque.apk"
+ "notes": "Mini-lecteur glissable, pochettes automatiques, paroles karaoké, sélection et envoi des fichiers hors de Casque.",
+ "versionCode": 21,
+ "versionName": "1.21",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-21/casque.apk"
 }
