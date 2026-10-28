@@ -866,10 +866,22 @@
     } else embedYt(o.id);
   }
   function embedYt(id) {
-    vbox.querySelector(".vb-media").innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+    vbox.querySelector(".vb-media").innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=' + encodeURIComponent(location.origin) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
     V.el = null;
     vbox.classList.add("ifr");
+    // Le lecteur YouTube intégré prévient quand la vidéo se termine (lecture continue).
+    const fr = vbox.querySelector("iframe");
+    const listen = () => { try { fr.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*"); } catch (e) { /* ignoré */ } };
+    fr.addEventListener("load", () => { listen(); setTimeout(listen, 800); setTimeout(listen, 2500); });
   }
+  window.addEventListener("message", (ev) => {
+    if (!V.yid || !/youtube/.test(ev.origin || "")) return;
+    let d = ev.data;
+    try { if (typeof d === "string") d = JSON.parse(d); } catch (e) { return; }
+    if (!d) return;
+    const st = d.event === "onStateChange" ? d.info : d.event === "infoDelivery" && d.info ? d.info.playerState : undefined;
+    if (st === 0 && V.auto) nextRelated(false);
+  });
   function playFile(t) {
     stopVideo();
     audio.pause();
@@ -889,8 +901,9 @@
     const v = V.el;
     if (!v) return;
     const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
-    v.addEventListener("play", () => { audio.pause(); upd(); bgPrime(); videoSession(); });
-    v.addEventListener("pause", upd);
+    v.addEventListener("play", () => { lastPlay = Date.now(); audio.pause(); upd(); bgPrime(); videoSession(); });
+    v.addEventListener("pause", () => { upd(); if (document.hidden && V.key) toBackground(true); });
+    v.addEventListener("timeupdate", () => { if (!v.paused) lastPlay = Date.now(); });
     v.addEventListener("ended", () => { if (V.auto && V.yid) nextRelated(false); });
   }
   // Vidéo suivante du même thème : la suivante des résultats, sinon une recherche sur le titre.
@@ -1019,10 +1032,13 @@
       navigator.mediaSession.playbackState = "playing";
     } catch (e) { /* ignoré */ }
   }
-  function toBackground() {
+  let lastPlay = 0;
+  function toBackground(force) {
     const v = V.el;
-    if (!v || v.paused || v.ended) return;
-    if (pip(false)) return;
+    if (!v || v.ended || bgOn) return;
+    // iOS peut mettre la vidéo en pause juste avant : on reprend alors en son seul (force).
+    if (v.paused && !(force && Date.now() - lastPlay < 1500)) return;
+    if (!v.paused && pip(false)) return;
     try {
       const src = v.currentSrc || v.src;
       if (!src) return;
