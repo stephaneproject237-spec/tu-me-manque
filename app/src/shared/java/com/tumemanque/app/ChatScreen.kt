@@ -239,7 +239,10 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         }
         onDispose { ChatBot.send = null; ChatBot.sendSong = null; ChatBot.sendVideo = null }
     }
-    LaunchedEffect(state.messages) { ChatBot.process(context.applicationContext, state.messages, gameScope) }
+    LaunchedEffect(state.messages) {
+        ChatBot.process(context.applicationContext, state.messages, gameScope)
+        AskBot.process(context.applicationContext, state.messages, gameScope)
+    }
     LaunchedEffect(ChatBot.prefill) { ChatBot.prefill?.let { text = it; ChatBot.prefill = null } }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
@@ -310,6 +313,19 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
 
             // Suggestion quand on commence à taper « @ ».
             val tt = text.trim().lowercase()
+            if (tt.startsWith("@") && "@recherche".startsWith(tt.take(10)) && !tt.startsWith("@recherche ") && !recording) {
+                Row(
+                    Modifier.padding(start = 14.dp, bottom = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xE6261820))
+                        .clickable { text = "@recherche " }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🔎", fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("@recherche", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("  ·  poser une question, réponse trouvée en ligne", color = Color(0xFFC9A9BA), fontSize = 13.sp)
+                }
+            }
             if (tt.startsWith("@") && "@music".startsWith(tt.take(6)) && !recording) {
                 Row(
                     Modifier.padding(start = 14.dp, bottom = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xE6261820))
@@ -342,6 +358,10 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 onSend = {
                     val em = editing
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
+                    else if (text.trim().lowercase().startsWith("@recherche")) {
+                        val q = text.trim().drop(10).trim()
+                        if (q.isEmpty()) vm.showToast("Écris ta question après @recherche.") else { AskBot.ask(q); text = ""; sendTick++ }
+                    }
                     else if (text.trim().lowercase().startsWith("@music")) {
                         val q = text.trim().drop(6).trim()
                         if (q.isEmpty()) ChatBot.ask() else ChatBot.query(q)
@@ -437,7 +457,9 @@ private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onRe
     }
     // Bot @music : questions, propositions et choix, au centre et visibles des deux côtés.
     ChatBot.bot(m)?.let { b ->
-        if (b.optString("t") != "q" && !m.deleted) { BotChatRow(m, partner, LocalChatMsgs.current); return }
+        val bt = b.optString("t")
+        if ((bt == "sr" || bt == "spk") && !m.deleted) { AskBotRow(m, partner, LocalChatMsgs.current); return }
+        if (bt != "q" && bt != "sq" && !m.deleted) { BotChatRow(m, partner, LocalChatMsgs.current); return }
     }
     SwipeToReply(!m.pending, { if (!m.deleted) onReply() }, onMenu) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
