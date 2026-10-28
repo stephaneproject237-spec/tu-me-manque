@@ -58,7 +58,8 @@
     users: [], fr: { current: [], history: [] }, threads: [],
     q: "", sort: (function(){try{return localStorage.getItem("tmm_sort")||"created"}catch(e){return "created"}})(), loaded: false, err: null,
     thread: null,          // { id, name, msgs }
-    modal: null,           // { type: "delete" | "history", user }
+    modal: null,           // { type: "delete" | "history" | "update", user }
+    targets: null,         // nombre de personnes à prévenir par application et appareil
     busy: false,
   };
 
@@ -111,6 +112,7 @@
     try {
       const [u, f, t] = await Promise.all([call("admin_users"), call("admin_friendships"), call("admin_threads")]);
       S.users = u || []; S.fr = f || { current: [], history: [] }; S.threads = t || [];
+      try { S.targets = await call("admin_update_targets"); } catch (e) { S.targets = null; }
       S.loaded = true; S.err = null;
     } catch (e) {
       S.err = "Chargement impossible : " + (e.message || e);
@@ -205,7 +207,7 @@
     }
     root.innerHTML = `<header><h1>🛠️ Admin</h1><button data-a="refresh" aria-label="Actualiser">↻</button><button data-a="logout">Quitter</button></header>
       <main id="content"></main>
-      <nav><button data-a="tab" data-t="users" id="n-users"></button><button data-a="tab" data-t="friends" id="n-friends"></button><button data-a="tab" data-t="msgs" id="n-msgs"></button></nav>
+      <nav><button data-a="tab" data-t="users" id="n-users"></button><button data-a="tab" data-t="friends" id="n-friends"></button><button data-a="tab" data-t="msgs" id="n-msgs"></button><button data-a="tab" data-t="upd" id="n-upd"></button></nav>
       <div id="modal"></div><div id="thread"></div>`;
     renderContent();
   }
@@ -218,6 +220,7 @@
     set("n-friends", "💗 Amitiés <small>(" + S.fr.current.length + ")</small>", S.tab === "friends");
     const u = unreadTotal();
     set("n-msgs", "💬 Messages" + (u ? ' <span class="dot">' + u + "</span>" : ""), S.tab === "msgs");
+    set("n-upd", "🔔 Mise à jour", S.tab === "upd");
   }
 
   function renderContent() {
@@ -229,9 +232,56 @@
     const err = S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "";
     if (S.tab === "users") c.innerHTML = err + usersHtml();
     else if (S.tab === "friends") c.innerHTML = err + friendsHtml();
+    else if (S.tab === "upd") c.innerHTML = err + updateHtml();
     else c.innerHTML = err + threadsHtml();
     const q = document.getElementById("q");
     if (q && S.focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  }
+
+  // ---------- Prévenir d'une mise à jour ----------
+  const UPD = {
+    tmm_android: { app: "tmm", pf: "android", name: "Tu me manques", dev: "Android", ico: "🤖💗" },
+    tmm_ios: { app: "tmm", pf: "ios", name: "Tu me manques", dev: "iPhone", ico: "🍎💗" },
+    casque_android: { app: "casque", pf: "android", name: "Free tune", dev: "Android", ico: "🤖🎧" },
+    casque_ios: { app: "casque", pf: "ios", name: "Free tune", dev: "iPhone", ico: "🍎🎧" },
+  };
+  function updText(k) {
+    const u = UPD[k];
+    if (u.pf === "android") return {
+      title: "Mise à jour de " + u.name + " disponible 🎉",
+      body: "Une nouvelle version de " + u.name + " est disponible. Ouvre l'appli, va dans Paramètres, touche « Mettre à jour maintenant » puis « Installer ». Si Android le demande, autorise l'installation.",
+    };
+    return {
+      title: "Mise à jour de " + u.name + " disponible 🎉",
+      body: "Une nouvelle version de " + u.name + " est disponible. Ferme complètement l'appli (glisse-la vers le haut) puis rouvre-la. Si l'ancienne version s'affiche encore, supprime l'icône de l'écran d'accueil et ajoute-la de nouveau depuis Safari (Partager, puis « Sur l'écran d'accueil »).",
+    };
+  }
+  function updateHtml() {
+    const tg = S.targets;
+    return `<p class="muted" style="padding:0 0 8px">Choisis l'application et l'appareil : une notification « mise à jour disponible » avec la marche à suivre part chez tous ses utilisateurs.</p>` +
+      Object.keys(UPD).map((k) => {
+        const u = UPD[k], n = tg ? tg[k] : null;
+        return `<div class="card glass"><div class="row"><span class="name grow">${u.ico} ${esc(u.name)} · ${esc(u.dev)}</span>
+          <span class="chip">${n == null ? "?" : n + " personne" + (n > 1 ? "s" : "")}</span></div>
+          <div class="row" style="margin-top:8px"><button class="p grow" data-a="updopen" data-k="${k}">🔔 Notifier</button></div></div>`;
+      }).join("") + (tg ? "" : '<p class="err muted">Compteurs indisponibles : lance d\'abord le SQL « admin6 » dans Supabase.</p>');
+  }
+  function openUpdate(k) {
+    const t = updText(k);
+    S.modal = { type: "update", key: k, title: t.title, body: t.body, user: {} };
+    renderModal();
+  }
+  async function sendUpdate() {
+    const m = S.modal; if (!m || S.busy) return;
+    const u = UPD[m.key];
+    const title = document.getElementById("u-t").value.trim(), body = document.getElementById("u-b").value.trim();
+    if (!title || !body) { alert("Le titre et le message ne peuvent pas être vides."); return; }
+    S.busy = true; renderModal();
+    try {
+      const n = await call("admin_notify_update", { p_app: u.app, p_platform: u.pf, p_title: title, p_body: body });
+      S.busy = false; m.done = "✓ Notification envoyée à " + n + " personne" + (n > 1 ? "s" : "") + ".";
+    } catch (e) { S.busy = false; m.done = "⚠️ Envoi impossible : " + (e.message || e) + ". As-tu lancé le SQL « admin6 » ?"; }
+    renderModal(); loadAll();
   }
 
   function filteredUsers() {
@@ -340,6 +390,18 @@
     if (!m) { el.innerHTML = ""; return; }
     const u = m.user;
     const name = u.username ? "@" + u.username : "ce compte";
+    if (m.type === "update") {
+      const x = UPD[m.key], n = S.targets ? S.targets[m.key] : null;
+      el.innerHTML = m.done
+        ? `<div class="fond"><div class="box"><h2 style="margin:0">${esc(x.name)} · ${esc(x.dev)}</h2><p class="v">${esc(m.done)}</p>
+            <div class="row" style="justify-content:flex-end"><button class="p" data-a="mclose">Fermer</button></div></div></div>`
+        : `<div class="fond"><div class="box"><h2 style="margin:0">Prévenir ${esc(x.name)} · ${esc(x.dev)}</h2>
+            <p class="v">Cette notification va partir chez ${n == null ? "tous les utilisateurs" : "<b>" + n + " personne" + (n > 1 ? "s" : "") + "</b>"}. Tu peux modifier le texte.</p>
+            <p class="k">Titre</p><input class="mi" id="u-t" maxlength="80" value="${esc(m.title)}">
+            <p class="k">Message (marche à suivre)</p><textarea class="mi" id="u-b" rows="6" maxlength="600" style="width:100%;box-sizing:border-box">${esc(m.body)}</textarea>
+            <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="p" data-a="updsend">${S.busy ? "Envoi…" : "Envoyer"}</button></div></div></div>`;
+      return;
+    }
     if (m.type === "delete") {
       const word = u.username || "SUPPRIMER";
       el.innerHTML = `<div class="fond"><div class="box">
@@ -397,7 +459,9 @@
       case "del": S.modal = { type: "delete", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
       case "link": S.modal = { type: "link", user: user() }; renderModal(); document.getElementById("m-in").focus(); break;
       case "mlink": linkUser(); break;
-      case "mclose": S.modal = null; renderModal(); break;
+      case "updopen": openUpdate(t.dataset.k); break;
+      case "updsend": sendUpdate(); break;
+      case "mclose": S.modal = null; S.busy = false; renderModal(); break;
       case "mdel": deleteUser(); break;
     }
   });
