@@ -125,7 +125,11 @@ class ChatViewModel : ViewModel() {
         return true
     }
 
+    /** Heure d'ouverture du chat : pas de son pour les messages déjà arrivés avant. */
+    private var openedAt = 0L
+
     fun ensureLoaded() {
+        openedAt = System.currentTimeMillis()
         if (started) return
         started = true
         _state.update { it.copy(loading = true, error = false) }
@@ -162,7 +166,9 @@ class ChatViewModel : ViewModel() {
                     changed = true
                     if (m.mine) dropMatchingPending(m)
                     else {
-                        if (m.kind == "game") onGame?.invoke(m) else Sounds.receive()
+                        if (m.kind == "game") onGame?.invoke(m)
+                        // À l'ouverture du chat, on rattrape les messages en silence ; ensuite un seul son doux.
+                        else if (System.currentTimeMillis() - openedAt > 4000) Sounds.receive()
                         if (_state.value.typing) _state.update { it.copy(typing = false) }
                         if (isLove(m)) onLove?.invoke()
                         if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }

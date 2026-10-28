@@ -126,11 +126,32 @@ object Sounds {
         return out
     }
     private val sendData: ShortArray by lazy { sentPop() }
-    private val recvData: ShortArray by lazy { bubble(false) }
+    /** Réception : une seule note très douce et courte (≈ 0,16 s), volume bas. */
+    private fun softDrop(): ShortArray {
+        val total = (RATE * 0.18).toInt()
+        val out = ShortArray(total)
+        var phase = 0.0
+        for (i in 0 until total) {
+            val t = i.toDouble() / RATE
+            val f = 620.0 - 120.0 * (t / 0.18)
+            phase += 2 * PI * f / RATE
+            val env = (1 - exp(-t * 180)) * exp(-t * 26)
+            out[i] = (sin(phase) * env * 0.16 * Short.MAX_VALUE).toInt().coerceIn(-32000, 32000).toShort()
+        }
+        return out
+    }
+    private val recvData: ShortArray by lazy { softDrop() }
+    private var lastRecv = 0L
 
     fun send() = play(sendData)
 
-    fun receive() = play(recvData)
+    /** Un seul son même si plusieurs messages arrivent d'un coup. */
+    fun receive() {
+        val now = System.currentTimeMillis()
+        if (now - lastRecv < 1500) return
+        lastRecv = now
+        play(recvData)
+    }
 
     private fun play(d: ShortArray) {
         try {
