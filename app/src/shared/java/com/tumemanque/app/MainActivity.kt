@@ -177,8 +177,11 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
     // « Casque » : la première page est le lecteur audio ; la messagerie est derrière « Paramètres » → « Aide ».
     var casqueScreen by rememberSaveable { mutableStateOf("player") }
-    // Casque : il faut être connecté (et avoir un pseudo) avant d'arriver au lecteur.
-    val casqueLogin = BuildConfig.CASQUE && !state.loading && (state.needAuth || (state.error == null && state.username == null))
+    // Casque : il faut être connecté (pseudo, date de naissance, numéro) avant d'arriver au lecteur.
+    // Un compte « Tu me manques » existant est repris tel quel : rien n'est redemandé.
+    var skipContact by rememberSaveable { mutableStateOf(false) }
+    val casqueLogin = BuildConfig.CASQUE && !state.loading &&
+        (state.needAuth || (state.error == null && (state.username == null || (state.needContact && !skipContact))))
     if (BuildConfig.CASQUE && casqueScreen != "help" && !casqueLogin) {
         CasqueMain(casqueScreen, updateVm, updState.available != null) { casqueScreen = it }
         return
@@ -214,7 +217,6 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
     var showChat by rememberSaveable { mutableStateOf(false) }
     var showSupport by rememberSaveable { mutableStateOf(false) }
-    var skipContact by rememberSaveable { mutableStateOf(false) }
     var autoOpened by rememberSaveable { mutableStateOf("") }
 
     // Plus de partenaire : on ferme le chat et on oublie la conversation.

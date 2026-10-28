@@ -240,7 +240,7 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
                 Text("Tu me manques", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Un petit mot, un bouton, et la personne que tu aimes sait que tu penses à elle.",
+                    if (BuildConfig.CASQUE) "Ta musique et tes vidéos, partout, même hors connexion." else "Un petit mot, un bouton, et la personne que tu aimes sait que tu penses à elle.",
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(24.dp))
