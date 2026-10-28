@@ -1,6 +1,6 @@
 {
- "versionCode": 26,
- "versionName": "1.26",
- "notes": "Son de réception très doux, plus de double son à l'ouverture du chat.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-26/casque.apk"
+ "versionCode": 27,
+ "versionName": "1.27",
+ "notes": "Bot @music : audio ou vidéo, bouton Envoyer pour transférer hors de l'appli.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-27/casque.apk"
 }
