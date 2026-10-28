@@ -1,0 +1,38 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL parrainage Free tune</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : parrainage. Chaque utilisateur peut avoir un « parrain » (celui qui lui a envoyé l&#x27;application).
+-- À lancer une seule fois dans Supabase (SQL Editor).
+
+alter table public.c_profiles add column if not exists sponsor_id uuid references public.c_profiles(id) on delete set null;
+
+-- Mon parrain (son pseudo), ou null.
+create or replace function public.c_sponsor_get()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object(&#x27;name&#x27;, null); end if;
+  return json_build_object(&#x27;name&#x27;, (select s.username from public.c_profiles m join public.c_profiles s on s.id = m.sponsor_id where m.id = auth.uid()));
+end $$;
+
+-- Je renseigne mon parrain (une seule fois, pas moi-même).
+create or replace function public.c_sponsor_set(p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); sid uuid; sname text; cur uuid;
+begin
+  if me is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  select sponsor_id into cur from public.c_profiles where id = me;
+  if cur is not null then return json_build_object(&#x27;status&#x27;, &#x27;already&#x27;, &#x27;name&#x27;, (select username from public.c_profiles where id = cur)); end if;
+  select id, username into sid, sname from public.c_profiles
+    where lower(username) = lower(regexp_replace(coalesce(p_name, &#x27;&#x27;), &#x27;^[@\s]+|\s+$&#x27;, &#x27;&#x27;, &#x27;g&#x27;)) limit 1;
+  if sid is null then return json_build_object(&#x27;status&#x27;, &#x27;unknown&#x27;); end if;
+  if sid = me then return json_build_object(&#x27;status&#x27;, &#x27;self&#x27;); end if;
+  update public.c_profiles set sponsor_id = sid where id = me and sponsor_id is null;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;name&#x27;, sname);
+end $$;
+
+revoke all on function public.c_sponsor_get(), public.c_sponsor_set(text) from public, anon;
+grant execute on function public.c_sponsor_get(), public.c_sponsor_set(text) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

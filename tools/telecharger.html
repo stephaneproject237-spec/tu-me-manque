@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0A0D13">
+<title>Télécharger Free tune</title>
+<link rel="icon" href="../icons/icon-192.png">
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:radial-gradient(circle at 50% 0,#17306b 0,#0A0D13 60%);color:#EEF2FA;font:16px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif}
+main{width:100%;max-width:420px;text-align:center}
+img{width:92px;height:92px;border-radius:22px;box-shadow:0 8px 30px rgba(47,123,255,.35)}
+h1{margin:16px 0 6px;font-size:28px}
+p{margin:6px 0;color:#A9B4C8}
+.inv{margin:16px 0 22px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.07);color:#EEF2FA}
+.inv b{color:#7FB0FF}
+a.b,button.b{display:block;width:100%;margin:10px 0;padding:16px;border:0;border-radius:50px;font-weight:700;font-size:17px;font-family:inherit;color:#fff;text-decoration:none;background:linear-gradient(#5B9BFF,#2F6FE8);cursor:pointer}
+button.b.ios{background:rgba(255,255,255,.12)}
+.how{display:none;margin-top:14px;padding:14px;border-radius:14px;background:rgba(255,255,255,.07);text-align:left;font-size:15px}
+.how.on{display:block}
+small{display:block;margin-top:22px;color:#6F7C93}
+</style>
+</head>
+<body>
+<main>
+  <img src="../icons/icon-192.png" alt="">
+  <h1>Free tune</h1>
+  <p>Ta musique, tes vidéos et tes amis, au même endroit.</p>
+  <div class="inv" id="inv" hidden></div>
+  <a class="b" id="and" href="#">Télécharger Free tune pour Android</a>
+  <button class="b ios" id="ios">Télécharger Free tune pour iOS</button>
+  <div class="how" id="how">
+    <b>Sur iPhone</b>, dans Safari :<br>
+    1. Touche le bouton Partager <b>⬆︎</b> en bas de l'écran.<br>
+    2. Choisis <b>« Sur l'écran d'accueil »</b>, puis <b>Ajouter</b>.<br>
+    3. Ouvre Free tune depuis ton écran d'accueil et crée ton compte.
+    <a class="b" id="open" href="#" style="margin-top:12px">Ouvrir Free tune dans Safari</a>
+  </div>
+  <small id="ver"></small>
+</main>
+<script>
+(function () {
+  var m = /[?&]p=([A-Za-z0-9_]{2,30})/.exec(location.search), p = m ? m[1] : "";
+  var inv = document.getElementById("inv");
+  if (p) { inv.hidden = false; inv.innerHTML = "<b>@" + p + "</b> t'invite à rejoindre Free tune 🎧"; }
+  var apk = "";
+  // La version proposée est toujours la dernière publiée.
+  fetch("../update.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (u) {
+    apk = u.apk || "";
+    if (u.versionName) document.getElementById("ver").textContent = "Version Android " + u.versionName;
+  }).catch(function () {});
+  function tag() {
+    if (!p) return;
+    try { localStorage.setItem("casque_p", p); } catch (e) {}
+    try { navigator.clipboard.writeText("freetune-parrain:" + p).catch(function () {}); } catch (e) {}
+  }
+  document.getElementById("and").addEventListener("click", function (e) {
+    e.preventDefault(); tag();
+    var go = apk || "https://github.com/stephaneproject237-spec/tu-me-manque/releases/latest";
+    setTimeout(function () { location.href = go; }, 150);
+  });
+  document.getElementById("ios").addEventListener("click", function () {
+    tag();
+    document.getElementById("how").classList.add("on");
+  });
+  document.getElementById("open").addEventListener("click", function (e) {
+    e.preventDefault(); location.href = "../" + (p ? "?p=" + p : "");
+  });
+})();
+</script>
+</body>
+</html>

@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 1.5"
-NOTES = "En-tête plus transparent."
+VERSION = "web 1.6"
+NOTES = "Envoyer l'application à tes amis, parrain."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
@@ -76,7 +76,13 @@ def main():
     sw = skin.words(rd(os.path.join(W, "sw.js")))
     sw = re.sub(r'const CACHE = "[^"]*"', 'const CACHE = "casque-%s"' % h, sw).replace('k.startsWith("tmm-")', 'k.startsWith("casque-")')
     sw = sw.replace('/\\/(dist|icons|stickers)\\//', '/\\/(dist|icons)\\//')
+    sw = sw.replace('const isPage =', 'if (url.pathname.indexOf("/telecharger/") >= 0) return;\n  const isPage =', 1)
     wr(os.path.join(OUT, "sw.js"), sw)
+
+    # Page de téléchargement envoyée aux amis (lien de parrainage)
+    shutil.copy(os.path.join(ROOT, "tools", "telecharger.html"), os.path.join(OUT, "telecharger.html"))
+    os.makedirs(os.path.join(OUT, "telecharger"), exist_ok=True)
+    shutil.move(os.path.join(OUT, "telecharger.html"), os.path.join(OUT, "telecharger", "index.html"))
 
     mf = rd(os.path.join(W, "manifest.webmanifest"))
     mf = skin.words(mf).replace("Un bouton pour dire « Casque » à ton ami(e).", "Lecteur audio et messagerie entre amis.").replace("#160a12", "#0A0D13")

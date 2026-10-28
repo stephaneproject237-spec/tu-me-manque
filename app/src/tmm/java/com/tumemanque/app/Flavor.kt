@@ -8,7 +8,7 @@ fun onRelayPush(ctx: Context) {}
 
 /** « Tu me manques » n'a pas de lecteur audio : ces écrans n'existent que dans « Casque ». */
 @Composable
-fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, onScreen: (String) -> Unit) {}
+fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, username: String?, onScreen: (String) -> Unit) {}
 
 @Composable
 fun CasqueFriends(

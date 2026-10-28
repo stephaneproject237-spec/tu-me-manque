@@ -56,13 +56,14 @@ import org.json.JSONObject
 
 /** Première page de « Casque » : le lecteur audio, et ses paramètres. */
 @Composable
-fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, onScreen: (String) -> Unit) {
+fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, username: String?, onScreen: (String) -> Unit) {
     val ctx = LocalContext.current
     remember { Hub.init(ctx); true }
+    LaunchedEffect(Unit) { runCatching { Sponsor.fromClipboard(ctx.applicationContext) } }
     PipHost()
     Box(Modifier.fillMaxSize().background(P.bg)) {
         if (screen == "settings") {
-            CasqueSettings(updateVm, onHelp = { onScreen("help") }, onBack = { onScreen("player") })
+            CasqueSettings(updateVm, username, onHelp = { onScreen("help") }, onBack = { onScreen("player") })
         } else {
             CasqueShell(onSettings = { onScreen("settings") }, hasUpdate = hasUpdate)
         }
@@ -83,7 +84,7 @@ private fun SettingsCard(content: @Composable androidx.compose.foundation.layout
 }
 
 @Composable
-fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit) {
+fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, onBack: () -> Unit) {
     val s by upd.state.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -220,6 +221,43 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
                 if (!Yt.updating) Yt.update()
             }
             if (Yt.updateMessage.isNotEmpty()) Text(Yt.updateMessage, color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+
+        // ------------------------------------------------------------ parrainage
+        SettingsCard {
+            Text("Envoyer l'application", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Envoie à tes amis un lien : il ouvre une page où ils téléchargent Free tune (toujours la dernière version), pour Android ou iPhone. Ils sauront que c'est toi qui les as invités.",
+                color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+            BlueButton("Envoyer l'application", Modifier.fillMaxWidth(), Ic.Download) {
+                if (!username.isNullOrBlank()) Sponsor.share(ctx, username)
+            }
+            Spacer(Modifier.height(18.dp))
+            var typed by remember { mutableStateOf("") }
+            var msg by remember { mutableStateOf("") }
+            LaunchedEffect(Unit) { Sponsor.refresh() }
+            Text("Parrain", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            val sp = Sponsor.name
+            if (sp != null) {
+                Text("@$sp", color = P.blueSoft, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            } else if (Sponsor.loaded) {
+                Text("Tu n'as pas de parrain. Si quelqu'un t'a fait découvrir Free tune, écris son pseudo :", color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(P.card2).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    if (typed.isEmpty()) Text("Pseudo du parrain", color = P.sub, fontSize = 15.sp)
+                    BasicTextField(
+                        value = typed, onValueChange = { typed = it.take(30) }, singleLine = true,
+                        textStyle = TextStyle(color = P.text, fontSize = 15.sp), cursorBrush = SolidColor(P.blueSoft),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                BlueButton("Valider", Modifier.fillMaxWidth(), outlined = true) {
+                    if (typed.isNotBlank()) scope.launch { msg = Sponsor.set(typed) }
+                }
+                if (msg.isNotEmpty()) Text(msg, color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+            }
         }
         Spacer(Modifier.height(14.dp))
 

@@ -183,7 +183,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     val casqueLogin = BuildConfig.CASQUE && !state.loading &&
         (state.needAuth || (state.error == null && (state.username == null || (state.needContact && !skipContact))))
     if (BuildConfig.CASQUE && casqueScreen != "help" && !casqueLogin) {
-        CasqueMain(casqueScreen, updateVm, updState.available != null) { casqueScreen = it }
+        CasqueMain(casqueScreen, updateVm, updState.available != null, state.username) { casqueScreen = it }
         return
     }
     val authState by authVm.state.collectAsStateWithLifecycle()

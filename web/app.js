@@ -1139,6 +1139,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       help() { S.cs = "help"; render(); if (!S.loading && !S.needAuth && S.username) loadFriends().then(() => render()); },
       screen(v) { S.cs = v; render(); },
       version: () => CFG.VERSION,
+      username: () => S.username || null,
       ready: () => !S.loading && !S.needAuth && !!S.username,
       async friends() { await loadFriends(); return (S.friends || []).slice(); },
       // Partenaire du même compte dans « Tu me manques » (son téléphone Android peut télécharger pour nous).

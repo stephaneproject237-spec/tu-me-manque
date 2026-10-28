@@ -453,6 +453,17 @@ object Backend {
         }
     }
 
+    /** Free tune : le pseudo de mon parrain (ou null). */
+    suspend fun sponsorGet(): String? = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/sponsor_get", "{}")).let { if (it.isNull("name")) null else it.optString("name").ifBlank { null } }
+    }.getOrNull()
+
+    /** Free tune : je renseigne mon parrain. Renvoie (statut, pseudo). */
+    suspend fun sponsorSet(name: String): Pair<String, String?> = try {
+        val o = JSONObject(authed("POST", "/rest/v1/rpc/sponsor_set", JSONObject().put("p_name", name).toString()))
+        o.optString("status", "error") to (if (o.isNull("name")) null else o.optString("name"))
+    } catch (e: Exception) { "error" to null }
+
     suspend fun supportSend(body: String): String = rpc("support_send", JSONObject().put("p_body", body))
 
     suspend fun supportMarkRead() { rpc("support_mark_read") }

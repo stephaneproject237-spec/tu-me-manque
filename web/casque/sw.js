@@ -1,5 +1,5 @@
 // Service worker : notifications + mémoire locale (l'appli s'ouvre vite même avec un réseau lent).
-const CACHE = "casque-faddd42f";
+const CACHE = "casque-3a4c5168";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(
   caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("casque-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())
@@ -11,6 +11,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
   if (url.pathname.indexOf("/casque/") >= 0) return; // « Casque » a son propre service worker
+  if (url.pathname.indexOf("/telecharger/") >= 0) return;
   const isPage = req.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith("index.html");
   if (isPage) {
     // Page d'accueil : le réseau d'abord (3 s max), sinon la copie gardée.
