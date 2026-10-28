@@ -130,12 +130,15 @@ private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean, sms:
     }
 }
 
+/** Google d'abord, pseudo ensuite : même parcours pour « Tu me manques » et « Casque ». */
+private val GOOGLE_FIRST: Boolean get() = true
+
 /** Accueil, création de compte, connexion, numéro de téléphone et code SMS. */
 @Composable
 fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         when (s.screen) {
-            "create" -> if (!BuildConfig.CASQUE) {
+            "create" -> if (GOOGLE_FIRST) {
                 Text("💗", fontSize = 56.sp)
                 Text("Créer mon compte", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -161,7 +164,7 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
                 Msg(s.msg)
                 TextButton(onClick = { vm.goWelcome() }) { Text("Retour") }
             }
-            "login" -> if (!BuildConfig.CASQUE) {
+            "login" -> if (GOOGLE_FIRST) {
                 Text("💗", fontSize = 56.sp)
                 Text("Me connecter", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))

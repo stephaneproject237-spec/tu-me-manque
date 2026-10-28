@@ -177,7 +177,9 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
     // « Casque » : la première page est le lecteur audio ; la messagerie est derrière « Paramètres » → « Aide ».
     var casqueScreen by rememberSaveable { mutableStateOf("player") }
-    if (BuildConfig.CASQUE && casqueScreen != "help") {
+    // Casque : il faut être connecté (et avoir un pseudo) avant d'arriver au lecteur.
+    val casqueLogin = BuildConfig.CASQUE && !state.loading && (state.needAuth || (state.error == null && state.username == null))
+    if (BuildConfig.CASQUE && casqueScreen != "help" && !casqueLogin) {
         CasqueMain(casqueScreen, updateVm, updState.available != null) { casqueScreen = it }
         return
     }
@@ -242,7 +244,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     if (BuildConfig.CASQUE) {
-        androidx.activity.compose.BackHandler(enabled = !showSettings && !showSupport && !(showChat && state.partnerName != null)) { casqueScreen = "settings" }
+        androidx.activity.compose.BackHandler(enabled = !casqueLogin && !showSettings && !showSupport && !(showChat && state.partnerName != null)) { casqueScreen = "settings" }
     }
     if (showSettings) {
         SettingsScreen(updateVm, state.username, state.partnerName, state.supportUnread, onSupport = { showSettings = false; showSupport = true }) { showSettings = false }
@@ -319,7 +321,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     val onHome = !showSettings && !showSupport && !(showChat && state.partnerName != null)
-    if (BuildConfig.CASQUE && onHome && (state.loading || state.needAuth || state.error != null || state.username == null || state.needContact && !skipContact)) {
+    if (BuildConfig.CASQUE && !casqueLogin && onHome && (state.loading || state.needAuth || state.error != null || state.username == null || state.needContact && !skipContact)) {
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), Alignment.TopStart) {
             TextButton(onClick = { casqueScreen = "settings" }) { Text("‹ Retour") }
         }

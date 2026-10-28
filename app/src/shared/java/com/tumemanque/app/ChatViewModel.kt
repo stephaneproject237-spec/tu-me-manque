@@ -346,6 +346,7 @@ class ChatViewModel : ViewModel() {
     private val onceSecret = HashMap<Long, String>()
 
     private suspend fun deliver(p: ChatMsg, media: String?): Boolean {
+        UploadProgress.done(p.tmp)
         val once = p.once
         try {
             val meta = JSONObject()
@@ -539,7 +540,7 @@ class ChatViewModel : ViewModel() {
             val p = if (once) addPending(blank("image").copy(meta = onceMeta())) else addPending(blank("image", body = cap, w = ph.w, h = ph.h).copy(localBytes = ph.bytes))
             if (once && cap != null) onceSecret[p.tmp] = cap
             try {
-                val path = Backend.upload(ph.bytes, "jpg", "image/jpeg")
+                val path = Backend.upload(ph.bytes, "jpg", "image/jpeg", onProgress = { UploadProgress.set(p.tmp, it) })
                 deliver(p, path)
             } catch (e: Exception) {
                 if (once) { removePending(p); showToast("Photo non envoyée. Vérifie ta connexion.") }
@@ -594,7 +595,7 @@ class ChatViewModel : ViewModel() {
             val once = o != null && o.once
             val p = if (once) addPending(blank("video", w = w, h = h, dur = d).copy(meta = onceMeta())) else addPending(blank("video", w = w, h = h, dur = d).copy(localFile = file.absolutePath))
             try {
-                val path = Backend.uploadFile(file, ext, type)
+                val path = Backend.uploadFile(file, ext, type, onProgress = { UploadProgress.set(p.tmp, it) })
                 deliver(p, path)
             } catch (e: Exception) {
                 if (once) { removePending(p); showToast("Vidéo non envoyée. Vérifie ta connexion.") }
@@ -625,7 +626,7 @@ class ChatViewModel : ViewModel() {
             val p = addPending(blank("voice", dur = seconds).copy(localFile = file.absolutePath))
             try {
                 val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                val path = Backend.upload(bytes, "m4a", "audio/mp4")
+                val path = Backend.upload(bytes, "m4a", "audio/mp4", onProgress = { UploadProgress.set(p.tmp, it) })
                 deliver(p, path)
             } catch (e: Exception) {
                 queueOffline(p, null, src = file, ext = "m4a", mime = "audio/mp4")
@@ -648,7 +649,7 @@ class ChatViewModel : ViewModel() {
             if (ref != 0L) song.put("r", ref)
             val p = addPending(blank("voice", dur = seconds).copy(localFile = file.absolutePath, meta = JSONObject().put("song", song)))
             try {
-                val path = Backend.uploadFile(file, "mp3", "audio/mpeg")
+                val path = Backend.uploadFile(file, "mp3", "audio/mpeg", onProgress = { UploadProgress.set(p.tmp, it) })
                 deliver(p, path)
             } catch (e: Exception) {
                 showToast("La chanson n'a pas pu être envoyée. Vérifie ta connexion.")
@@ -663,7 +664,7 @@ class ChatViewModel : ViewModel() {
             if (ref != 0L) song.put("r", ref)
             val p = addPending(blank("video", w = w, h = h, dur = seconds).copy(localFile = file.absolutePath, meta = JSONObject().put("song", song)))
             try {
-                val path = Backend.uploadFile(file, "mp4", "video/mp4")
+                val path = Backend.uploadFile(file, "mp4", "video/mp4", onProgress = { UploadProgress.set(p.tmp, it) })
                 deliver(p, path)
             } catch (e: Exception) {
                 showToast("La vidéo n'a pas pu être envoyée (trop lourde ou pas de connexion).")

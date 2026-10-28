@@ -49,6 +49,19 @@ data class GifPage(val items: List<Gif>, val next: Int)
 data class Reply(val id: Long, val fromMe: Boolean, val kind: String, val text: String)
 
 /** Un message du chat. `kind` : text, gif, sticker, image ou voice. */
+/** Progression des envois en cours (clé = message en attente), pour la barre de chargement. */
+object UploadProgress {
+    val map = androidx.compose.runtime.mutableStateMapOf<Long, Float>()
+    private var last = HashMap<Long, Long>()
+    fun set(tmp: Long, p: Float) {
+        val now = System.currentTimeMillis()
+        if (p < 1f && now - (last[tmp] ?: 0L) < 120) return
+        last[tmp] = now
+        android.os.Handler(android.os.Looper.getMainLooper()).post { map[tmp] = p }
+    }
+    fun done(tmp: Long) { android.os.Handler(android.os.Looper.getMainLooper()).post { map.remove(tmp) } }
+}
+
 data class ChatMsg(
     val id: Long,
     val tmp: Long = 0,
@@ -668,7 +681,7 @@ object Backend {
     suspend fun clearMiss() { rpc("clear_miss") }
 
     /** Envoie un fichier (photo ou vocal) dans le dossier de l'utilisateur et renvoie son chemin. */
-    suspend fun upload(bytes: ByteArray, ext: String, mime: String): String {
+    suspend fun upload(bytes: ByteArray, ext: String, mime: String, onProgress: ((Float) -> Unit)? = null): String {
         val uid = ensureSession()
         val path = "$uid/${UUID.randomUUID().toString().replace("-", "")}.$ext"
         suspend fun attempt(token: String): Int = withContext(Dispatchers.IO) {
@@ -683,7 +696,14 @@ object Backend {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.setRequestProperty("Content-Type", mime)
                 conn.setRequestProperty("x-upsert", "false")
-                conn.outputStream.use { it.write(bytes) }
+                conn.outputStream.use { out ->
+                    var off = 0
+                    while (off < bytes.size) {
+                        val n = minOf(32 * 1024, bytes.size - off)
+                        out.write(bytes, off, n); off += n
+                        onProgress?.invoke(off.toFloat() / bytes.size)
+                    }
+                }
                 conn.responseCode
             } finally {
                 conn.disconnect()
@@ -696,7 +716,7 @@ object Backend {
     }
 
     /** Comme [upload], mais lit le fichier par morceaux (vidéos lourdes : rien n'est chargé en mémoire). */
-    suspend fun uploadFile(file: java.io.File, ext: String, mime: String): String {
+    suspend fun uploadFile(file: java.io.File, ext: String, mime: String, onProgress: ((Float) -> Unit)? = null): String {
         val uid = ensureSession()
         val path = "$uid/${UUID.randomUUID().toString().replace("-", "")}.$ext"
         suspend fun attempt(token: String): Int = withContext(Dispatchers.IO) {
@@ -711,7 +731,19 @@ object Backend {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.setRequestProperty("Content-Type", mime)
                 conn.setRequestProperty("x-upsert", "false")
-                file.inputStream().use { input -> conn.outputStream.use { out -> input.copyTo(out) } }
+                val total = file.length().coerceAtLeast(1)
+                file.inputStream().use { input ->
+                    conn.outputStream.use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n); done += n
+                            onProgress?.invoke(done.toFloat() / total)
+                        }
+                    }
+                }
                 conn.responseCode
             } finally {
                 conn.disconnect()

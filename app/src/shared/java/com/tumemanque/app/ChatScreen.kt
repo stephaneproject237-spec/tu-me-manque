@@ -449,6 +449,18 @@ private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onRe
                         Spacer(Modifier.height(2.dp))
                     }
                     Bubble(m, onOpenPhoto)
+                    // Barre de chargement pendant l'envoi d'une photo, d'une vidéo, d'un vocal ou d'une chanson.
+                    if (m.pending) UploadProgress.map[m.tmp]?.let { p ->
+                        Row(Modifier.width(200.dp).padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { p.coerceIn(0.02f, 1f) },
+                                modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                color = Rose, trackColor = Color(0x33FFFFFF),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("${(p * 100).toInt()} %", color = Color(0xCCFFFFFF), fontSize = 11.sp)
+                        }
+                    }
                 }
             }
         }
@@ -562,6 +574,7 @@ private fun SongActions(m: ChatMsg, title: String, artist: String, video: Boolea
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var saved by remember(m.key) { mutableStateOf<String?>(null) }
     var sharing by remember(m.key) { mutableStateOf(false) }
+    var shareP by remember(m.key) { mutableStateOf(0f) }
     val ext = if (video) "mp4" else "mp3"
     Row(Modifier.padding(top = 6.dp).widthIn(max = 260.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(
@@ -570,7 +583,7 @@ private fun SongActions(m: ChatMsg, title: String, artist: String, video: Boolea
                 scope.launch {
                     saved = withContext(Dispatchers.IO) {
                         runCatching {
-                            val f = MbEngine.localCopy(ctx, m, title, ext)
+                            val f = MbEngine.localCopy(ctx, m, title, ext) { p -> saved = "⬇ ${(p * 100).toInt()} %" }
                             if (video) MbEngine.saveVideoToPhone(ctx, f, title) else MbEngine.saveToPhone(ctx, f, title, artist)
                             "✓ Enregistrée"
                         }.getOrDefault("Échec")
@@ -583,13 +596,13 @@ private fun SongActions(m: ChatMsg, title: String, artist: String, video: Boolea
             Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).clickable(enabled = !m.pending && !sharing) {
                 sharing = true
                 scope.launch {
-                    val f = withContext(Dispatchers.IO) { runCatching { MbEngine.localCopy(ctx, m, title, ext) }.getOrNull() }
+                    val f = withContext(Dispatchers.IO) { runCatching { MbEngine.localCopy(ctx, m, title, ext) { p -> shareP = p } }.getOrNull() }
                     sharing = false
                     if (f != null) MbEngine.shareFile(ctx, f, if (video) "video/mp4" else "audio/mpeg")
                 }
             }.padding(vertical = 8.dp),
             contentAlignment = Alignment.Center,
-        ) { Text(if (sharing) "…" else "📤 Envoyer", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        ) { Text(if (sharing) (if (shareP > 0f) "${(shareP * 100).toInt()} %" else "…") else "📤 Envoyer", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
     }
 }
 

@@ -231,13 +231,24 @@ object MbEngine {
     }
 
     /** Récupère le fichier d'un message du chat (déjà sur le téléphone, ou téléchargé). */
-    fun localCopy(ctx: Context, m: ChatMsg, title: String, ext: String): File {
+    fun localCopy(ctx: Context, m: ChatMsg, title: String, ext: String, onProgress: ((Float) -> Unit)? = null): File {
         val dir = File(ctx.cacheDir, "cam/share").apply { mkdirs() }
         val f = File(dir, safeName(title) + "." + ext)
         if (f.exists() && f.length() > 0) return f
         val local = m.localFile?.let { File(it) }
         if (local != null && local.exists()) local.copyTo(f, overwrite = true)
-        else java.net.URL(Backend.mediaUrl(m.media ?: "")).openStream().use { i -> f.outputStream().use { i.copyTo(it) } }
+        else {
+            val c = java.net.URL(Backend.mediaUrl(m.media ?: "")).openConnection()
+            val total = c.contentLengthLong.coerceAtLeast(1)
+            val tmp = File(dir, f.name + ".part")
+            c.getInputStream().use { i ->
+                tmp.outputStream().use { o ->
+                    val buf = ByteArray(64 * 1024); var done = 0L
+                    while (true) { val n = i.read(buf); if (n < 0) break; o.write(buf, 0, n); done += n; onProgress?.invoke((done.toFloat() / total).coerceIn(0f, 1f)) }
+                }
+            }
+            tmp.renameTo(f)
+        }
         return f
     }
 

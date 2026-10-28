@@ -57,7 +57,13 @@ class AppViewModel : ViewModel() {
             try {
                 Backend.ensureSession()
                 launch { runCatching { Backend.saveToken() } }
-                applySnapshot(Backend.loadSnapshot())
+                var snap = Backend.loadSnapshot()
+                // Même compte Google dans l'autre appli (Casque / Tu me manques) : on reprend son pseudo.
+                if (snap.username == null) {
+                    val r = runCatching { org.json.JSONObject(Backend.callRaw("POST", "/rest/v1/rpc/adopt_username", "{}")) }.getOrNull()
+                    if (r?.optString("status") == "ok") snap = Backend.loadSnapshot()
+                }
+                applySnapshot(snap)
             } catch (e: Exception) {
                 if (e.message == Backend.NO_SESSION) {
                     _state.update { it.copy(loading = false, needAuth = true) }
