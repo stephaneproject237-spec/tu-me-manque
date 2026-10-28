@@ -414,8 +414,29 @@ object Hub {
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
 
+    companion object {
+        @Volatile private var inst: PlaybackService? = null
+        private var videoAdded = false
+
+        /** La vidéo en cours a sa propre session : ses commandes s'ajoutent à la notification. */
+        fun attachVideo() { inst?.addVideo() }
+        fun detachVideo() { inst?.removeVideo() }
+    }
+
+    private fun addVideo() {
+        val v = Vp.session ?: return
+        if (!videoAdded) { runCatching { addSession(v); videoAdded = true } }
+    }
+
+    private fun removeVideo() {
+        val v = Vp.session ?: return
+        if (videoAdded) { runCatching { removeSession(v) }; videoAdded = false }
+    }
+
     override fun onCreate() {
         super.onCreate()
+        inst = this
+        videoAdded = false
         Hub.init(applicationContext)
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -427,6 +448,7 @@ class PlaybackService : MediaSessionService() {
             .build()
         // Sans contrôleur externe, c'est ce qui fait apparaître la notification de lecture.
         addSession(session!!)
+        if (Vp.key != null) addVideo()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -437,6 +459,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        inst = null
+        videoAdded = false
         session?.release()
         session = null
         super.onDestroy()

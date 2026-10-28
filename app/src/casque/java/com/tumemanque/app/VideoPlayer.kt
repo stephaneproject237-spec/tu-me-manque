@@ -93,6 +93,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -146,7 +148,7 @@ object Vp {
     }
 
     /** Lance la vidéo suivante du même thème (la suivante des résultats, sinon une recherche sur le titre). */
-    private fun playNextRelated() {
+    fun playNextRelated() {
         val ctx = appCtx ?: return
         val cur = lastYt ?: return
         scope.launch {
@@ -169,6 +171,7 @@ object Vp {
         val p = ExoPlayer.Builder(ctx.applicationContext)
             .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).setUsage(C.USAGE_MEDIA).build(), true)
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         p.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -194,7 +197,20 @@ object Vp {
         })
         exo = p
         surface?.let { p.setVideoTextureView(it) }
+        // Écran verrouillé et notification : lecture, pause, précédent, suivant (comme pour la musique).
+        session = MediaSession.Builder(ctx.applicationContext, VideoFwd(p)).setId("video").build()
         return p
+    }
+
+    /** La session de la vidéo (écran verrouillé, casque Bluetooth). */
+    var session: MediaSession? = null
+        private set
+
+    /** Fait apparaître les commandes de l'écran verrouillé pour la vidéo en cours. */
+    private fun showControls(ctx: Context) {
+        val app = ctx.applicationContext
+        PlaybackService.attachVideo()
+        runCatching { app.startService(Intent(app, PlaybackService::class.java)) }
     }
 
     fun attach(tv: TextureView, f: AspectRatioFrameLayout) {
@@ -222,6 +238,7 @@ object Vp {
         key = v.id; title = v.title; error = null; errorDetail = ""; ended = false; loading = true
         p.stop(); p.clearMediaItems()
         Hub.player.pause()
+        showControls(ctx)
         val info = try { Yt.info(v.id) } catch (e: Exception) {
             if (key == v.id) {
                 loading = false
@@ -258,6 +275,7 @@ object Vp {
         miniHidden = false
         key = item.id; title = item.video.title; error = null; ended = false
         Hub.player.pause()
+        showControls(ctx)
         p.setMediaItem(MediaItem.fromUri(item.id), Vids.position(item.id))
         p.prepare()
         p.play()
@@ -293,7 +311,28 @@ object Vp {
         exo?.stop(); exo?.clearMediaItems()
         key = null; localId = null; playing = false; loading = false; error = null
         fullscreen = false; mini = false; miniHidden = false
+        PlaybackService.detachVideo()
     }
+}
+
+/** Le « suivant » de l'écran verrouillé lance la vidéo du même thème ; « précédent » reprend au début. */
+private class VideoFwd(p: Player) : ForwardingPlayer(p) {
+    private val cmds = intArrayOf(
+        Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS,
+        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+    )
+    override fun getAvailableCommands(): Player.Commands {
+        val b = super.getAvailableCommands().buildUpon()
+        if (Vp.isYt) cmds.forEach { b.add(it) } else b.add(Player.COMMAND_SEEK_TO_PREVIOUS).add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        return b.build()
+    }
+    override fun isCommandAvailable(command: Int): Boolean = availableCommands.contains(command)
+    override fun seekToNext() { Vp.playNextRelated() }
+    override fun seekToNextMediaItem() { Vp.playNextRelated() }
+    override fun seekToPrevious() { Vp.seekTo(0) }
+    override fun seekToPreviousMediaItem() { Vp.seekTo(0) }
+    override fun hasNextMediaItem(): Boolean = Vp.isYt
+    override fun hasPreviousMediaItem(): Boolean = true
 }
 
 fun Context.activity(): Activity? {
@@ -550,7 +589,7 @@ fun PipHost() {
                 }, 400)
             }
         }
-        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && !Vp.inPip) Vp.pause() }
+        val obs = LifecycleEventObserver { _, _ -> }
         val rx = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, i: Intent?) { Vp.toggle() }
         }
