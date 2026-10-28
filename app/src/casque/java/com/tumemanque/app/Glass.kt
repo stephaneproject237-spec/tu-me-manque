@@ -204,6 +204,8 @@ private val TABS_MAIN = listOf(
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
     remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); true }
+    // Amis iPhone : ce téléphone télécharge pour eux quand personne d'autre ne l'a fait.
+    LaunchedEffect(Unit) { Relay.loop(ctx.applicationContext) }
     val allTracks by Lib.tracks.collectAsState()
     val haze = remember { HazeState() }
     val byId by Lib.byId.collectAsState()

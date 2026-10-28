@@ -238,6 +238,22 @@ object Backend {
 
     suspend fun removePartner(): String = rpc("remove_partner")
 
+    // ---------- Relais « le premier ami Android disponible télécharge » (Free tune) ----------
+    suspend fun relayOpen(): JSONArray =
+        runCatching { JSONArray(authed("POST", "/rest/v1/rpc/relay_open", "{}")) }.getOrDefault(JSONArray())
+
+    suspend fun relayTake(id: Long): Boolean = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/relay_take", JSONObject().put("p_id", id).toString())).optString("status") == "ok"
+    }.getOrDefault(false)
+
+    suspend fun relayDone(id: Long, media: String, size: Long): Boolean = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/relay_done", JSONObject().put("p_id", id).put("p_media", media).put("p_size", size).toString())).optString("status") == "ok"
+    }.getOrDefault(false)
+
+    suspend fun relayFail(id: Long) {
+        runCatching { authed("POST", "/rest/v1/rpc/relay_fail", JSONObject().put("p_id", id).toString()) }
+    }
+
     suspend fun sendMiss(reply: Boolean): String =
         rpc("send_miss", JSONObject().put("p_reply", reply))
 

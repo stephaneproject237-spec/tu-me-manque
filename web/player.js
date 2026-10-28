@@ -1216,10 +1216,21 @@
   async function sendDl(o, f) {
     const A = API();
     if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connexion en cours, réessaie dans un instant."); return; }
-    if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Relie d'abord ton pseudo à un partenaire Android dans Tu me manques."); draw(); return; } }
     const old = dlFor(o, f);
     if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
     if (old) DL = DL.filter((d) => d !== old);
+    // 1) Le premier ami Android disponible télécharge (rien à demander à personne en particulier).
+    let rel = null;
+    try {
+      rel = await A.authed("POST", "/rest/v1/rpc/relay_create", { p_yid: o.src === "yt" ? o.id : "", p_q: o.src === "yt" ? "" : String(o.q || o.ti).slice(0, 120), p_ti: String(o.ti).slice(0, 120), p_ch: String(o.ch || "").slice(0, 60), p_d: o.d || 0, p_art: String(o.th || "").slice(0, 300), p_fmt: f });
+    } catch (e) { rel = null; }
+    if (rel && rel.status === "ok") {
+      DL.unshift({ mid: rel.id, app: "rel", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: rel.helpers || 0, at: Date.now(), st: "sent", p: 0 });
+      saveDl(); draw(); pollSoon(2500);
+      return;
+    }
+    // 2) Sinon : le partenaire Android de « Tu me manques ».
+    if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Ajoute d'abord un ami qui a Free tune sur Android."); draw(); return; } }
     const body = "📥 @music : peux-tu télécharger " + (isV(f) ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Ouvre cette conversation sur ton Android.";
     const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
     const d = { mid: 0, app: "tmm", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: TP.p.username, at: Date.now(), st: "sending", p: 0 };
@@ -1241,6 +1252,35 @@
     if (!A || !A.casque.ready || !A.casque.ready() || document.hidden) { pollSoon(15000); return; }
     polling = true;
     try {
+      const rel = list.filter((d) => d.app === "rel" && d.mid);
+      if (rel.length) {
+        const rows = (await A.authed("POST", "/rest/v1/rpc/relay_status", { p_ids: rel.map((d) => Number(d.mid)) })) || [];
+        for (const r of rows) {
+          const d = rel.find((x) => Number(x.mid) === r.id);
+          if (!d) continue;
+          if (r.by) d.fr = r.by;
+          if (r.status === "taken" && d.st === "sent") d.st = "wait";
+          else if (r.status === "fail") d.st = "fail";
+          else if (r.status === "done" && r.media && d.st !== "recv" && d.st !== "done") {
+            d.st = "recv"; d.p = 0; draw();
+            try {
+              const blob = await fetchProg(mediaUrl(r.media), (p) => {
+                d.p = p;
+                host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
+                  const i = row.querySelector(".dbar i"); if (i) i.style.width = Math.round(p * 100) + "%";
+                  const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
+                });
+              });
+              const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: isV(d.f), d: d.d || 0, yid: d.yid });
+              d.st = "done"; d.tid = t.id; d.size = blob.size;
+              A.authed("POST", "/rest/v1/rpc/relay_ack", { p_id: r.id }).catch(() => {});
+              toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
+              if (navigator.vibrate) navigator.vibrate(30);
+            } catch (e) { d.st = "wait"; }
+          }
+        }
+        saveDl(); draw();
+      }
       for (const app of ["cas", "tmm"]) {
         const mine = list.filter((d) => (d.app || "cas") === app && d.mid);
         if (!mine.length) continue;
@@ -1370,6 +1410,14 @@
   }
   function dlStatus(d) {
     const kind = isV(d.f) ? "MP4" : "MP3";
+    if (d.app === "rel") {
+      if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
+      if (d.st === "fail") return "Aucun ami Android n'a pu la télécharger";
+      if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
+      if (d.st === "wait") return kind + " · @" + d.fr + " la télécharge…";
+      if (d.st === "sending") return kind + " · envoi de la demande…";
+      return kind + " · " + (Date.now() - d.at > 180000 ? "en attente : un ami doit ouvrir Free tune sur son Android" : "demande envoyée à tes amis Android" + (d.n ? " (" + d.n + ")" : ""));
+    }
     if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
     if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;
     if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
@@ -1392,7 +1440,7 @@
     const act = DL.filter((d) => ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0);
     const done = DL.filter((d) => d.st === "done" || d.st === "fail");
     let body = "";
-    if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Ton partenaire Android de Tu me manques la télécharge pour toi, puis elle apparaît ici, dans Audios ou Vidéos.", "Rechercher");
+    if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Un ami qui a Free tune sur Android la télécharge pour toi, puis elle apparaît ici, dans Audios ou Vidéos.", "Rechercher");
     if (act.length) body += '<p class="sec2">EN COURS · ' + act.length + "</p>" + act.map(dlRow).join("");
     if (done.length) body += '<p class="sec2">TERMINÉS</p>' + done.map(dlRow).join("");
     return big("Téléchargements", done.length ? '<button class="chip" data-a="dlclear">Effacer</button>' : "") + '<main class="list">' + body + "</main>";
@@ -1438,9 +1486,8 @@
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
           (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
         body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
-          (TP.st === "none" ? '<p class="note">Pour télécharger depuis l\'iPhone, ton pseudo doit être lié à un partenaire qui a <b>Tu me manques sur Android</b> : son téléphone télécharge pour toi et le fichier arrive ici tout seul.</p>'
-            : (TP.st === "ok" ? '<p class="via">Fait par le téléphone Android de @' + esc(TP.p.username) + " (Tu me manques)</p>" : "") +
-              '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh")) + "</div>";
+          '<p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
+          '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div>";
         const others = SR.items.filter((x) => x !== sel);
         if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map((o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
