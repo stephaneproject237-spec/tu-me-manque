@@ -156,13 +156,14 @@ fun Paywall() {
     var msg by remember { mutableStateOf("") }
     var ussd by remember { mutableStateOf("") }
     var ref by remember { mutableStateOf<String?>(null) }
+    var payUrl by remember { mutableStateOf("") }
     val blocking = Sub.state == "expired"
     BackHandler { if (!blocking || step == "ok") Sub.paywall = null }
 
     // Attente de la confirmation sur le téléphone : on vérifie toutes les 4 secondes (3 minutes maximum).
     LaunchedEffect(ref) {
         val r = ref ?: return@LaunchedEffect
-        repeat(45) {
+        repeat(150) {
             delay(4000)
             val j = Sub.check(r)
             when (j.optString("status")) {
@@ -249,7 +250,11 @@ fun Paywall() {
                         scope.launch {
                             val j = Sub.pay(phone)
                             when (j.optString("status")) {
-                                "pending" -> { ussd = j.optString("ussd_code"); ref = j.optString("reference") }
+                                "pending" -> {
+                                    ussd = j.optString("ussd_code"); payUrl = j.optString("pay_url"); ref = j.optString("reference")
+                                    // CamerPay : le paiement se fait sur leur page sécurisée, puis on revient dans l'appli.
+                                    if (payUrl.isNotBlank()) runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(payUrl))) }
+                                }
                                 "bad_phone" -> { step = "fail"; msg = "Numéro invalide : 9 chiffres, commençant par 6." }
                                 else -> { step = "fail"; msg = "Paiement impossible pour le moment. " + j.optString("message").take(120) }
                             }
@@ -263,10 +268,17 @@ fun Paywall() {
                         Text("Confirme le paiement sur ton téléphone", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Une demande de ${Sub.PRICE} arrive sur ton téléphone : valide-la avec ton code secret." +
+                            if (payUrl.isNotBlank()) "Termine le paiement sur la page sécurisée qui s'est ouverte (Orange Money ou MTN MoMo), puis reviens ici : ton abonnement s'activera tout seul."
+                            else "Une demande de ${Sub.PRICE} arrive sur ton téléphone : valide-la avec ton code secret." +
                                 if (ussd.isNotBlank()) "\nSi rien n'apparaît, compose $ussd." else "",
                             color = P.sub, fontSize = 13.sp, textAlign = TextAlign.Center,
                         )
+                        if (payUrl.isNotBlank()) {
+                            Spacer(Modifier.height(10.dp))
+                            BlueButton("Rouvrir la page de paiement", Modifier.fillMaxWidth(), outlined = true) {
+                                runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(payUrl))) }
+                            }
+                        }
                     }
                 }
                 "ok" -> {
@@ -282,7 +294,7 @@ fun Paywall() {
             }
             Spacer(Modifier.height(18.dp))
             Text(
-                "Paiement sécurisé par Campay. Conditions générales",
+                "Paiement sécurisé par Mobile Money. Conditions générales",
                 color = P.sub, fontSize = 12.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.clickable {
                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://stephaneproject237-spec.github.io/tu-me-manque/legal/conditions.html"))) }
