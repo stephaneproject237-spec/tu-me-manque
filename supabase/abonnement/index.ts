@@ -1,4 +1,5 @@
-// Fonction « abonnement » de Free tune : paiement Mobile Money (Orange Money / MTN MoMo) avec Campay.
+// Fonction « abonnement » de Free tune : paiement Mobile Money (Orange Money / MTN MoMo) avec CamerPay ou Campay.
+// Prestataire choisi par le secret PAY_PROVIDER : « camerpay » (secret CAMERPAY_TOKEN) ou « campay » (par défaut).
 // - POST {action:"pay", phone}      : demande le paiement (le client confirme sur son téléphone)
 // - POST {action:"check", reference}: vérifie le paiement et active 30 jours d'abonnement
 // - GET  (webhook Campay)           : Campay prévient ici quand un paiement change d'état
@@ -14,6 +15,30 @@ const MODE = (Deno.env.get("CAMPAY_MODE") || "demo").toLowerCase();
 const CP = MODE === "live" ? "https://www.campay.net/api" : "https://demo.campay.net/api";
 const AMOUNT = String(Deno.env.get("CAMPAY_AMOUNT") || "500");
 const DAYS = 30;
+const PROVIDER = (Deno.env.get("PAY_PROVIDER") || "campay").toLowerCase();
+const CPAY = "https://camerpay.biz/api";
+const RETURN_URL = "https://stephaneproject237-spec.github.io/tu-me-manque/legal/merci.html";
+const SELF_URL = SB_URL + "/functions/v1/abonnement";
+
+// ---------- CamerPay : page de paiement (pay_url), état vérifié auprès de CamerPay ----------
+async function camerpay(method: string, path: string, body?: unknown) {
+  const r = await fetch(CPAY + path, {
+    method,
+    headers: { Authorization: "Bearer " + Deno.env.get("CAMERPAY_TOKEN"), "Content-Type": "application/json", Accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, j };
+}
+async function providerStatus(reference: string): Promise<string> {
+  if (PROVIDER === "camerpay") {
+    const { j } = await camerpay("GET", "/payment/" + encodeURIComponent(reference) + "/status");
+    const st = String(j.status || "").toLowerCase();
+    return st === "completed" ? "SUCCESSFUL" : st === "failed" || st === "cancelled" ? "FAILED" : "PENDING";
+  }
+  const { j } = await campay("/transaction/" + encodeURIComponent(reference) + "/");
+  return String(j.status || "").toUpperCase();
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -71,8 +96,7 @@ async function settle(reference: string) {
   const p = rows && rows[0];
   if (!p) return { status: "unknown" };
   if (p.status !== "pending") return { status: p.status };
-  const { j } = await campay("/transaction/" + encodeURIComponent(reference) + "/");
-  const st = String(j.status || "").toUpperCase();
+  const st = await providerStatus(reference);
   if (st === "SUCCESSFUL") {
     // Passe le paiement à « successful » seulement s'il était encore « pending » (pas de double activation).
     const upd = await db("c_payments?id=eq." + p.id + "&status=eq.pending", { method: "PATCH", body: JSON.stringify({ status: "successful", done_at: new Date().toISOString() }) });
@@ -103,7 +127,12 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
     const body = await req.json().catch(() => ({}));
-    if (!body.action && body.reference) { await settle(String(body.reference)); return json({ ok: true }); } // webhook en POST
+    // Notification du prestataire (Campay en POST, ou CamerPay) : on revérifie toujours l'état chez lui.
+    if (!body.action) {
+      const ref = body.transaction_uuid || body.uuid || body.reference || (body.data && (body.data.transaction_uuid || body.data.uuid)) || (body.transaction && body.transaction.uuid);
+      if (ref) await settle(String(ref));
+      return json({ ok: true });
+    } // webhook en POST
 
     const uid = await userOf(req);
     if (!uid) return json({ status: "unauthenticated" }, 401);
@@ -112,6 +141,17 @@ Deno.serve(async (req) => {
       const digits = String(body.phone || "").replace(/\D/g, "").replace(/^00/, "").replace(/^237/, "");
       if (!/^6\d{8}$/.test(digits)) return json({ status: "bad_phone" });
       const ext = crypto.randomUUID();
+      if (PROVIDER === "camerpay") {
+        const op = /^6(7\d|5[0-4]|8[0-4])/.test(digits) ? "mtn_momo" : /^6(9\d|5[5-9]|8[5-9])/.test(digits) ? "orange_money" : null;
+        const { ok, j } = await camerpay("POST", "/payment/initiate", {
+          amount: Number(AMOUNT), currency: "XAF", merchant_invoice_id: ext, idempotency_key: ext,
+          merchant_callback_url: SELF_URL, merchant_return_url: RETURN_URL,
+          payment_method: op, customer_phone: "237" + digits, customer_name: "Free tune", source: "freetune",
+        });
+        if (!ok || !j.transaction_uuid) return json({ status: "refused", message: j.message || "Paiement refusé par CamerPay" });
+        await db("c_payments", { method: "POST", body: JSON.stringify({ user_id: uid, reference: j.transaction_uuid, ext_ref: ext, phone: digits, amount: Number(AMOUNT) }) });
+        return json({ status: "pending", reference: j.transaction_uuid, pay_url: j.pay_url || j.redirect_url || "" });
+      }
       const { ok, j } = await campay("/collect/", { amount: AMOUNT, currency: "XAF", from: "237" + digits, description: "Abonnement Free tune " + DAYS + " jours", external_reference: ext });
       if (!ok || !j.reference) return json({ status: "refused", message: j.message || j.detail || "Paiement refusé par Campay" });
       await db("c_payments", { method: "POST", body: JSON.stringify({ user_id: uid, reference: j.reference, ext_ref: ext, phone: digits, amount: Number(AMOUNT) }) });

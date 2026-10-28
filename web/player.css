@@ -315,3 +315,4 @@ body.cq-on{overflow:hidden}
 #player .pw-cgu{margin-top:20px;color:var(--sub);font-size:12px;text-decoration:none}
 #player .subrem{position:absolute;left:14px;right:14px;top:calc(8px + env(safe-area-inset-top));z-index:9;display:flex;align-items:center;gap:8px;padding:10px 8px 10px 14px;border-radius:18px;background:linear-gradient(180deg,rgba(47,123,255,.35),rgba(47,123,255,.2)),rgba(18,21,26,.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
 #player .subrem div{flex:1;display:flex;flex-direction:column}#player .subrem b{font-size:14px}#player .subrem small{font-size:12px;color:#CFE0FF}
+#player .pw-box a.bt{text-decoration:none;margin-top:8px}
