@@ -546,7 +546,21 @@
       sheetView() + (U.toast ? '<div class="toast">' + esc(U.toast) + "</div>" : "") + (L.error ? '<div class="toast">' + esc(L.error) + "</div>" : "");
     host.innerHTML = h;
     const l = host.querySelector(".list");
-    if (l) l.scrollTop = sc;
+    if (l) {
+      // Tout ce qui est au-dessus de la liste (titre, recherche, Titres/Albums…) devient un en-tête en verre flottant :
+      // la liste remplit tout l'écran et défile dessous, jusqu'en haut et jusqu'en bas.
+      const top = [];
+      for (let e = l.previousElementSibling; e; e = e.previousElementSibling) top.unshift(e);
+      if (top.length) {
+        const ch = document.createElement("div");
+        ch.className = "chrome";
+        top.forEach((e) => ch.appendChild(e));
+        l.parentNode.insertBefore(ch, l);
+        l.style.paddingTop = ch.offsetHeight + 6 + "px";
+      }
+      l.scrollTop = sc;
+      chromeShade(l);
+    }
     if (focusQ) { const q = host.querySelector("#" + fid); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) { /* ignoré */ } } }
     const nm = host.querySelector("#nm");
     if (nm) { nm.focus(); nm.select(); }
@@ -555,6 +569,12 @@
     lyrOn = -1; lyricsTick();
     placeVideo();
   }
+  // L'en-tête devient plus opaque dès que le contenu passe dessous.
+  function chromeShade(l) {
+    const ch = host.querySelector(".chrome");
+    if (ch && l) ch.classList.toggle("sc", l.scrollTop > 4);
+  }
+  host.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("list")) chromeShade(e.target); }, true);
   // Barre de lecture glissée vers le bas : elle disparaît, et revient dès qu'on relance un titre.
   function bindMini() {
     const m = host.querySelector(".mini");
@@ -955,10 +975,11 @@
     const v = V.el;
     if (!v) return;
     const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
-    v.addEventListener("play", () => { audio.pause(); upd(); });
+    v.addEventListener("play", () => { audio.pause(); upd(); bgPrime(); videoSession(); });
     v.addEventListener("pause", upd);
   }
   function stopVideo() {
+    bgOn = false; try { bgA.pause(); bgA.removeAttribute("src"); } catch (e) { /* ignoré */ }
     if (V.el) { try { V.el.pause(); V.el.removeAttribute("src"); V.el.load(); } catch (e) { /* ignoré */ } }
     if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
     V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0;
@@ -975,8 +996,8 @@
     const slot = !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
     if (slot) {
       const r = slot.getBoundingClientRect();
-      const list = host.querySelector(".list");
-      const lr = list ? list.getBoundingClientRect() : { top: 0 };
+      const chr = host.querySelector(".chrome");
+      const lr = { top: chr ? chr.getBoundingClientRect().bottom : 0 };
       const dock = host.querySelector(".dock");
       const bottomLimit = dock ? dock.getBoundingClientRect().top - 6 : window.innerHeight;
       const ct = Math.max(0, lr.top - r.top), cb = Math.max(0, r.bottom - bottomLimit);
@@ -1012,8 +1033,61 @@
     if (ask) toast("L'image dans l'image n'est pas disponible ici.");
     return false;
   }
-  // En quittant l'appli pendant une vidéo : bulle flottante (image dans l'image) si l'iPhone l'accepte.
-  document.addEventListener("visibilitychange", () => { if (document.hidden && V.el && !V.el.paused) pip(false); });
+  // En quittant l'appli pendant une vidéo, elle ne doit pas se couper :
+  // 1) bulle flottante (image dans l'image) si l'iPhone l'accepte ;
+  // 2) sinon le son continue en arrière-plan (lecteur audio préparé au moment où on a lancé la vidéo),
+  //    et l'image reprend au même endroit quand on revient dans l'appli.
+  const bgA = new Audio();
+  bgA.setAttribute("playsinline", "");
+  bgA.preload = "auto";
+  let bgOn = false;
+  function bgPrime() {
+    // Appelé pendant le geste qui lance la vidéo : l'iPhone autorise ensuite ce lecteur à jouer en arrière-plan.
+    const v = V.el;
+    if (!v || !v.currentSrc && !v.src) return;
+    try {
+      if (bgA.src !== (v.currentSrc || v.src)) bgA.src = v.currentSrc || v.src;
+      bgA.muted = true;
+      const p = bgA.play();
+      if (p) p.then(() => { if (!bgOn) { bgA.pause(); bgA.muted = false; } }).catch(() => { bgA.muted = false; });
+    } catch (e) { /* ignoré */ }
+  }
+  function videoSession() {
+    if (!("mediaSession" in navigator) || !V.key) return;
+    try {
+      const art = V.yid ? [{ src: "https://i.ytimg.com/vi/" + V.yid + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg" }] : [{ src: "icons/icon-512.png", sizes: "512x512", type: "image/png" }];
+      navigator.mediaSession.metadata = new MediaMetadata({ title: V.title || "Vidéo", artist: "Casque", artwork: art });
+      const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* ignoré */ } };
+      set("play", () => (bgOn ? bgA : V.el) && (bgOn ? bgA : V.el).play().catch(() => {}));
+      set("pause", () => { if (bgOn) bgA.pause(); else if (V.el) V.el.pause(); });
+    } catch (e) { /* ignoré */ }
+  }
+  function toBackground() {
+    const v = V.el;
+    if (!v || v.paused || v.ended) return;
+    if (pip(false)) return;
+    try {
+      const src = v.currentSrc || v.src;
+      if (!src) return;
+      if (bgA.src !== src) bgA.src = src;
+      bgA.muted = false;
+      bgA.currentTime = v.currentTime;
+      bgOn = true;
+      const p = bgA.play();
+      if (p) p.catch(() => { bgOn = false; });
+      v.pause();
+    } catch (e) { bgOn = false; }
+  }
+  function toForeground() {
+    if (!bgOn) return;
+    bgOn = false;
+    const v = V.el, t = bgA.currentTime, wasPlaying = !bgA.paused;
+    bgA.pause();
+    if (v) { try { v.currentTime = t; } catch (e) { /* ignoré */ } if (wasPlaying) v.play().catch(() => {}); }
+    videoSession(); updateSession();
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) toBackground(); else toForeground(); });
+  window.addEventListener("pagehide", toBackground);
   // Glisser la bulle flottante ; glisser le plein écran vers le bas pour le réduire.
   let drag = null;
   vbox.addEventListener("touchstart", (e) => {
@@ -1055,7 +1129,7 @@
       return l;
     })));
     const l = await anyOf(tries);
-    return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th: "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg", hd: "https://i.ytimg.com/vi/" + x.id + "/hqdefault.jpg" }));
+    return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th0: x.th || "", th: "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg", hd: "https://i.ytimg.com/vi/" + x.id + "/hqdefault.jpg" }));
   }
   async function itSearch(q) {
     const r = await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=25&term=" + encodeURIComponent(q));
@@ -1229,6 +1303,41 @@
     }
   }
 
+  // ---------- Miniatures : image + adresses de secours (certaines ne se chargent pas sur iPhone) ----------
+  function thumbAlts(o) {
+    const l = [];
+    const yid = o.src === "yt" ? o.id : o.yid;
+    if (o.th) l.push(o.th);
+    if (yid) l.push("https://i.ytimg.com/vi/" + yid + "/mqdefault.jpg", "https://i.ytimg.com/vi/" + yid + "/hqdefault.jpg", "https://img.youtube.com/vi/" + yid + "/mqdefault.jpg", "https://i.ytimg.com/vi_webp/" + yid + "/mqdefault.webp");
+    if (o.th0) l.push(o.th0);
+    return l.filter((x, i) => x && l.indexOf(x) === i);
+  }
+  const thumbImg = (o, hd) => {
+    const l = thumbAlts(o);
+    if (hd && o.hd) l.unshift(o.hd);
+    return l.length ? '<img class="thi" src="' + esc(l[0]) + '" data-alt="' + esc(l.slice(1).join("|")) + '" data-q="' + esc((o.ch || "") + " " + (o.ti || "")) + '" alt="" referrerpolicy="no-referrer" decoding="async">'
+      : '<img class="thi" alt="" data-alt="" data-q="' + esc((o.ch || "") + " " + (o.ti || "")) + '" referrerpolicy="no-referrer">';
+  };
+  const artCache = {};
+  host.addEventListener("error", (e) => {
+    const im = e.target;
+    if (!im || im.tagName !== "IMG" || !im.classList.contains("thi")) return;
+    const alts = (im.dataset.alt || "").split("|").filter(Boolean);
+    if (alts.length) { im.dataset.alt = alts.slice(1).join("|"); im.src = alts[0]; return; }
+    // En dernier recours : la pochette trouvée sur Apple Music.
+    const q = (im.dataset.q || "").replace(/\((official|officiel|clip|lyrics?|audio|video|vidéo)[^)]*\)/gi, "").trim();
+    if (!q || im.dataset.it) { im.classList.add("gone"); return; }
+    im.dataset.it = "1";
+    const use = (u) => { if (u) im.src = u; else im.classList.add("gone"); };
+    if (artCache[q] !== undefined) { use(artCache[q]); return; }
+    fetch("https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + encodeURIComponent(q)).then((r) => r.json()).then((j) => {
+      const x = j && j.results && j.results[0];
+      artCache[q] = x && x.artworkUrl100 ? x.artworkUrl100.replace("100x100", "400x400") : "";
+      use(artCache[q]);
+    }).catch(() => use(""));
+  }, true);
+  host.addEventListener("load", (e) => { if (e.target && e.target.classList && e.target.classList.contains("thi")) e.target.classList.add("ok"); }, true);
+
   // ---------- Vues (mise en page de l'appli Android) ----------
   const big = (title, trailing) => '<header class="lt"><h1>' + title + "</h1>" + (trailing || "") + "</header>";
   const gear = '<button class="ib gl" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>";
@@ -1268,7 +1377,7 @@
       : d.st === "fail" ? '<button class="ib rb bl" data-a="dlretry" data-id="' + d.mid + '" aria-label="Réessayer">' + I2.refresh + '</button><button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.close + "</button>"
         : ok ? '<button class="ib rb fill" data-a="dlopen" data-id="' + d.tid + '" aria-label="Lire">' + I.play + '</button><button class="ib rb t" data-a="dlmenu" data-id="' + d.tid + '">' + I.more + "</button>"
           : '<button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.trash + "</button>";
-    return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth" style="' + (d.th ? "background-image:url(" + esc(d.th) + ")" : "") + '"><span class="' + (d.f === "v" ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
+    return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth">' + thumbImg({ th: d.th, yid: d.yid, ti: d.ti, ch: d.ch }) + '<span class="' + (d.f === "v" ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
       '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small></div>" + btn + "</div>" +
       (act ? '<div class="dbar' + (d.st === "recv" && d.p ? "" : " ind") + '"><i style="width:' + (d.st === "recv" ? Math.round((d.p || 0) * 100) : 30) + '%"></i></div>' : "") + "</div>";
   }
@@ -1311,7 +1420,7 @@
       const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
       if (sel) {
         const playing = V.yid === sel.id;
-        body += '<div class="pc"><div class="pslot" data-id="' + esc(sel.id) + '" style="background-image:url(' + esc(sel.hd || sel.th) + ')">' +
+        body += '<div class="pc"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>";
         body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
@@ -1321,7 +1430,7 @@
         const others = SR.items.filter((x) => x !== sel);
         if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map((o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
-          return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth" style="background-image:url(' + esc(o.th) + ')">' + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
+          return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
             '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (got ? '<small class="done">Téléchargé</small>' : "") + "</div></div>";
         }).join("");
       }
