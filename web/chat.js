@@ -570,6 +570,19 @@
       case "voice": {
         const src = m.localUrl || mediaUrl(m.media);
         const d = (m.meta && m.meta.d) || 0;
+        const sg = m.meta && m.meta.song;
+        if (sg) {
+          // Chanson envoyée avec @music : on peut l'écouter et la télécharger (aussi sur iPhone).
+          return {
+            cls: "voice song",
+            html: '<div class="ch-song"><span class="ch-song-art">' + (sg.th ? '<img src="' + esc(sg.th) + '" alt="" loading="lazy">' : "🎵") + '</span>' +
+              '<span class="ch-song-t"><small>🎵 Chanson</small><b>' + esc(sg.t || "Chanson") + '</b>' + (sg.a ? '<small>' + esc(sg.a) + '</small>' : "") + '</span></div>' +
+              '<div class="ch-voice"><button class="ch-play" data-c="play" aria-label="Lire">▶</button>' +
+              '<div class="ch-wave" data-c="seek">' + waveHtml(m.media || m.tmp || "x") + "</div>" +
+              '<span class="ch-dur">' + mmss(d) + '</span><audio preload="none" src="' + esc(src) + '" data-d="' + d + '"></audio></div>' +
+              (m.media ? '<button class="ch-songdl" data-c="songdl" data-u="' + esc(src) + '" data-n="' + esc(sg.t || "chanson") + '">⬇ Télécharger</button>' : "") + t,
+          };
+        }
         return {
           cls: "voice",
           html: '<div class="ch-voice"><button class="ch-play" data-c="play" aria-label="Lire">▶</button>' +
@@ -881,7 +894,7 @@
       case "sticker": return "💗 Sticker";
       case "gif": return "🎞️ GIF";
       case "image": return "📷 " + (m.body ? m.body.slice(0, 60) : "Photo");
-      case "voice": return "🎤 Message vocal";
+      case "voice": return (m.meta && m.meta.song) ? "🎵 " + (m.meta.song.t || "Chanson") : "🎤 Message vocal";
       case "video": return "🎥 Vidéo";
       case "game": return window.TMM_GAMES ? window.TMM_GAMES.snippet(m) : "🎮 Jeu";
       default: return "";
@@ -1578,9 +1591,25 @@
       case "mEdit": { const m = byId.get(menuId); closeMsgMenu(); if (m) startEdit(m); ev.stopPropagation(); break; }
       case "replyCancel": if (editingId) cancelEdit(); else clearReply(); break;
       case "play": if (row) togglePlay(row); break;
+      case "songdl": songDownload(t); break;
       case "seek": if (row) seek(row, ev); break;
       default: break;
     }
+  }
+
+  // Télécharger une chanson reçue : sur iPhone, la feuille de partage permet « Enregistrer dans Fichiers ».
+  async function songDownload(btn) {
+    if (!btn || btn.dataset.busy) return;
+    btn.dataset.busy = "1"; const old = btn.textContent; btn.textContent = "…";
+    try {
+      const r = await fetch(btn.dataset.u); const b = await r.blob();
+      const name = (btn.dataset.n || "chanson").replace(/[\\/:*?"<>|]/g, " ").trim().slice(0, 80) + ".mp3";
+      const file = new File([b], name, { type: "audio/mpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); }
+      else { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+      btn.textContent = "✓ Téléchargée";
+    } catch (e) { btn.textContent = old; }
+    delete btn.dataset.busy;
   }
 
   async function sendRaw(text) {
