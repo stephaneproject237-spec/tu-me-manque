@@ -348,6 +348,7 @@ class ChatViewModel : ViewModel() {
             if (p.dur > 0) meta.put("d", p.dur)
             // Chanson envoyée par le bot @music : titre, artiste et pochette.
             p.meta?.optJSONObject("song")?.let { meta.put("song", it) }
+            p.meta?.optJSONObject("bot")?.let { meta.put("bot", it) }
             p.reply?.let {
                 meta.put("reply", JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text))
             }
@@ -627,9 +628,18 @@ class ChatViewModel : ViewModel() {
     }
 
     /** Envoie une chanson (téléchargée avec @music) dans le chat : ton partenaire peut l'écouter et la télécharger, même sur iPhone. */
-    fun sendSong(file: File, title: String, artist: String, thumb: String, seconds: Int) {
+    /** Message du bot @music (question, propositions, choix…) : visible des deux côtés. */
+    fun sendBot(body: String, bot: JSONObject) {
+        viewModelScope.launch {
+            val p = addPending(blank("text", body = body).copy(meta = JSONObject().put("bot", bot)))
+            deliver(p, null)
+        }
+    }
+
+    fun sendSong(file: File, title: String, artist: String, thumb: String, seconds: Int, ref: Long = 0L) {
         viewModelScope.launch {
             val song = JSONObject().put("t", title).put("a", artist).put("th", thumb)
+            if (ref != 0L) song.put("r", ref)
             val p = addPending(blank("voice", dur = seconds).copy(localFile = file.absolutePath, meta = JSONObject().put("song", song)))
             try {
                 val path = Backend.uploadFile(file, "mp3", "audio/mpeg")

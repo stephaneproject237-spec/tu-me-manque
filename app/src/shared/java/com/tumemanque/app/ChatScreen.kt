@@ -229,6 +229,14 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     var showHot by remember { mutableStateOf(false) }
     // Bot @music : « @music » (suivi ou non d'une chanson) ouvre sa boîte de dialogue au lieu d'envoyer le message.
     var musicBot by remember { mutableStateOf<String?>(null) }
+    // Le bot : envoi de ses messages, et travail fait par ce téléphone quand c'est son tour.
+    DisposableEffect(vm) {
+        ChatBot.send = { body, bot -> vm.sendBot(body, bot) }
+        ChatBot.sendSong = { f, s, ref -> vm.sendSong(f, s.title, s.channel, if (s.id.startsWith("http")) s.id else s.thumb, s.durationSec, ref) }
+        onDispose { ChatBot.send = null; ChatBot.sendSong = null }
+    }
+    LaunchedEffect(state.messages) { ChatBot.process(context.applicationContext, state.messages, gameScope) }
+    LaunchedEffect(ChatBot.prefill) { ChatBot.prefill?.let { text = it; ChatBot.prefill = null } }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
@@ -301,7 +309,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             if (tt.startsWith("@") && "@music".startsWith(tt.take(6)) && !recording) {
                 Row(
                     Modifier.padding(start = 14.dp, bottom = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xE6261820))
-                        .clickable { musicBot = text.trim().drop(6).trim().takeIf { tt.startsWith("@music") } ?: ""; text = "" }
+                        .clickable { text = "@music " + (text.trim().drop(6).trim().takeIf { tt.startsWith("@music") } ?: "") }
                         .padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -330,7 +338,11 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 onSend = {
                     val em = editing
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
-                    else if (text.trim().lowercase().startsWith("@music")) { musicBot = text.trim().drop(6).trim(); text = "" }
+                    else if (text.trim().lowercase().startsWith("@music")) {
+                        val q = text.trim().drop(6).trim()
+                        if (q.isEmpty()) ChatBot.ask() else ChatBot.query(q)
+                        text = ""; sendTick++
+                    }
                     else { vm.sendText(text); text = ""; sendTick++ }
                 },
                 onSendLong = { if (editing == null && text.isNotBlank()) askText = true },
@@ -418,6 +430,10 @@ private fun BubbleRow(m: ChatMsg, partner: String, onOpenPhoto: () -> Unit, onRe
     if (m.kind == "game") {
         SwipeToReply(!m.pending, { onReply() }, {}) { GameBotRow(m, partner) }
         return
+    }
+    // Bot @music : questions, propositions et choix, au centre et visibles des deux côtés.
+    ChatBot.bot(m)?.let { b ->
+        if (b.optString("t") != "q" && !m.deleted) { BotChatRow(m, partner, LocalChatMsgs.current); return }
     }
     SwipeToReply(!m.pending, { if (!m.deleted) onReply() }, onMenu) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {

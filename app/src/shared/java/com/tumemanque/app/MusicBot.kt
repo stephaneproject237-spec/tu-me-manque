@@ -484,3 +484,174 @@ private fun BotBtn(label: String, modifier: Modifier, main: Boolean = false, onC
         contentAlignment = Alignment.Center,
     ) { Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
 }
+
+// =============================================================================================
+//  Le bot dans la conversation : questions, propositions (QCM) et choix visibles des deux côtés
+// =============================================================================================
+
+object ChatBot {
+    /** Texte à mettre dans la barre de saisie (bouton « Répondre » du bot). */
+    var prefill by mutableStateOf<String?>(null)
+    /** Envoi d'un message du bot (branché par l'écran du chat). */
+    var send: ((String, JSONObject) -> Unit)? = null
+    var sendSong: ((File, MbSong, Long) -> Unit)? = null
+    private val busy = HashSet<Long>()
+
+    fun bot(m: ChatMsg): JSONObject? = if (m.kind == "text") m.meta?.optJSONObject("bot") else null
+
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences("music_bot", Context.MODE_PRIVATE)
+    private fun done(ctx: Context, id: Long) = prefs(ctx).getBoolean("h$id", false)
+    private fun markDone(ctx: Context, id: Long) { prefs(ctx).edit().putBoolean("h$id", true).apply() }
+
+    fun ask() = send?.invoke("🎵 @music : quelle chanson voulez-vous ? Répondez « @music artiste titre ».", JSONObject().put("t", "ask"))
+    fun query(q: String) = send?.invoke("@music $q", JSONObject().put("t", "q").put("q", q).put("dev", "a"))
+
+    fun pick(res: ChatMsg, k: Int) {
+        val o = bot(res)?.optJSONArray("o")?.optJSONObject(k) ?: return
+        send?.invoke("🎵 Choix : ${o.optString("ti")}", JSONObject().put("t", "pick").put("r", res.id).put("k", k).put("dev", "a"))
+    }
+
+    /** Ce téléphone Android fait le travail (recherche, téléchargement) quand c'est son tour. */
+    fun process(ctx: Context, msgs: List<ChatMsg>, scope: CoroutineScope) {
+        if (!MbEngine.supported) return
+        val now = System.currentTimeMillis()
+        for (m in msgs) {
+            if (m.id == 0L || m.pending || m.deleted) continue
+            val b = bot(m) ?: continue
+            if (now - m.createdAt > 15 * 60_000L) continue
+            if (done(ctx, m.id) || m.id in busy) continue
+            val dev = b.optString("dev")
+            when (b.optString("t")) {
+                "q" -> {
+                    val mineJob = (dev == "a" && m.mine) || (dev == "w" && !m.mine)
+                    if (!mineJob) continue
+                    if (msgs.any { bot(it)?.let { x -> x.optString("t") == "res" && x.optLong("r") == m.id } == true }) { markDone(ctx, m.id); continue }
+                    busy.add(m.id)
+                    val q = b.optString("q")
+                    scope.launch {
+                        try {
+                            val r = MbEngine.search(ctx, q).take(5)
+                            if (r.isEmpty()) send?.invoke("🎵 Je n'ai rien trouvé pour « $q ».", JSONObject().put("t", "none").put("r", m.id))
+                            else {
+                                val arr = org.json.JSONArray()
+                                r.forEach { s -> arr.put(JSONObject().put("id", s.id).put("ti", s.title.take(70)).put("ch", s.channel.removeSuffix(" - Topic").take(30)).put("d", s.durationSec)) }
+                                send?.invoke("🎵 Quelle chanson pour « $q » ?", JSONObject().put("t", "res").put("r", m.id).put("q", q.take(60)).put("src", "yt").put("o", arr))
+                            }
+                            markDone(ctx, m.id)
+                        } catch (_: Exception) {
+                        } finally { busy.remove(m.id) }
+                    }
+                }
+                "pick" -> {
+                    val res = msgs.firstOrNull { it.id == b.optLong("r") } ?: continue
+                    val rb = bot(res) ?: continue
+                    val src = rb.optString("src")
+                    val mineJob = if (src == "au") (dev == "a" && m.mine) else ((dev == "a" && m.mine) || (dev == "w" && !m.mine))
+                    if (!mineJob) continue
+                    if (msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id }) { markDone(ctx, m.id); continue }
+                    val o = rb.optJSONArray("o")?.optJSONObject(b.optInt("k")) ?: continue
+                    busy.add(m.id)
+                    val song = MbSong(o.optString("id"), o.optString("ti"), o.optString("ch"), o.optInt("d"), 0)
+                    send?.invoke("⏳ Téléchargement de « ${song.title} »…", JSONObject().put("t", "wait").put("r", m.id))
+                    scope.launch {
+                        try {
+                            val f = if (src == "au") httpSong(ctx, o.optString("u"), song) else MbEngine.download(ctx, song) { }
+                            val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp3").also { f.copyTo(it, overwrite = true) }
+                            sendSong?.invoke(keep, if (src == "au") song.copy(id = o.optString("art")) else song, m.id)
+                            markDone(ctx, m.id)
+                        } catch (_: Exception) {
+                            send?.invoke("⚠️ Le téléchargement de « ${song.title} » a échoué.", JSONObject().put("t", "fail").put("r", m.id))
+                            markDone(ctx, m.id)
+                        } finally { busy.remove(m.id) }
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun httpSong(ctx: Context, url: String, s: MbSong): File = withContext(Dispatchers.IO) {
+        val dir = File(ctx.cacheDir, "cam/music").apply { mkdirs() }
+        val f = File(dir, MbEngine.safeName(s.title) + ".mp3")
+        java.net.URL(url).openStream().use { i -> f.outputStream().use { i.copyTo(it) } }
+        f
+    }
+}
+
+/** Une bulle du bot dans la conversation (au centre, comme les jeux). */
+@Composable
+fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
+    val b = ChatBot.bot(m) ?: return
+    val t = b.optString("t")
+    val who = if (m.mine) "Toi" else "@$partner"
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.fillMaxWidth(0.94f).clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xDB3A2834), Color(0xD1241822))))
+                .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(22.dp))
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(26.dp).clip(CircleShape).background(Brush.linearGradient(listOf(BPink, Color(0xFF8E24AA)))), contentAlignment = Alignment.Center) { Text("🎵", fontSize = 13.sp) }
+                Spacer(Modifier.width(8.dp))
+                Text("@music", color = BSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(6.dp))
+            when (t) {
+                "ask" -> {
+                    Text("Quelle chanson voulez-vous ? Tapez l'artiste et le titre.", color = BTxt, fontSize = 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                    BotBtn("✍️ Répondre", Modifier.fillMaxWidth(), main = true) { ChatBot.prefill = "@music " }
+                }
+                "res" -> {
+                    Text("Quelle chanson pour « ${b.optString("q")} » ?", color = BTxt, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${who} a demandé · n'importe qui peut choisir", color = BSoft, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    val pick = msgs.firstOrNull { ChatBot.bot(it)?.let { x -> x.optString("t") == "pick" && x.optLong("r") == m.id } == true }
+                    val chosen = pick?.let { ChatBot.bot(it)?.optInt("k") }
+                    val pickId = pick?.id ?: -1L
+                    val song = if (pick != null) msgs.firstOrNull { it.meta?.optJSONObject("song")?.optLong("r") == pickId } else null
+                    val failed = pick != null && msgs.any { ChatBot.bot(it)?.let { x -> x.optString("t") == "fail" && x.optLong("r") == pickId } == true }
+                    val arr = b.optJSONArray("o")
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (k in 0 until (arr?.length() ?: 0)) {
+                            val o = arr!!.getJSONObject(k)
+                            val on = chosen == k
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                    .background(if (on) Brush.linearGradient(listOf(Color(0x59FF4886), Color(0x4DD6185C))) else Brush.linearGradient(listOf(Color(0x0FFFFFFF), Color(0x0FFFFFFF))))
+                                    .border(1.dp, if (on) BPink else Color(0x1FFFFFFF), RoundedCornerShape(14.dp))
+                                    .clickable(enabled = pick == null && m.id != 0L) { ChatBot.pick(m, k) }
+                                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(Modifier.size(26.dp).clip(CircleShape).background(if (on) BPink else Color(0x1AFFFFFF)), Alignment.Center) {
+                                    Text("ABCDE"[k % 5].toString(), color = if (on) Color.White else BSoft, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                val thumb = o.optString("art").ifEmpty { "https://i.ytimg.com/vi/${o.optString("id")}/default.jpg" }
+                                AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 52.dp, height = 38.dp).clip(RoundedCornerShape(8.dp)))
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f).then(if (chosen != null && !on) Modifier.padding(0.dp) else Modifier)) {
+                                    Text(o.optString("ti"), color = if (chosen != null && !on) BSoft else BTxt, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(listOf(o.optString("ch"), mbTime(o.optInt("d"))).filter { it.isNotEmpty() }.joinToString(" · "), color = BSoft, fontSize = 11.sp, maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        when {
+                            pick == null -> "Touchez une proposition pour la télécharger."
+                            song != null -> "✓ Chanson envoyée dans la conversation, juste en dessous."
+                            failed -> "⚠️ Le téléchargement a échoué. Redemandez avec @music."
+                            else -> "⏳ Téléchargement en cours…"
+                        },
+                        color = if (song != null) Color(0xFF8BE0A4) else BSoft, fontSize = 12.sp,
+                    )
+                }
+                "pick" -> Text("${who} a choisi : ${m.body?.removePrefix("🎵 Choix : ") ?: ""}", color = BTxt, fontSize = 14.sp)
+                else -> Text(m.body ?: "", color = BTxt, fontSize = 14.sp)
+            }
+        }
+    }
+}
