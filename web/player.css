@@ -290,3 +290,12 @@ body.cq-on{overflow:hidden}
 #cq-video .vb-bar button.on{background:rgba(10,132,255,.55)}
 #player .pc .cpill.auto{margin-top:8px}
 #player .pc .cpill.on{background:rgba(10,132,255,.35);color:#fff}
+
+/* Vidéo qui remplit son cadre (pas de bordures noires) ; bulle : poignée de glissement, réduire, cacher */
+#cq-video.inline video,#cq-video.mini video{object-fit:cover}
+#cq-video .vb-grip,#cq-video .vb-min,#cq-video .vb-hide{display:none}
+#cq-video.mini .vb-grip{display:block;position:absolute;top:0;left:40px;right:40px;height:36px;z-index:2;touch-action:none}
+#cq-video.inline .vb-min{display:flex;position:absolute;top:8px;left:50%;margin-left:-17px;width:34px;height:34px;border-radius:50%;z-index:3;opacity:.85}
+#cq-video.mini .vb-hide{display:flex;position:absolute;left:6px;bottom:6px;width:30px;height:30px;border-radius:50%;z-index:3;transform:rotate(90deg)}
+#cq-video .vb-min svg,#cq-video .vb-hide svg{width:20px;height:20px}
+#cq-video.mini.ifr .vb-ctl .tl,#cq-video.mini.ifr .vb-ctl .tr{z-index:3}

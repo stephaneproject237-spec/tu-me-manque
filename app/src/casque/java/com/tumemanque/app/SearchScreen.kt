@@ -302,7 +302,7 @@ private fun PlayerCard(v: YtVideo) {
     val loaded = Vp.key == v.id
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)).background(Color.Black),
+            Modifier.fillMaxWidth().aspectRatio(if (loaded && !Vp.mini) Vp.aspect.coerceIn(0.75f, 1.9f) else 16f / 9f).clip(RoundedCornerShape(24.dp)).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {

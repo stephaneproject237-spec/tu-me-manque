@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -526,6 +527,7 @@ fun BoxScope.MiniVideo(bottom: Dp) {
                 Box(Modifier.fillMaxSize().background(Color(0x66000000))) {
                     RoundBtn(Ic.Close, { Vp.stop() }, Modifier.align(Alignment.TopStart).padding(6.dp), size = 30.dp, iconSize = 16.dp, tint = Color.White)
                     RoundBtn(Ic.Fullscreen, { Vp.mini = false; Vp.fullscreen = true }, Modifier.align(Alignment.TopEnd).padding(6.dp), size = 30.dp, iconSize = 18.dp, tint = Color.White)
+                    RoundBtn(Ic.ChevronDown, { Vp.miniHidden = true }, Modifier.align(Alignment.BottomStart).padding(6.dp).rotate(90f), size = 30.dp, iconSize = 18.dp, tint = Color.White)
                     RoundBtn(if (Vp.playing) Ic.Pause else Ic.Play, { Vp.toggle(); showCtl = true }, Modifier.align(Alignment.Center), size = 46.dp, iconSize = 26.dp, tint = Color.White)
                 }
             }

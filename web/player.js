@@ -811,7 +811,7 @@
   vbox.id = "cq-video";
   vbox.hidden = true;
   document.body.appendChild(vbox);
-  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0, hid: false, auto: lsGet("casque_auto") === "1", played: [] };
+  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0, hid: false, bub: false, auto: lsGet("casque_auto") === "1", played: [] };
   // Languette sur le bord gauche : la bulle poussée à gauche est cachée, le son continue.
   const vtab = document.createElement("button");
   vtab.id = "cq-vtab"; vtab.hidden = true; vtab.setAttribute("aria-label", "Rappeler la vidéo");
@@ -842,11 +842,14 @@
     vbox.innerHTML = '<div class="vb-media">' + inner + "</div>" +
       '<div class="vb-ctl"><button data-v="close" class="tl" aria-label="Fermer">' + I.close + '</button><button data-v="full" class="tr" aria-label="Plein écran">' + I2.full + "</button>" +
       '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button></div>" +
-      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>";
+      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>" +
+      '<div class="vb-grip" aria-hidden="true"></div>' +
+      '<button data-v="bub" class="vb-min" aria-label="Réduire en bulle">' + I.down + '</button>' +
+      '<button data-v="hide" class="vb-hide" aria-label="Cacher la bulle">' + I.down + "</button>";
     vbox.hidden = false;
   }
   async function playYt(o) {
-    if (V.key === "yt:" + o.id) { V.full = false; placeVideo(); return; }
+    if (V.key === "yt:" + o.id) { V.full = false; V.bub = false; placeVideo(); return; }
     stopVideo();
     audio.pause();
     V.key = "yt:" + o.id; V.yid = o.id; V.title = o.ti; V.full = false; V.hid = false;
@@ -956,7 +959,7 @@
     bgOn = false; try { bgA.pause(); bgA.removeAttribute("src"); } catch (e) { /* ignoré */ }
     if (V.el) { try { V.el.pause(); V.el.removeAttribute("src"); V.el.load(); } catch (e) { /* ignoré */ } }
     if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
-    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0; V.hid = false;
+    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0; V.hid = false; V.bub = false;
     vbox.innerHTML = ""; vbox.hidden = true; vbox.className = ""; vbox.removeAttribute("style");
     vtab.hidden = true;
     audioHandlers();
@@ -970,7 +973,7 @@
     vbox.className = ifr ? "ifr" : "";
     vbox.removeAttribute("style");
     if (V.full) { vbox.classList.add("full"); return; }
-    const slot = !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
+    const slot = !V.bub && !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
     if (slot) {
       const r = slot.getBoundingClientRect();
       const chr = host.querySelector(".chrome");
@@ -999,9 +1002,11 @@
     const k = b.dataset.v, v = V.el;
     if (k === "close") stopVideo();
     else if (k === "min") { V.full = false; placeVideo(); }
-    else if (k === "full") { V.full = true; vbox.classList.remove("ctl"); placeVideo(); }
+    else if (k === "full") { V.full = true; V.bub = false; vbox.classList.remove("ctl"); placeVideo(); }
     else if (k === "pp" && v) { if (v.paused) v.play().catch(() => {}); else v.pause(); }
     else if (k === "pip") pip(true);
+    else if (k === "bub") { V.bub = true; V.full = false; V.hid = false; placeVideo(); }
+    else if (k === "hide") { V.hid = true; placeVideo(); }
     else if (k === "auto") toggleAuto();
   });
   function toggleAuto() {
