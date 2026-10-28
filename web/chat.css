@@ -576,3 +576,6 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .bt-opt span { display: flex; flex-direction: column; min-width: 0; } .bt-opt span small { color: #C9A9BA; font-size: 11px; }
 .bt-opt.dim { opacity: .45; } .bt-opt[disabled] { cursor: default; }
 .bt-st { display: block; margin-top: 8px; color: #C9A9BA; font-size: 12px; } .bt-st.ok { color: #8BE0A4; }
+.ch-songacts { display: flex; gap: 6px; margin-top: 6px; } .ch-songacts .ch-songdl { margin-top: 0; flex: 1; font-size: 12px; }
+.ch-vt { padding: 4px 6px 6px; }
+.bt-fmt { display: flex; gap: 8px; padding-left: 34px; } .bt-fmt .gm-btn { flex: 1; padding: 10px 8px; font-size: 14px; }

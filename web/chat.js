@@ -563,6 +563,12 @@
       case "video": {
         const w = (m.meta && m.meta.w) || 16, h = (m.meta && m.meta.h) || 9;
         const src = m.localUrl || mediaUrl(m.media);
+        const vs = m.meta && m.meta.song;
+        if (vs) return {
+          cls: "media song",
+          html: '<div class="ch-song-t ch-vt"><b>🎬 ' + esc(vs.t || "Vidéo") + '</b>' + (vs.a ? '<small>' + esc(vs.a) + '</small>' : "") + '</div>' +
+            '<video class="ch-photo ch-video" style="aspect-ratio:' + w + "/" + h + '" src="' + esc(src) + '#t=0.1" controls playsinline preload="metadata"></video>' + songActs(m, src, vs, "mp4") + t,
+        };
         return {
           cls: "media",
           html: '<video class="ch-photo ch-video" style="aspect-ratio:' + w + "/" + h + '" src="' + esc(src) + '#t=0.1" controls playsinline preload="metadata"></video>' + t,
@@ -581,7 +587,7 @@
               '<div class="ch-voice"><button class="ch-play" data-c="play" aria-label="Lire">▶</button>' +
               '<div class="ch-wave" data-c="seek">' + waveHtml(m.media || m.tmp || "x") + "</div>" +
               '<span class="ch-dur">' + mmss(d) + '</span><audio preload="none" src="' + esc(src) + '" data-d="' + d + '"></audio></div>' +
-              (m.media ? '<button class="ch-songdl" data-c="songdl" data-u="' + esc(src) + '" data-n="' + esc(sg.t || "chanson") + '">⬇ Télécharger</button>' : "") + t,
+              songActs(m, src, sg, "mp3") + t,
           };
         }
         return {
@@ -620,7 +626,7 @@
     return deliver(p, { p_kind: "text", p_body: body, p_media: null, p_meta: { bot } });
   }
   const findBot = (t, r) => msgs.find((x) => { const b = botOf(x); return b && b.t === t && b.r === r; });
-  const songFor = (r) => msgs.find((x) => x.kind === "voice" && x.meta && x.meta.song && x.meta.song.r === r);
+  const songFor = (r) => msgs.find((x) => (x.kind === "voice" || x.kind === "video") && x.meta && x.meta.song && x.meta.song.r === r);
   function botRow(m) {
     const b = botOf(m), mine = m.sender_id === me, who = mine ? "Toi" : "@" + esc(partner);
     let h = '<div class="bt-head"><i>🎵</i><b>@music</b></div>';
@@ -635,7 +641,8 @@
           ' data-c="botpick" data-r="' + m.id + '" data-k="' + k + '"><i>' + "ABCDE"[k] + '</i><img src="' + esc(th) + '" alt="" loading="lazy"><span><b>' + esc(o.ti) +
           "</b><small>" + esc([o.ch, o.d ? mmss(o.d) : ""].filter(Boolean).join(" · ")) + "</small></span></button>";
       });
-      h += "</div><small class=\"bt-st" + (song ? " ok" : "") + "\">" + (!pick ? "Touchez une proposition pour la télécharger." : song ? "✓ Chanson envoyée dans la conversation, juste en dessous." : fail ? "⚠️ Le téléchargement a échoué." : "⏳ Téléchargement en cours…") + "</small>";
+      const vid = pick && botOf(pick).f === "v";
+      h += "</div><small class=\"bt-st" + (song ? " ok" : "") + "\">" + (!pick ? (b.src === "au" ? "Touchez une proposition pour la télécharger." : "Touchez une proposition, puis choisissez audio ou vidéo.") : song ? (vid ? "✓ Vidéo envoyée dans la conversation, juste en dessous." : "✓ Chanson envoyée dans la conversation, juste en dessous.") : fail ? "⚠️ Le téléchargement a échoué." : "⏳ Téléchargement en cours…") + "</small>";
     } else if (b.t === "pick") h += "<p>" + who + " a choisi : " + esc((m.body || "").replace(/^🎵 Choix : /, "")) + "</p>";
     else h += "<p>" + esc(m.body || "") + "</p>";
     const row = document.createElement("div");
@@ -662,7 +669,7 @@
   }
   async function botScan() {
     const now = Date.now();
-    msgs.forEach((x) => { if (x.kind === "voice" && x.meta && x.meta.song && x.meta.song.r && !botSeen["s" + x.id]) { botSeen["s" + x.id] = 1; refreshFor(x.meta.song.r); } });
+    msgs.forEach((x) => { if ((x.kind === "voice" || x.kind === "video") && x.meta && x.meta.song && x.meta.song.r && !botSeen["s" + x.id]) { botSeen["s" + x.id] = 1; refreshFor(x.meta.song.r); } });
     for (const m of msgs) {
       const b = botOf(m);
       if (!b || m.pending || !m.id) continue;
@@ -1692,18 +1699,78 @@
       case "replyCancel": if (editingId) cancelEdit(); else clearReply(); break;
       case "play": if (row) togglePlay(row); break;
       case "songdl": songDownload(t); break;
+      case "songsave": songAct(t, true); break;
+      case "songshare": songAct(t, false); break;
+      case "botfmt": {
+        const res = msgs.find((x) => String(x.id) === t.dataset.r), k = Number(t.dataset.k), f = t.dataset.f;
+        const rb = botOf(res), o = rb && (rb.o || [])[k];
+        if (o && !findBot("pick", res.id)) { sendBot("🎵 Choix : " + o.ti + (f === "v" ? " (vidéo)" : " (audio)"), { t: "pick", r: res.id, k, f, dev: "w" }); t.closest(".gm-opts").querySelectorAll("button").forEach((x) => { x.disabled = true; }); }
+        break;
+      }
       case "botreply": { const inp = $("ch-input"); inp.value = "@music "; onInput(); inp.focus(); break; }
       case "botpick": {
         if (t.disabled) break;
         const res = msgs.find((x) => String(x.id) === t.dataset.r), rb = botOf(res), k = Number(t.dataset.k);
         const o = rb && (rb.o || [])[k];
-        if (o && !findBot("pick", res.id)) { sendBot("🎵 Choix : " + o.ti, { t: "pick", r: res.id, k, dev: "w" }); t.closest(".gm-opts").querySelectorAll("button").forEach((x) => { x.disabled = true; }); t.classList.add("sel"); }
+        if (o && !findBot("pick", res.id)) {
+          if (rb.src === "au") { sendBot("🎵 Choix : " + o.ti + " (audio)", { t: "pick", r: res.id, k, f: "a", dev: "w" }); t.closest(".gm-opts").querySelectorAll("button").forEach((x) => { x.disabled = true; }); t.classList.add("sel"); }
+          else {
+            // Audio ou vidéo ?
+            const box = t.closest(".gm-opts");
+            box.querySelectorAll(".bt-fmt").forEach((x) => x.remove());
+            box.querySelectorAll(".bt-opt").forEach((x) => x.classList.remove("sel"));
+            t.classList.add("sel");
+            const d = document.createElement("div"); d.className = "bt-fmt";
+            d.innerHTML = '<button class="gm-btn" data-c="botfmt" data-r="' + res.id + '" data-k="' + k + '" data-f="a">🎵 Audio</button><button class="gm-btn" data-c="botfmt" data-r="' + res.id + '" data-k="' + k + '" data-f="v">🎬 Vidéo</button>';
+            t.after(d);
+          }
+        }
         break;
       }
       case "seek": if (row) seek(row, ev); break;
       default: break;
     }
   }
+
+  // Chansons et vidéos du bot : le fichier est préparé à l'avance, pour que le partage s'ouvre dès le toucher
+  // (sur iPhone, Safari refuse d'ouvrir le partage si on attend un téléchargement après le toucher).
+  const songBlobs = {};
+  function songActs(m, src, sg, ext) {
+    if (!m.media) return "";
+    const key = String(m.id || m.tmp);
+    const name = esc(sg.t || (ext === "mp4" ? "video" : "chanson"));
+    return '<div class="ch-songacts" data-k="' + key + '" data-u="' + esc(src) + '" data-n="' + name + '" data-x="' + ext + '">' +
+      '<button class="ch-songdl" data-c="songsave">💾 Enregistrer</button><button class="ch-songdl" data-c="songshare">📤 Transférer</button></div>';
+  }
+  function songPrep(box) {
+    const k = box.dataset.k;
+    if (songBlobs[k]) return songBlobs[k];
+    songBlobs[k] = fetch(box.dataset.u).then((r) => r.blob()).then((b) => {
+      const ext = box.dataset.x, name = (box.dataset.n || "chanson").replace(/[\\/:*?"<>|]/g, " ").trim().slice(0, 80) + "." + ext;
+      const f = new File([b], name, { type: ext === "mp4" ? "video/mp4" : "audio/mpeg" });
+      songBlobs[k] = f; box.classList.add("ready"); return f;
+    }).catch(() => { delete songBlobs[k]; return null; });
+    return songBlobs[k];
+  }
+  function songAct(btn, save) {
+    const box = btn.closest(".ch-songacts"); if (!box) return;
+    const f = songBlobs[box.dataset.k];
+    if (!(f instanceof File)) {
+      // Pas encore prêt : on prépare, puis on demande de toucher à nouveau.
+      const old = btn.textContent; btn.textContent = "⏳ Préparation…";
+      Promise.resolve(songPrep(box)).then((x) => { btn.textContent = x ? (save ? "💾 Toucher pour enregistrer" : "📤 Toucher pour transférer") : old; });
+      return;
+    }
+    if (navigator.canShare && navigator.canShare({ files: [f] })) {
+      navigator.share({ files: [f] }).catch(() => {});
+      if (save) toast("Choisis « Enregistrer dans Fichiers » (ou « Enregistrer la vidéo ») dans la liste.");
+    } else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }
+  // Prépare les fichiers des chansons visibles (petit délai pour ne pas ralentir l'ouverture du chat).
+  setInterval(() => { if (opened) host.querySelectorAll(".ch-songacts:not(.ready)").forEach((b) => { if (!songBlobs[b.dataset.k]) songPrep(b); }); }, 3000);
 
   // Télécharger une chanson reçue : sur iPhone, la feuille de partage permet « Enregistrer dans Fichiers ».
   async function songDownload(btn) {
