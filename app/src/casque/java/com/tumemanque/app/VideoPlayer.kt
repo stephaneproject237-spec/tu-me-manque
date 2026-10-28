@@ -143,6 +143,11 @@ object Vp {
     /** Une vidéo YouTube (et non un fichier téléchargé) est chargée. */
     val isYt: Boolean get() = key != null && localId == null
 
+    /** Relit le réglage « lecture continue » (avant même de lancer une vidéo). */
+    fun loadPrefs(ctx: Context) {
+        autoplay = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).getBoolean("autoplay", false)
+    }
+
     fun setAutoplay(ctx: Context, on: Boolean) {
         autoplay = on
         ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).edit().putBoolean("autoplay", on).apply()

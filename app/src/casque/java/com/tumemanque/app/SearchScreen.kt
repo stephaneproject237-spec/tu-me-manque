@@ -329,6 +329,13 @@ private fun PlayerCard(v: YtVideo) {
             listOf(v.channel, fmtViews(v.views)).filter { it.isNotBlank() }.joinToString(" · "),
             color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         )
+        // Lecture continue : à la fin, une vidéo du même thème démarre toute seule.
+        LaunchedEffect(Unit) { Vp.loadPrefs(ctx) }
+        Spacer(Modifier.height(6.dp))
+        GlassChip(
+            if (Vp.autoplay) "Lecture continue : activée" else "Lecture continue : désactivée",
+            Ic.Repeat, if (Vp.autoplay) P.blueSoft else P.sub, Modifier.padding(horizontal = 4.dp),
+        ) { Vp.setAutoplay(ctx, !Vp.autoplay) }
     }
 }
 
