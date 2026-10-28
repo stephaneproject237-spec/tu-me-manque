@@ -1,6 +1,6 @@
 {
- "versionCode": 25,
- "versionName": "1.25",
- "notes": "Bot @music partagé dans la conversation : propositions en QCM, n'importe qui peut choisir.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-25/casque.apk"
+ "versionCode": 26,
+ "versionName": "1.26",
+ "notes": "Son de réception très doux, plus de double son à l'ouverture du chat.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-26/casque.apk"
 }
