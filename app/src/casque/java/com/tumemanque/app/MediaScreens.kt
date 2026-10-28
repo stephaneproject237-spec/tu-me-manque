@@ -65,11 +65,12 @@ fun DownloadsScreen() {
     val active = tasks.filter { it.active }
     val done = tasks.filter { !it.active && it.status != DlStatus.CANCELED }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    GlassScaffold(header = {
         LargeTitle("Téléchargements") {
             if (done.isNotEmpty()) GlassChip("Effacer", null, P.blueSoft) { Dl.clearFinished() }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(top = 4.dp, bottom = bottom + 12.dp)) {
+    }) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp + LocalTopInset.current, bottom = bottom + 12.dp)) {
             if (tasks.none { it.status != DlStatus.CANCELED }) {
                 item {
                     EmptyState(
@@ -199,7 +200,7 @@ fun VideosScreen(onSettings: () -> Unit) {
     val selecting = selected.isNotEmpty()
     BackHandler(enabled = selecting) { selected = emptySet() }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    GlassScaffold(header = {
         if (selecting) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 RoundBtn(Ic.Close, { selected = emptySet() })
@@ -214,17 +215,18 @@ fun VideosScreen(onSettings: () -> Unit) {
         } else {
             LargeTitle("Vidéos") { RoundBtn(Ic.Gear, onSettings) }
         }
+    }) {
         if (vids.isEmpty()) {
-            EmptyState(
+            Box(Modifier.padding(top = LocalTopInset.current)) { EmptyState(
                 Ic.VideoLib, "Pas encore de vidéo",
                 "Les clips que tu télécharges en MP4 s'affichent ici. Tu peux les regarder sans connexion.",
                 "Trouver une vidéo",
-            ) { Shell.tab = "search" }
-            return@Column
+            ) { Shell.tab = "search" } }
+            return@GlassScaffold
         }
         LazyVerticalGrid(
-            GridCells.Fixed(2), Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = bottom + 12.dp),
+            GridCells.Fixed(2), Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp + LocalTopInset.current, bottom = bottom + 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(2) }) {

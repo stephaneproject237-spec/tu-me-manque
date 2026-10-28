@@ -144,7 +144,7 @@ fun SearchScreen() {
 
     val showSuggest = focused && query.isNotBlank() && query != submitted
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    GlassScaffold(header = {
         LargeTitle("Rechercher")
         // ------------------------------------------------------------------ barre de recherche
         Row(
@@ -174,10 +174,11 @@ fun SearchScreen() {
             }
         }
 
+    }) {
         // ------------------------------------------------------------------ contenu
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().imePadding(), state = listState,
-            contentPadding = PaddingValues(top = 6.dp, bottom = bottom + 12.dp),
+            Modifier.fillMaxSize().imePadding(), state = listState,
+            contentPadding = PaddingValues(top = 6.dp + LocalTopInset.current, bottom = bottom + 12.dp),
         ) {
             if (showSuggest) {
                 items(suggestions, key = { "s$it" }) { s ->

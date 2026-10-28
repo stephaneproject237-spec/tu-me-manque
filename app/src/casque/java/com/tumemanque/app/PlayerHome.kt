@@ -151,7 +151,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
     val currentTrack = Hub.currentId?.let { byId[it] }
 
     Box(Modifier.fillMaxSize().background(P.bg)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        GlassScaffold(header = {
             // ---------------------------------------------------------------- barre du haut
             if (selectedDirs.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,8 +228,9 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                 }
             }
 
+        }) {
             // ---------------------------------------------------------------- contenu
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.fillMaxSize()) {
                 val q = query.trim().lowercase()
                 if (tracks.isEmpty() && !scan.running) {
                     Onboarding(importMsg ?: scan.message, onScan = { scanPhone() }, onFolder = { treeLauncher.launch(null) }, onImport = { importLauncher.launch(arrayOf("*/*")) })
@@ -420,7 +421,7 @@ fun NameDialog(title: String, initial: String, ok: String, onCancel: () -> Unit,
 
 @Composable
 private fun Onboarding(message: String, onScan: () -> Unit, onFolder: () -> Unit, onImport: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 32.dp + LocalBottomInset.current), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 32.dp + LocalTopInset.current, bottom = 32.dp + LocalBottomInset.current), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
             Modifier.size(110.dp).clip(CircleShape).background(Brush.linearGradient(listOf(P.blue, P.blueDeep))),
             contentAlignment = Alignment.Center,
@@ -453,7 +454,7 @@ private fun TrackList(
     onDelete: ((List<String>) -> Unit)? = null,
 ) {
     val selecting = selected.isNotEmpty()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
         if (header != null) item(key = "header") { header() }
         if (list.isEmpty()) item(key = "empty") {
             Text(empty, color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center)
@@ -485,7 +486,7 @@ private fun AlbumsGrid(tracks: List<Track>, onOpen: (String) -> Unit) {
     if (albums.isEmpty()) { Text("Aucun album", color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center); return }
     LazyVerticalGrid(
         GridCells.Fixed(2), Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp + LocalBottomInset.current),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp + LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         gridItems(albums, key = { it.first }) { (name, artist, l) ->
@@ -504,7 +505,7 @@ private fun AlbumsGrid(tracks: List<Track>, onOpen: (String) -> Unit) {
 private fun ArtistsList(tracks: List<Track>, onOpen: (String) -> Unit) {
     val artists = remember(tracks) { tracks.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() } }
     if (artists.isEmpty()) { Text("Aucun artiste", color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center); return }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
         items(artists, key = { it.first }) { (name, l) ->
             Row(Modifier.fillMaxWidth().clickable { onOpen(name) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(P.card2), contentAlignment = Alignment.Center) {
@@ -525,7 +526,7 @@ private fun ArtistsList(tracks: List<Track>, onOpen: (String) -> Unit) {
 private fun PlaylistsTab(
     tracks: List<Track>, playlists: List<Playlist>, favs: Set<String>, onOpen: (String) -> Unit, onNew: () -> Unit,
 ) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
         item {
             Row(Modifier.fillMaxWidth().clickable { onNew() }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(P.blue), contentAlignment = Alignment.Center) { CIcon(Ic.Add, Color.White, 28.dp) }
@@ -564,7 +565,7 @@ private fun FoldersTab(
 ) {
     val selecting = selectedDirs.isNotEmpty()
     val dirs = remember(tracks) { tracks.groupBy { it.folder }.toList().sortedBy { it.first.lowercase() } }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp + LocalBottomInset.current)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

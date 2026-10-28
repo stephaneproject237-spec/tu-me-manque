@@ -82,6 +82,10 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.layout.onSizeChanged
 import kotlinx.coroutines.delay
 
 // =============================================================================================
@@ -90,14 +94,18 @@ import kotlinx.coroutines.delay
 
 /** Hauteur à laisser libre en bas des listes (barre d'onglets + mini-lecteur flottants). */
 val LocalBottomInset = compositionLocalOf { 0.dp }
+/** Hauteur de l'en-tête en verre : le contenu défile dessous, jusqu'en haut de l'écran. */
+val LocalTopInset = compositionLocalOf { 0.dp }
 
-private val rim = Brush.verticalGradient(listOf(Color(0x47FFFFFF), Color(0x0AFFFFFF), Color(0x1FFFFFFF)))
+private val rim = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x14FFFFFF), Color(0x0AFFFFFF), Color(0x2EFFFFFF)))
+/** Reflet du verre : lumière en haut, plus discret en bas. */
+private val gloss = Brush.verticalGradient(0f to Color(0x2BFFFFFF), 0.45f to Color(0x08FFFFFF), 1f to Color(0x12FFFFFF))
 
 /** Surface de verre : légèrement claire, reflet en haut, liseré fin. */
 fun Modifier.glass(shape: Shape = RoundedCornerShape(24.dp), alpha: Float = 0.07f, tint: Color = Color.White): Modifier =
     this.clip(shape)
-        .background(Brush.verticalGradient(listOf(tint.copy(alpha = alpha + 0.05f), tint.copy(alpha = alpha))))
-        .border(0.7.dp, rim, shape)
+        .background(Brush.verticalGradient(listOf(tint.copy(alpha = alpha + 0.07f), tint.copy(alpha = alpha * 0.7f), tint.copy(alpha = alpha + 0.02f))))
+        .border(0.8.dp, rim, shape)
 
 /** Verre flou (vrai flou d'arrière-plan sur Android 12+, verre teinté avant). */
 fun Modifier.liquid(state: HazeState, shape: Shape): Modifier =
@@ -106,13 +114,49 @@ fun Modifier.liquid(state: HazeState, shape: Shape): Modifier =
             state,
             HazeStyle(
                 backgroundColor = P.bg,
-                tints = listOf(HazeTint(Color(0xD60F1217))),
-                blurRadius = 26.dp,
-                noiseFactor = 0.035f,
-                fallbackTint = HazeTint(Color(0xF5161A21)),
+                tints = listOf(HazeTint(Color(0x80141922))),
+                blurRadius = 34.dp,
+                noiseFactor = 0.03f,
+                fallbackTint = HazeTint(Color(0xF0161A21)),
             ),
         )
-        .border(0.7.dp, rim, shape)
+        .background(gloss)
+        .border(0.8.dp, rim, shape)
+
+/**
+ * Écran avec en-tête en verre flou : la liste occupe tout l'écran et passe sous le titre,
+ * les boutons (Titres, Albums…) et la barre d'onglets.
+ */
+@Composable
+fun GlassScaffold(header: @Composable ColumnScope.() -> Unit, content: @Composable BoxScope.() -> Unit) {
+    val haze = remember { HazeState() }
+    val density = LocalDensity.current
+    var top by remember { mutableStateOf(0.dp) }
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().haze(haze)) {
+            CompositionLocalProvider(LocalTopInset provides top) { content() }
+        }
+        Column(
+            Modifier.fillMaxWidth()
+                .onSizeChanged { top = with(density) { it.height.toDp() } }
+                .hazeChild(
+                    haze,
+                    HazeStyle(
+                        backgroundColor = P.bg,
+                        tints = listOf(HazeTint(Color(0x990B0D10))),
+                        blurRadius = 30.dp,
+                        noiseFactor = 0.03f,
+                        fallbackTint = HazeTint(Color(0xF20B0D10)),
+                    ),
+                )
+                .background(Brush.verticalGradient(listOf(Color(0x0FFFFFFF), Color(0x00FFFFFF))))
+                .statusBarsPadding()
+                .padding(bottom = 4.dp),
+            content = header,
+        )
+        Box(Modifier.fillMaxWidth().padding(top = top).height(0.7.dp).background(Color(0x1AFFFFFF)))
+    }
+}
 
 /** Effet « pression » doux. */
 @Composable

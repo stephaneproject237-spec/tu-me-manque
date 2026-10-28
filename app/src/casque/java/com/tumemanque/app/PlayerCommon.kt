@@ -202,7 +202,9 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         (if (selected) Modifier.clip(RoundedCornerShape(50)).background(Brush.verticalGradient(listOf(P.blueSoft, P.blue)))
-        else Modifier.glass(RoundedCornerShape(50), 0.06f))
+            .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x00FFFFFF), Color(0x14FFFFFF))))
+            .border(0.8.dp, Brush.verticalGradient(listOf(Color(0x80FFFFFF), Color(0x1AFFFFFF))), RoundedCornerShape(50))
+        else Modifier.glass(RoundedCornerShape(50), 0.09f))
             .pressable(onClick).padding(horizontal = 16.dp, vertical = 9.dp),
     ) { Text(label, color = if (selected) Color.White else P.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 }
