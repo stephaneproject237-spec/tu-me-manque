@@ -1,7 +1,7 @@
 {
  "version": "web 1.1",
- "notes": "Mini-lecteur plus fluide, paroles trouvées depuis le nom du fichier, karaoké mieux synchronisé.",
- "versionCode": 24,
- "versionName": "1.24",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-24/casque.apk"
+ "notes": "Bot @music partagé dans la conversation : propositions en QCM, n'importe qui peut choisir.",
+ "versionCode": 25,
+ "versionName": "1.25",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-25/casque.apk"
 }
