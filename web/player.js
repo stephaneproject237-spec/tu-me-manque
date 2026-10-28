@@ -657,7 +657,7 @@
       }
       case "ydl": sheet({ kind: "ydl", k: +el.dataset.k }); break;
       case "yfmt": { const o = U.sr.items[+el.dataset.k]; if (o) askFriend(o, id); break; }
-      case "yfr": { const s2 = U.sheet; const f = s2 && s2.list && s2.list.find((x) => x.id === id); if (f) sendDl(s2.o, s2.f, f); break; }
+      case "yfr": { const s2 = U.sheet; const f = s2 && s2.list && s2.list.find((x) => String(x.id) === id); if (f) sendDl(s2.o, s2.f, f); break; }
       case "lyr": U.lyr = !U.lyr; if (U.lyr) { LY.id = null; loadLyrics(cur()); } draw(); break;
       case "menu": prepShare(id); sheet({ kind: "menu", id, pl: U.detail && U.detail.kind === "playlist" ? U.detail.id : null }); break;
       case "plmenu": sheet({ kind: "plmenu", id }); break;
@@ -993,8 +993,8 @@
     const bot = { t: "dlreq", id: o.id || "", q: o.id ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
     U.sheet = null; draw();
     try {
-      const mid = await API().casque.sendTo(fr.id, body, { bot });
-      DL.unshift({ mid, ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: fr.username, at: Date.now(), st: "sent", p: 0 });
+      const mid = fr.tmm ? await API().casque.sendToTmm(body.replace("pour mon Casque ? Il faut Casque sur Android.", "pour mon Casque ? (Tu me manques sur Android)"), { bot }) : await API().casque.sendTo(fr.id, body, { bot });
+      DL.unshift({ mid, app: fr.tmm ? "tmm" : "cas", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: fr.username, at: Date.now(), st: "sent", p: 0 });
       saveDl();
       lsSet("casque_dlfriend", fr.id);
       toast("Demande envoyée à @" + fr.username);
@@ -1011,6 +1011,8 @@
     try { l = await A.casque.friends(); } catch (e) { /* hors ligne */ }
     const last = lsGet("casque_dlfriend");
     l.sort((a, b) => (b.id === last) - (a.id === last));
+    // Partenaire « Tu me manques » sur Android : proposé en premier.
+    try { const t = await A.casque.tmmPartner(); if (t) l.unshift(t); } catch (e) { /* ignoré */ }
     if (U.sheet && U.sheet.kind === "friend") { U.sheet.list = l; draw(); }
   }
   let pollT = null, polling = false;
@@ -1023,18 +1025,23 @@
     if (!A || !A.casque.ready || !A.casque.ready() || document.hidden) { pollSoon(15000); return; }
     polling = true;
     try {
-      const ids = list.map((d) => d.mid).join(",");
-      const bots = (await A.authed("GET", "/rest/v1/messages?select=id,meta&meta->bot->>r=in.(" + ids + ")")) || [];
+      for (const app of ["cas", "tmm"]) {
+      const mine = list.filter((d) => (d.app || "cas") === app);
+      if (!mine.length) continue;
+      const pre = app === "tmm" ? "/tmm" : "";
+      const of = (r) => DL.find((x) => (x.app || "cas") === app && String(x.mid) === String(r));
+      const ids = mine.map((d) => d.mid).join(",");
+      const bots = (await A.authed("GET", pre + "/rest/v1/messages?select=id,meta&meta->bot->>r=in.(" + ids + ")")) || [];
       bots.forEach((m) => {
-        const b = m.meta && m.meta.bot, d = b && DL.find((x) => String(x.mid) === String(b.r));
+        const b = m.meta && m.meta.bot, d = b && of(b.r);
         if (!d) return;
         if (b.t === "fail" && d.st !== "done") d.st = "fail";
         else if (b.t === "wait" && d.st === "sent") d.st = "wait";
       });
-      const songs = (await A.authed("GET", "/rest/v1/messages?select=id,kind,media,meta&meta->song->>r=in.(" + ids + ")")) || [];
+      const songs = (await A.authed("GET", pre + "/rest/v1/messages?select=id,kind,media,meta&meta->song->>r=in.(" + ids + ")")) || [];
       saveDl(); draw();
       for (const m of songs) {
-        const sg = m.meta && m.meta.song, d = sg && DL.find((x) => String(x.mid) === String(sg.r));
+        const sg = m.meta && m.meta.song, d = sg && of(sg.r);
         if (!d || !m.media || d.st === "done" || d.st === "recv") continue;
         d.st = "recv"; d.p = 0; draw();
         try {
@@ -1045,6 +1052,7 @@
           if (navigator.vibrate) navigator.vibrate(30);
         } catch (e) { d.st = "wait"; }
         saveDl(); draw();
+      }
       }
     } catch (e) { /* réessai plus tard */ }
     polling = false;
@@ -1082,7 +1090,7 @@
 
   // ---------- Vues ----------
   function dockView() {
-    const it = [["audio", I.note, "Audios"], ["video", I2.film, "Vidéos"], ["dl", I2.dl, "Téléchargés"], ["search", I.search, "Rechercher"], ["msg", I2.msg, "Messages"]];
+    const it = [["audio", I.note, "Audios"], ["video", I2.film, "Vidéos"], ["dl", I2.dl, "Téléchargés"], ["search", I.search, "Rechercher"]];
     const busy = pendingDl().length;
     return '<nav class="dock">' + it.map(([k, ic, l]) => '<button class="' + (U.sec === k ? "on" : "") + '" data-a="sec" data-id="' + k + '">' + ic + "<span>" + l + "</span>" +
       (k === "dl" && busy ? '<b class="bd">' + busy + "</b>" : "") + "</button>").join("") + "</nav>";
@@ -1104,7 +1112,7 @@
     if (d.st === "fail") return "⚠️ Le téléchargement a échoué";
     if (d.st === "recv") return "Réception…";
     if (d.st === "wait") return "⏳ Téléchargement sur le téléphone de @" + d.fr + "…";
-    return Date.now() - d.at > 180000 ? "En attente : @" + d.fr + " doit ouvrir votre conversation dans Casque (Android)" : "Demande envoyée à @" + d.fr + "…";
+    return Date.now() - d.at > 180000 ? "En attente : @" + d.fr + " doit ouvrir votre conversation dans " + (d.app === "tmm" ? "Tu me manques" : "Casque") + " (Android)" : "Demande envoyée à @" + d.fr + "…";
   }
   function dlView() {
     const got = L.tracks.filter((t) => t.dl && !t.video).sort((a, b) => b.added - a.added);
@@ -1140,8 +1148,8 @@
     }
     if (s.kind === "friend") {
       if (!s.list) return '<h3>Envoyer la demande à…</h3><div class="empty"><div class="spin"></div></div>';
-      if (!s.list.length) return '<h3>Envoyer la demande à…</h3><p class="note">Tu n\'as pas encore d\'ami dans Casque. Ajoute un ami qui a un téléphone Android depuis « Messages ».</p><button class="sh acc" data-a="sec" data-id="msg">' + I2.msg + " Ouvrir les messages</button>";
-      return "<h3>Envoyer la demande à…</h3>" + s.list.map((f) => '<button class="sh l" data-a="yfr" data-id="' + esc(f.id) + '"><span class="fav2">' + esc((f.username || "?").slice(0, 1).toUpperCase()) + "</span> @" + esc(f.username) + "</button>").join("");
+      if (!s.list.length) return '<h3>Envoyer la demande à…</h3><p class="note">Personne pour télécharger pour toi : ajoute un ami qui a un téléphone Android dans Paramètres › À propos, ou relie ton pseudo à un partenaire Android dans « Tu me manques ».</p>';
+      return "<h3>Envoyer la demande à…</h3>" + s.list.map((f) => '<button class="sh l" data-a="yfr" data-id="' + esc(f.id) + '"><span class="fav2">' + esc((f.username || "?").slice(0, 1).toUpperCase()) + "</span> @" + esc(f.username) + (f.tmm ? " <small>· Tu me manques</small>" : "") + "</button>").join("");
     }
     return null;
   }

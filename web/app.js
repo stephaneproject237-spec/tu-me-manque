@@ -33,11 +33,12 @@
   const CAS = !!CFG.CASQUE;
   // Nouveau parcours de connexion (Google / Apple d'abord) : uniquement pour « Tu me manques ».
   const NEWAUTH = true; // Google d'abord, pseudo ensuite : même parcours pour les deux applis
-  S.cs = /[?&]code=|access_token=/.test(location.search + location.hash) ? "help" : "player"; // écran de Casque : player | settings | help (messagerie)
+  S.cs = "player"; // le compte se crée au démarrage, puis on arrive directement dans la musique // écran de Casque : player | settings | help (messagerie)
   S.friends = null;
   S.removeFriend = null;
   const CAS_TABLES = ["profiles", "requests", "notifications", "messages", "typing", "once_secrets", "scheduled_messages", "game_rounds", "game_answers", "game_guesses", "call_signals", "nowpic_sessions", "reminders", "support_messages"];
   function casPath(p) {
+    if (p.indexOf("/tmm/") === 0) return p.slice(4); // tables de « Tu me manques » lues depuis Casque
     if (!CAS) return p;
     if (p.indexOf("/rest/v1/rpc/") === 0) return "/rest/v1/rpc/c_" + p.slice(13);
     if (p.indexOf("/rest/v1/") === 0 && CAS_TABLES.indexOf(p.slice(9).split("?")[0]) >= 0) return "/rest/v1/c_" + p.slice(9);
@@ -869,7 +870,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
         <button class="lien" data-action="phoneStart">Changer de numéro</button></div>`;
     }
     return `<div class="col"><div class="coeur">💗</div><h1>Tu me manques</h1>
-      <p>Un petit mot, un bouton, et la personne que tu aimes sait que tu penses à elle.</p>
+      <p>${CAS ? "Ta musique et tes vidéos, partout, même hors connexion." : "Un petit mot, un bouton, et la personne que tu aimes sait que tu penses à elle."}</p>
       <button class="principal" data-action="goCreate">Créer un compte</button>
       <button class="secondaire" data-action="goLogin">J'ai déjà un compte</button>${msg}</div>`;
   }
@@ -1061,7 +1062,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     const selStart = active && typeof active.selectionStart === "number" ? active.selectionStart : null;
 
     // Casque : il faut être connecté (et avoir un pseudo) avant d'arriver au lecteur.
-    const casLogin = CAS && !S.loading && (S.needAuth || (!S.error && !S.username));
+    const casLogin = CAS && !S.loading && (S.needAuth || (!S.error && (!S.username || (S.needContact && !S.contactSkip))));
     if (CAS) {
       const P = window.TMM_PLAYER;
       if (S.cs !== "help" && !casLogin) {
@@ -1140,6 +1141,20 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       version: () => CFG.VERSION,
       ready: () => !S.loading && !S.needAuth && !!S.username,
       async friends() { await loadFriends(); return (S.friends || []).slice(); },
+      // Partenaire du même compte dans « Tu me manques » (son téléphone Android peut télécharger pour nous).
+      async tmmPartner() {
+        try {
+          const s = await session(false);
+          const r = await authed("GET", "/tmm/rest/v1/profiles?select=partner_id,partner_name&id=eq." + s.uid);
+          const p = r && r[0];
+          return p && p.partner_id && p.partner_name ? { id: "tmm", username: p.partner_name, tmm: true } : null;
+        } catch (e) { return null; }
+      },
+      async sendToTmm(body, meta) {
+        const r = await authed("POST", "/tmm/rest/v1/rpc/send_message", { p_kind: "text", p_body: body, p_media: null, p_meta: meta });
+        if (!r || r.status !== "ok") throw new Error((r && r.status) || "send");
+        return r.id;
+      },
       // Envoie un message (ex. demande de téléchargement) dans la conversation d'un ami, sans ouvrir le chat.
       async sendTo(id, body, meta) {
         await loadFriends();

@@ -665,7 +665,7 @@
     } else if (b.t === "dlreq") {
       const song = songFor(m.id), fail = findBot("fail", m.id), wait = findBot("wait", m.id);
       h += "<p><b>" + who + " demande " + (b.f === "v" ? "la vidéo" : "la chanson") + " « " + esc(b.ti || b.q || "") + " »</b>" + (b.ch ? "<small>" + esc(b.ch) + "</small>" : "") + "</p>" +
-        '<small class="bt-st' + (song ? " ok" : "") + '">' + (song ? "✓ Envoyée dans la conversation et ajoutée au Casque." : fail ? "⚠️ Le téléchargement a échoué." : wait ? "⏳ Téléchargement en cours sur Android…" : mine ? "En attente d'un ami sur Android (il doit ouvrir cette conversation dans Casque)." : "Ouvre Casque sur un téléphone Android pour la télécharger.") + "</small>";
+        '<small class="bt-st' + (song ? " ok" : "") + '">' + (song ? "✓ Envoyée dans la conversation et ajoutée au Casque." : fail ? "⚠️ Le téléchargement a échoué." : wait ? "⏳ Téléchargement en cours sur Android…" : mine ? "En attente d'un téléphone Android (il suffit d'ouvrir cette conversation dessus)." : "Ouvre cette conversation sur un téléphone Android pour la télécharger.") + "</small>";
     } else if (b.t === "pick") h += "<p>" + who + " a choisi : " + esc((m.body || "").replace(/^🎵 Choix : /, "")) + "</p>";
     else h += "<p>" + esc(m.body || "") + "</p>";
     const row = document.createElement("div");
