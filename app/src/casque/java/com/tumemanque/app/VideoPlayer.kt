@@ -512,10 +512,17 @@ fun BoxScope.MiniVideo(bottom: Dp) {
             Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = bottom)
                 .offset { IntOffset(off.x.roundToInt(), off.y.roundToInt()) }
                 .pointerInput(maxX, maxY, extra) {
+                    var lastDx = 0f
                     detectDragGestures(
-                        onDragEnd = { if (off.x < -maxX - extra * 0.35f) Vp.miniHidden = true else off = Offset(off.x.coerceAtLeast(-maxX), off.y) },
+                        onDragEnd = {
+                            // Poussée vers la gauche : un geste rapide ou la moitié du chemin suffit pour cacher la bulle.
+                            val past = -off.x - maxX
+                            if (past > extra * 0.12f || (lastDx < -12f && -off.x > maxX * 0.55f)) Vp.miniHidden = true
+                            else off = Offset(off.x.coerceAtLeast(-maxX), off.y)
+                        },
                     ) { change, drag ->
                         change.consume()
+                        lastDx = drag.x
                         off = Offset((off.x + drag.x).coerceIn(-maxX - extra, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
                     }
                 }
