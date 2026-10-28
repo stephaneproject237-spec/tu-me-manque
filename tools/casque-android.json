@@ -1,6 +1,6 @@
 {
- "versionCode": 42,
- "versionName": "1.42",
- "notes": "Vidéo sans bordures noires, boutons de la bulle (réduire, cacher), commandes de l'écran verrouillé.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-42/casque.apk"
+ "versionCode": 45,
+ "versionName": "1.45",
+ "notes": "Bouton Lecture continue visible, la bulle vidéo se cache plus facilement vers la gauche.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-45/casque.apk"
 }
