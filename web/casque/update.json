@@ -1,7 +1,7 @@
 {
  "version": "web 1.2",
- "notes": "Bot @music : audio ou vidéo, bouton Envoyer pour transférer hors de l'appli.",
- "versionCode": 27,
- "versionName": "1.27",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-27/casque.apk"
+ "notes": "Connexion au démarrage, pseudos communs avec Tu me manques, téléchargements demandés depuis un iPhone, barres de chargement dans le chat.",
+ "versionCode": 29,
+ "versionName": "1.29",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-29/casque.apk"
 }
