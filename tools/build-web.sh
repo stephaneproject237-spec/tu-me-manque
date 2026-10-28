@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../web"
 ES=${ESBUILD:-$(command -v esbuild || echo /opt/npm-tools/node_modules/.bin/esbuild)}
 mkdir -p dist
 : > dist/_all.js
-for f in config.js lock.js emoji.js chat.js extras.js ios.js photoedit.js hotpic.js nowpic.js jeux.js support.js rappels.js appel.js app.js; do
+for f in config.js lock.js emoji.js chat.js extras.js ios.js photoedit.js hotpic.js nowpic.js jeux.js musicbot.js support.js rappels.js appel.js app.js; do
   cat "$f" >> dist/_all.js; printf '\n;\n' >> dist/_all.js
 done
 printf 'window.__tmmReady=true;\n' >> dist/_all.js

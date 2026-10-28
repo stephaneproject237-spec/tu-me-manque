@@ -1140,6 +1140,8 @@
     if (!text) return;
     inp.value = "";
     onInput();
+    // Bot @music : on ouvre sa boîte de dialogue au lieu d'envoyer le message.
+    if (/^@music\b/i.test(text) && window.TMM_MUSIC) { window.TMM_MUSIC.open(text.replace(/^@music/i, "").trim()); return; }
     if (o && o.at) {
       const ok = await window.TMM_X.schedule({ p_kind: "text", p_body: text }, o);
       if (!ok && !inp.value) { inp.value = text; onInput(); }
