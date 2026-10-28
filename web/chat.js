@@ -521,6 +521,7 @@
       if (lastShownDay() !== dayKey(m.created_at)) l.appendChild(daySep(m.created_at));
       l.appendChild(rowEl(m));
     });
+    setTimeout(botScan, 50);
     if (stick) scrollBottom(true);
     else if (incoming) {
       missedCount += arr.filter((m) => m.sender_id !== me).length;
@@ -612,7 +613,101 @@
     return ' <span class="ch-tick' + (m.read_at ? " read" : "") + '">' + (m.read_at ? "✓✓" : "✓") + "</span>";
   }
 
+  // ---------- Bot @music dans la conversation ----------
+  const botOf = (m) => (m && m.kind === "text" && m.meta && m.meta.bot) || null;
+  function sendBot(body, bot) {
+    const p = addPending({ kind: "text", body, meta: { bot } });
+    return deliver(p, { p_kind: "text", p_body: body, p_media: null, p_meta: { bot } });
+  }
+  const findBot = (t, r) => msgs.find((x) => { const b = botOf(x); return b && b.t === t && b.r === r; });
+  const songFor = (r) => msgs.find((x) => x.kind === "voice" && x.meta && x.meta.song && x.meta.song.r === r);
+  function botRow(m) {
+    const b = botOf(m), mine = m.sender_id === me, who = mine ? "Toi" : "@" + esc(partner);
+    let h = '<div class="bt-head"><i>🎵</i><b>@music</b></div>';
+    if (b.t === "ask") h += '<p>Quelle chanson voulez-vous ? Tapez l\'artiste et le titre.</p><button class="gm-btn wide" data-c="botreply">✍️ Répondre</button>';
+    else if (b.t === "res") {
+      const pick = findBot("pick", m.id), chosen = pick ? botOf(pick).k : null;
+      const song = pick ? songFor(pick.id) : null, fail = pick ? findBot("fail", pick.id) : null;
+      h += "<p><b>Quelle chanson pour « " + esc(b.q) + " » ?</b><small>" + who + " a demandé · n'importe qui peut choisir</small></p><div class=\"gm-opts\">";
+      (b.o || []).forEach((o, k) => {
+        const th = o.art || ("https://i.ytimg.com/vi/" + o.id + "/default.jpg");
+        h += '<button type="button" class="gm-opt bt-opt' + (chosen === k ? " sel" : "") + (chosen != null && chosen !== k ? " dim" : "") + '"' + (pick ? " disabled" : "") +
+          ' data-c="botpick" data-r="' + m.id + '" data-k="' + k + '"><i>' + "ABCDE"[k] + '</i><img src="' + esc(th) + '" alt="" loading="lazy"><span><b>' + esc(o.ti) +
+          "</b><small>" + esc([o.ch, o.d ? mmss(o.d) : ""].filter(Boolean).join(" · ")) + "</small></span></button>";
+      });
+      h += "</div><small class=\"bt-st" + (song ? " ok" : "") + "\">" + (!pick ? "Touchez une proposition pour la télécharger." : song ? "✓ Chanson envoyée dans la conversation, juste en dessous." : fail ? "⚠️ Le téléchargement a échoué." : "⏳ Téléchargement en cours…") + "</small>";
+    } else if (b.t === "pick") h += "<p>" + who + " a choisi : " + esc((m.body || "").replace(/^🎵 Choix : /, "")) + "</p>";
+    else h += "<p>" + esc(m.body || "") + "</p>";
+    const row = document.createElement("div");
+    row.className = "ch-row botrow" + (m.pending ? " pending" : "");
+    row.dataset.day = dayKey(m.created_at);
+    if (m.pending) row.dataset.tmp = m.tmp; else row.dataset.id = m.id;
+    row.innerHTML = '<div class="bt-card">' + h + "</div>";
+    return row;
+  }
+  function refreshBotRow(id) {
+    const old = host.querySelector('.ch-row.botrow[data-id="' + id + '"]');
+    const m = msgs.find((x) => x.id === id);
+    if (old && m) old.replaceWith(botRow(m));
+  }
+  // Ce que ce navigateur fait lui-même : musique libre (Audius) quand aucun Android ne répond.
+  const botSeen = {};
+  let botDone = {}; try { botDone = JSON.parse(localStorage.getItem("tmm_bot_done") || "{}"); } catch (e) { /* ignoré */ }
+  const markBot = (id) => { botDone[id] = 1; try { localStorage.setItem("tmm_bot_done", JSON.stringify(botDone)); } catch (e) { /* ignoré */ } };
+  // Met à jour la question (QCM) concernée quand un choix, une attente ou la chanson arrive.
+  function refreshFor(id) {
+    const x = msgs.find((y) => y.id === id), xb = botOf(x);
+    if (!xb) return;
+    if (xb.t === "res") refreshBotRow(x.id); else if (xb.t === "pick" && xb.r) refreshBotRow(xb.r);
+  }
+  async function botScan() {
+    const now = Date.now();
+    msgs.forEach((x) => { if (x.kind === "voice" && x.meta && x.meta.song && x.meta.song.r && !botSeen["s" + x.id]) { botSeen["s" + x.id] = 1; refreshFor(x.meta.song.r); } });
+    for (const m of msgs) {
+      const b = botOf(m);
+      if (!b || m.pending || !m.id) continue;
+      if ((b.t === "pick" || b.t === "wait" || b.t === "fail") && b.r && !botSeen["r" + m.id]) { botSeen["r" + m.id] = 1; refreshFor(b.r); }
+      if (now - new Date(m.created_at).getTime() > 15 * 60000 || botDone[m.id]) continue;
+      if (!botSeen[m.id]) botSeen[m.id] = now;
+      if (b.t === "q" && m.sender_id === me && b.dev === "w") {
+        if (findBot("res", m.id) || findBot("none", m.id)) { markBot(m.id); continue; }
+        if (now - botSeen[m.id] < 15000 || !window.TMM_MUSIC) continue;
+        markBot(m.id);
+        try {
+          const r = await window.TMM_MUSIC.search(b.q);
+          if (!r.length) { sendBot("🎵 Je n'ai rien trouvé pour « " + b.q + " » (sur iPhone : musique libre seulement).", { t: "none", r: m.id }); continue; }
+          const o = [];
+          for (const x of r.slice(0, 5)) o.push({ id: String(x.id), ti: String(x.title || "").slice(0, 70), ch: String((x.user && x.user.name) || "").slice(0, 30), d: x.duration || 0, art: window.TMM_MUSIC.art(x), u: x.is_downloadable ? await window.TMM_MUSIC.dlUrl(x) : "" });
+          sendBot("🎵 Quelle chanson pour « " + b.q + " » ?", { t: "res", r: m.id, q: b.q.slice(0, 60), src: "au", o });
+        } catch (e) { /* ignoré */ }
+      }
+      if (b.t === "pick" && m.sender_id === me && b.dev === "w") {
+        const res = msgs.find((x) => x.id === b.r), rb = botOf(res);
+        if (!rb) continue;
+        if (songFor(m.id) || findBot("fail", m.id)) { markBot(m.id); continue; }
+        if (rb.src === "au") {
+          markBot(m.id);
+          const o = (rb.o || [])[b.k];
+          if (!o || !o.u) { sendBot("⚠️ L'artiste n'autorise pas le téléchargement de ce titre.", { t: "fail", r: m.id }); continue; }
+          sendBot("⏳ Téléchargement de « " + o.ti + " »…", { t: "wait", r: m.id });
+          try {
+            const blob = await (await fetch(o.u)).blob();
+            const path = await uploadFile(blob, "mp3", "audio/mpeg");
+            const song = { t: o.ti, a: o.ch, th: o.art || "", r: m.id };
+            const p = addPending({ kind: "voice", meta: { d: o.d || 0, song }, localUrl: URL.createObjectURL(blob) });
+            await deliver(p, { p_kind: "voice", p_body: null, p_media: path, p_meta: { d: o.d || 0, song } });
+          } catch (e) { sendBot("⚠️ Le téléchargement de « " + o.ti + " » a échoué.", { t: "fail", r: m.id }); }
+        } else if (now - botSeen[m.id] > 45000 && !findBot("wait", m.id)) {
+          markBot(m.id);
+          toast("Pour télécharger depuis YouTube, il faut un téléphone Android dans la conversation (avec l'appli ouverte).");
+        }
+      }
+    }
+  }
+  setInterval(() => { if (opened) botScan(); }, 5000);
+
   function rowEl(m) {
+    if (botOf(m) && botOf(m).t !== "q" && !m.deleted_at) return botRow(m);
     if (m.kind === "game" && window.TMM_GAMES) {
       return window.TMM_GAMES.row(m, { me, partner, msgs: () => msgs, dayKey, hhmm });
     }
@@ -1154,7 +1249,12 @@
     inp.value = "";
     onInput();
     // Bot @music : on ouvre sa boîte de dialogue au lieu d'envoyer le message.
-    if (/^@music\b/i.test(text) && window.TMM_MUSIC) { window.TMM_MUSIC.open(text.replace(/^@music/i, "").trim()); return; }
+    if (/^@music\b/i.test(text)) {
+      const q = text.replace(/^@music/i, "").trim();
+      if (!q) sendBot("🎵 @music : quelle chanson voulez-vous ? Répondez « @music artiste titre ».", { t: "ask" });
+      else sendBot("@music " + q, { t: "q", q: q.slice(0, 80), dev: "w" });
+      return;
+    }
     if (o && o.at) {
       const ok = await window.TMM_X.schedule({ p_kind: "text", p_body: text }, o);
       if (!ok && !inp.value) { inp.value = text; onInput(); }
@@ -1592,6 +1692,14 @@
       case "replyCancel": if (editingId) cancelEdit(); else clearReply(); break;
       case "play": if (row) togglePlay(row); break;
       case "songdl": songDownload(t); break;
+      case "botreply": { const inp = $("ch-input"); inp.value = "@music "; onInput(); inp.focus(); break; }
+      case "botpick": {
+        if (t.disabled) break;
+        const res = msgs.find((x) => String(x.id) === t.dataset.r), rb = botOf(res), k = Number(t.dataset.k);
+        const o = rb && (rb.o || [])[k];
+        if (o && !findBot("pick", res.id)) { sendBot("🎵 Choix : " + o.ti, { t: "pick", r: res.id, k, dev: "w" }); t.closest(".gm-opts").querySelectorAll("button").forEach((x) => { x.disabled = true; }); t.classList.add("sel"); }
+        break;
+      }
       case "seek": if (row) seek(row, ev); break;
       default: break;
     }

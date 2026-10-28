@@ -185,11 +185,12 @@
       s.addEventListener("click", () => {
         const inp = $("ch-input"); const t = inp.value.trim();
         const q = /^@music/i.test(t) ? t.replace(/^@music/i, "").trim() : "";
-        inp.value = ""; inp.dispatchEvent(new Event("input", { bubbles: true })); openBot(q);
+        inp.value = "@music " + q; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.focus();
       });
       $("ch-bottom").insertBefore(s, $("ch-bottom").firstChild);
     } else if (!show && s) s.remove();
   });
 
-  window.TMM_MUSIC = { open: openBot, close, isOpen: () => open };
+  async function dlUrl(t) { const b = await base(); return b + "/v1/tracks/" + encodeURIComponent(t.id) + "/download?app_name=" + APP; }
+  window.TMM_MUSIC = { open: openBot, close, isOpen: () => open, search: async (q) => { await base(); return search(q); }, art, dlUrl };
 })();
