@@ -244,10 +244,23 @@ object Lib {
             val merged = (folderTracks.filter { it.id in pinned } + store + folderTracks).distinctBy { it.id }
             publish(merged)
             withContext(Dispatchers.IO) { save() }
-            _scan.value = ScanState(false, "${merged.size} morceau(x) trouvé(s)", merged.size)
+            val conv = convertPending(ctx)
+            _scan.value = ScanState(false, "${_tracks.value.size} morceau(x) trouvé(s)" + if (conv > 0) " · $conv fichier(s) .download convertis" else "", _tracks.value.size)
         } catch (e: Exception) {
             _scan.value = ScanState(false, "Analyse impossible : ${e.message ?: e.javaClass.simpleName}")
         }
+    }
+
+    private suspend fun convertPending(ctx: Context): Int {
+        val list = synchronized(pendingFiles) { pendingFiles.toList() }
+        var n = 0
+        for (f in list) {
+            val key = "f:" + f.absolutePath + ":" + f.length()
+            if (Convert.alreadyDone(ctx, key)) continue
+            _scan.update { it.copy(message = "Conversion de ${f.name}…") }
+            if (Convert.import(ctx, f.name, key) { f.inputStream() } != null) n++
+        }
+        return n
     }
 
     /** Scanne les dossiers choisis comme sources (et le téléphone si l'autorisation est donnée). */
@@ -261,7 +274,16 @@ object Lib {
             val found = ArrayList<Track>()
             for (t in trees) {
                 val uri = Uri.parse(t)
-                val files = withContext(Dispatchers.IO) { listTree(ctx, uri) }
+                val all = withContext(Dispatchers.IO) { listTree(ctx, uri) }
+                // Les « .mp3.download » deviennent de vrais .mp3 dans Musique/Casque.
+                all.filter { Convert.pendingExt(it.name) != null }.forEach { f ->
+                    val key = "u:" + f.id + ":" + f.size
+                    if (!Convert.alreadyDone(ctx, key)) {
+                        _scan.update { it.copy(message = "Conversion de ${f.name}…") }
+                        Convert.import(ctx, f.name, key) { ctx.contentResolver.openInputStream(Uri.parse(f.id)) }
+                    }
+                }
+                val files = all.filter { Convert.pendingExt(it.name) == null }
                 _scan.update { it.copy(message = "Lecture de ${files.size} fichier(s)…") }
                 val sem = Semaphore(4)
                 coroutineScope {
@@ -278,7 +300,7 @@ object Lib {
                 }
             }
             // On garde les morceaux connus d'Android et ceux téléchargés dans Casque.
-            val store = _tracks.value.filter { it.id.startsWith("content://media/") || it.id.startsWith("file://") }
+            val store = _tracks.value.filter { it.id.startsWith("content://media/") || it.id.startsWith("file://") || it.id in pinned }
             val merged = (store + found).distinctBy { it.id }
             publish(merged)
             withContext(Dispatchers.IO) { save() }
@@ -387,7 +409,11 @@ object Lib {
         return out
     }
 
+    /** Fichiers « .mp3.download » trouvés pendant l'exploration, à convertir. */
+    private val pendingFiles = ArrayList<File>()
+
     private fun walkStorage(ctx: Context, knownPaths: Set<String>): List<String> {
+        synchronized(pendingFiles) { pendingFiles.clear() }
         val roots = LinkedHashSet<File>()
         roots.add(Environment.getExternalStorageDirectory())
         ctx.getExternalFilesDirs(null).forEach { d ->
@@ -404,6 +430,9 @@ object Lib {
             val list = dir.listFiles() ?: return
             for (f in list) {
                 if (f.isDirectory) walk(f, depth + 1)
+                else if (Convert.pendingExt(f.name) != null && f.length() > 30_000) {
+                    synchronized(pendingFiles) { pendingFiles.add(f) }
+                }
                 else if (f.extension.lowercase() in AUDIO_EXT && f.length() > 60_000) {
                     if (f.absolutePath.substringBeforeLast('.') !in knownPaths) out.add(f.absolutePath)
                 }
@@ -450,7 +479,7 @@ object Lib {
                         val mime = c.getString(2) ?: ""
                         if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
                             if (!name.startsWith(".")) dirs.add(id to name)
-                        } else if (mime.startsWith("audio/") || name.substringAfterLast('.', "").lowercase() in AUDIO_EXT) {
+                        } else if (mime.startsWith("audio/") || name.substringAfterLast('.', "").lowercase() in AUDIO_EXT || Convert.pendingExt(name) != null) {
                             val u = DocumentsContract.buildDocumentUriUsingTree(tree, id).toString()
                             out.add(DocFile(u, name, c.getLong(3), c.getLong(4), path))
                         }

@@ -123,6 +123,15 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
             scope.launch { Lib.scanSources(ctx) }
         }
     }
+    // Importer des fichiers à la main (y compris les « .mp3.download »).
+    var importMsg by remember { mutableStateOf<String?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) scope.launch {
+            importMsg = "Import de ${uris.size} fichier(s)…"
+            val (ok, bad) = Convert.fromUris(ctx, uris)
+            importMsg = "$ok morceau(x) ajouté(s)" + if (bad > 0) " · $bad fichier(s) illisible(s)" else ""
+        }
+    }
     fun scanPhone() {
         if (Lib.hasPermission(ctx)) scope.launch { Lib.scanPhone(ctx) } else permLauncher.launch(Lib.permission())
     }
@@ -223,7 +232,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val q = query.trim().lowercase()
                 if (tracks.isEmpty() && !scan.running) {
-                    Onboarding(scan.message, onScan = { scanPhone() }, onFolder = { treeLauncher.launch(null) })
+                    Onboarding(importMsg ?: scan.message, onScan = { scanPhone() }, onFolder = { treeLauncher.launch(null) }, onImport = { importLauncher.launch(arrayOf("*/*")) })
                 } else if (q.isNotEmpty() && detail == null) {
                     val res = tracks.filter { q in it.title.lowercase() || q in it.artist.lowercase() || q in it.album.lowercase() }
                     TrackList(
@@ -287,6 +296,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                         onAddFolder = { treeLauncher.launch(null) },
                         onRemove = { Lib.removeSource(it) },
                         onScanPhone = { scanPhone() },
+                        onImport = { importLauncher.launch(arrayOf("*/*")) }, importMsg = importMsg,
                         onRescan = { scope.launch { Lib.scanSources(ctx) } },
                         selectedDirs = selectedDirs, setSelectedDirs = { selectedDirs = it },
                     )
@@ -409,7 +419,7 @@ fun NameDialog(title: String, initial: String, ok: String, onCancel: () -> Unit,
 }
 
 @Composable
-private fun Onboarding(message: String, onScan: () -> Unit, onFolder: () -> Unit) {
+private fun Onboarding(message: String, onScan: () -> Unit, onFolder: () -> Unit, onImport: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 32.dp + LocalBottomInset.current), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
             Modifier.size(110.dp).clip(CircleShape).background(Brush.linearGradient(listOf(P.blue, P.blueDeep))),
@@ -426,6 +436,8 @@ private fun Onboarding(message: String, onScan: () -> Unit, onFolder: () -> Unit
         BlueButton("Scanner le téléphone", Modifier.fillMaxWidth(), Ic.Search) { onScan() }
         Spacer(Modifier.height(12.dp))
         BlueButton("Choisir un dossier source", Modifier.fillMaxWidth(), Ic.FolderAdd, outlined = true) { onFolder() }
+        Spacer(Modifier.height(12.dp))
+        BlueButton("Importer des fichiers", Modifier.fillMaxWidth(), Ic.Download, outlined = true) { onImport() }
         if (message.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text(message, color = P.sub, fontSize = 13.sp, textAlign = TextAlign.Center)
@@ -547,6 +559,7 @@ private fun PlaylistRow(name: String, sub: String, icon: androidx.compose.ui.gra
 private fun FoldersTab(
     tracks: List<Track>, sources: List<String>, scanning: Boolean, onOpen: (String) -> Unit,
     onAddFolder: () -> Unit, onRemove: (String) -> Unit, onScanPhone: () -> Unit, onRescan: () -> Unit,
+    onImport: () -> Unit, importMsg: String?,
     selectedDirs: Set<String>, setSelectedDirs: (Set<String>) -> Unit,
 ) {
     val selecting = selectedDirs.isNotEmpty()
@@ -558,6 +571,8 @@ private fun FoldersTab(
                     BlueButton("Scanner le téléphone", Modifier.weight(1f), Ic.Search) { onScanPhone() }
                     BlueButton("Ajouter un dossier", Modifier.weight(1f), Ic.FolderAdd, outlined = true) { onAddFolder() }
                 }
+                BlueButton("Importer des fichiers (mp3, .mp3.download…)", Modifier.fillMaxWidth().padding(top = 10.dp), Ic.Download, outlined = true) { onImport() }
+                if (importMsg != null) Text(importMsg, color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
             }
         }
         if (sources.isNotEmpty()) {
