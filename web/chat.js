@@ -87,22 +87,41 @@
   const fetchOlder = (beforeId) => qm("&id=lt." + beforeId + "&order=id.desc&limit=" + PAGE);
   const fetchNew = (afterId) => qm("&id=gt." + afterId + "&order=id.asc&limit=100");
 
-  async function uploadFile(blob, ext, mime) {
+  // Envoi d'un fichier ; onProg(0..1) suit la progression (barre de chargement sous la bulle).
+  async function uploadFile(blob, ext, mime, onProg) {
     const name = (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : String(Date.now()) + Math.random().toString(36).slice(2)) + "." + ext;
     const path = me + "/" + name;
     const cfg = A().CFG;
     const attempt = async (force) => {
       const s = await A().session(force);
-      return fetch(cfg.SUPABASE_URL + "/storage/v1/object/chat/" + path, {
-        method: "POST",
-        headers: { apikey: cfg.SUPABASE_ANON_KEY, Authorization: "Bearer " + s.access, "Content-Type": mime, "x-upsert": "false" },
-        body: blob,
+      return new Promise((resolve, reject) => {
+        const x = new XMLHttpRequest();
+        x.open("POST", cfg.SUPABASE_URL + "/storage/v1/object/chat/" + path);
+        x.setRequestHeader("apikey", cfg.SUPABASE_ANON_KEY);
+        x.setRequestHeader("Authorization", "Bearer " + s.access);
+        x.setRequestHeader("Content-Type", mime);
+        x.setRequestHeader("x-upsert", "false");
+        if (onProg && x.upload) x.upload.onprogress = (e) => { if (e.lengthComputable) onProg(e.loaded / e.total); };
+        x.onload = () => resolve(x.status);
+        x.onerror = () => reject(new Error("network"));
+        x.send(blob);
       });
     };
-    let res = await attempt(false);
-    if (res.status === 401) res = await attempt(true);
-    if (!res.ok) throw new Error("upload " + res.status);
+    let st = await attempt(false);
+    if (st === 401) st = await attempt(true);
+    if (st < 200 || st >= 300) throw new Error("upload " + st);
     return path;
+  }
+  // Barre de chargement sous une bulle en cours d'envoi.
+  function setProg(p, r) {
+    if (!p || !p.tmp) return;
+    const row = host.querySelector('.ch-row[data-tmp="' + p.tmp + '"]');
+    if (!row) return;
+    let b = row.querySelector(".ch-prog");
+    if (!b) { b = document.createElement("div"); b.className = "ch-prog"; b.innerHTML = "<b><i></i></b><span></span>"; row.appendChild(b); }
+    const pc = Math.max(2, Math.round(r * 100));
+    b.querySelector("i").style.width = pc + "%";
+    b.querySelector("span").textContent = pc + " %";
   }
 
   // Les stickers animés (a01_…) sont des images WebP qui bougent d'elles-mêmes ; les anciens (s01_…) sont des PNG animés par le code.
@@ -643,6 +662,10 @@
       });
       const vid = pick && botOf(pick).f === "v";
       h += "</div><small class=\"bt-st" + (song ? " ok" : "") + "\">" + (!pick ? (b.src === "au" ? "Touchez une proposition pour la télécharger." : "Touchez une proposition, puis choisissez audio ou vidéo.") : song ? (vid ? "✓ Vidéo envoyée dans la conversation, juste en dessous." : "✓ Chanson envoyée dans la conversation, juste en dessous.") : fail ? "⚠️ Le téléchargement a échoué." : "⏳ Téléchargement en cours…") + "</small>";
+    } else if (b.t === "dlreq") {
+      const song = songFor(m.id), fail = findBot("fail", m.id), wait = findBot("wait", m.id);
+      h += "<p><b>" + who + " demande " + (b.f === "v" ? "la vidéo" : "la chanson") + " « " + esc(b.ti || b.q || "") + " »</b>" + (b.ch ? "<small>" + esc(b.ch) + "</small>" : "") + "</p>" +
+        '<small class="bt-st' + (song ? " ok" : "") + '">' + (song ? "✓ Envoyée dans la conversation et ajoutée au Casque." : fail ? "⚠️ Le téléchargement a échoué." : wait ? "⏳ Téléchargement en cours sur Android…" : mine ? "En attente d'un ami sur Android (il doit ouvrir cette conversation dans Casque)." : "Ouvre Casque sur un téléphone Android pour la télécharger.") + "</small>";
     } else if (b.t === "pick") h += "<p>" + who + " a choisi : " + esc((m.body || "").replace(/^🎵 Choix : /, "")) + "</p>";
     else h += "<p>" + esc(m.body || "") + "</p>";
     const row = document.createElement("div");
@@ -665,7 +688,7 @@
   function refreshFor(id) {
     const x = msgs.find((y) => y.id === id), xb = botOf(x);
     if (!xb) return;
-    if (xb.t === "res") refreshBotRow(x.id); else if (xb.t === "pick" && xb.r) refreshBotRow(xb.r);
+    if (xb.t === "res" || xb.t === "dlreq") refreshBotRow(x.id); else if (xb.t === "pick" && xb.r) refreshBotRow(xb.r);
   }
   async function botScan() {
     const now = Date.now();
@@ -1313,7 +1336,7 @@
     const p = once ? addPending({ kind: "image", body: null, meta: { once: true } }) : addPending({ kind: "image", body: caption || null, meta: { w, h }, localUrl: local });
     if (once) p.once = true;
     try {
-      const path = await uploadFile(blob, "jpg", "image/jpeg");
+      const path = await uploadFile(blob, "jpg", "image/jpeg", (r) => setProg(p, r));
       await deliver(p, { p_kind: "image", p_body: caption || null, p_media: path, p_meta: o && o.nowpic ? { w, h, nowpic: true } : { w, h } }, { once });
     } catch (e) {
       removePending(p);
@@ -1355,7 +1378,7 @@
     const p = once ? addPending({ kind: "video", meta: { once: true } }) : addPending({ kind: "video", meta, localUrl: local });
     if (once) p.once = true;
     try {
-      const path = await uploadFile(file, ext, type);
+      const path = await uploadFile(file, ext, type, (r) => setProg(p, r));
       await deliver(p, { p_kind: "video", p_body: null, p_media: path, p_meta: Object.keys(meta).length ? meta : null }, { once });
     } catch (e) {
       removePending(p);
@@ -1369,7 +1392,7 @@
     const local = URL.createObjectURL(blob);
     const p = addPending({ kind: "voice", meta: { d: seconds }, localUrl: local });
     try {
-      const path = await uploadFile(blob, ext, type);
+      const path = await uploadFile(blob, ext, type, (r) => setProg(p, r));
       await deliver(p, { p_kind: "voice", p_body: null, p_media: path, p_meta: { d: seconds } });
     } catch (e) {
       removePending(p);
@@ -1735,6 +1758,15 @@
   // Chansons et vidéos du bot : le fichier est préparé à l'avance, pour que le partage s'ouvre dès le toucher
   // (sur iPhone, Safari refuse d'ouvrir le partage si on attend un téléchargement après le toucher).
   const songBlobs = {};
+  // Téléchargement avec progression (0..1).
+  async function fetchProg(url, onProg) {
+    const r = await fetch(url);
+    const total = Number(r.headers.get("content-length")) || 0;
+    if (!r.body || !total) return r.blob();
+    const rd = r.body.getReader(); const parts = []; let got = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; onProg(got / total); }
+    return new Blob(parts, { type: r.headers.get("content-type") || "" });
+  }
   function songActs(m, src, sg, ext) {
     if (!m.media) return "";
     const key = String(m.id || m.tmp);
@@ -1745,7 +1777,8 @@
   function songPrep(box) {
     const k = box.dataset.k;
     if (songBlobs[k]) return songBlobs[k];
-    songBlobs[k] = fetch(box.dataset.u).then((r) => r.blob()).then((b) => {
+    songBlobs[k] = fetchProg(box.dataset.u, (r) => { const b0 = box.querySelector(".ch-songdl"); if (b0 && !box.classList.contains("ready")) b0.textContent = "⬇ " + Math.round(r * 100) + " %"; }).then((b) => {
+      const b0 = box.querySelector(".ch-songdl"); if (b0) b0.textContent = "💾 Enregistrer";
       const ext = box.dataset.x, name = (box.dataset.n || "chanson").replace(/[\\/:*?"<>|]/g, " ").trim().slice(0, 80) + "." + ext;
       const f = new File([b], name, { type: ext === "mp4" ? "video/mp4" : "audio/mpeg" });
       songBlobs[k] = f; box.classList.add("ready"); return f;

@@ -47,7 +47,13 @@
 
   // ---------- État ----------
   const L = { tracks: [], playlists: [], favs: new Set(), ready: false, error: null };
-  const U = { tab: "titres", q: "", sort: "titre", sel: null, selDirs: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "" };
+  const U = { tab: "titres", q: "", sort: "titre", sel: null, selDirs: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "",
+    sec: lsGet("casque_sec") || "audio", miniHide: false, lyr: false, sr: { q: "", items: [], loading: false, src: "" } };
+  try { const o = JSON.parse(lsGet("casque_sr") || "null"); if (o && o.items) U.sr = Object.assign(U.sr, o, { loading: false }); } catch (e) { /* ignoré */ }
+  // Demandes de téléchargement envoyées à un ami Android : {mid, ti, ch, th, f, fr, at, st, p, tid}
+  let DL = []; try { DL = JSON.parse(lsGet("casque_dlreqs") || "[]") || []; } catch (e) { DL = []; }
+  const saveDl = () => lsSet("casque_dlreqs", JSON.stringify(DL.slice(0, 60)));
+  const AUD = () => L.tracks.filter((t) => !t.video);
   const Q = { order: [], pos: -1, shuffle: false, repeat: "off", speed: 1, sleepAt: 0, sleepT: null };
   const audio = new Audio();
   audio.preload = "auto";
@@ -58,7 +64,8 @@
   const byId = (id) => L.tracks.find((t) => t.id === id);
   const cur = () => (Q.pos >= 0 ? byId(Q.order[Q.pos]) : null);
   const coverUrl = (t) => {
-    if (!t || !t.cover) return "";
+    if (!t) return "";
+    if (!t.cover) return t.art || "";
     if (!covers.has(t.id)) covers.set(t.id, URL.createObjectURL(t.cover));
     return covers.get(t.id);
   };
@@ -76,6 +83,8 @@
     }
     L.ready = true;
     draw();
+    setTimeout(artQueue, 2500);
+    pollSoon(2000);
   }
   const savePl = () => db && putKv("playlists", L.playlists);
   const saveFav = () => db && putKv("favs", [...L.favs]);
@@ -190,6 +199,7 @@
       } catch (e) { toast("Espace insuffisant sur le téléphone."); break; }
     }
     U.importing = null;
+    setTimeout(artQueue, 800);
     toast(added + " titre" + (added > 1 ? "s" : "") + " ajouté" + (added > 1 ? "s" : "") + (dup ? " · " + dup + " déjà présent" + (dup > 1 ? "s" : "") : ""));
     draw();
   }
@@ -281,7 +291,12 @@
   }
 
   audio.addEventListener("ended", () => { if (Q.repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); } else step(1, true); });
-  audio.addEventListener("play", () => { document.body.classList.add("cq-playing"); refreshPlayState(); });
+  audio.addEventListener("play", () => {
+    document.body.classList.add("cq-playing"); refreshPlayState();
+    if (pvAudio) { pvAudio.pause(); pvAudio = null; U.pv = null; }
+    const v = vbox.querySelector("video"); if (v && !v.paused) v.pause();
+    if (U.miniHide) { U.miniHide = false; draw(); }
+  });
   audio.addEventListener("pause", () => { document.body.classList.remove("cq-playing"); refreshPlayState(); });
   audio.addEventListener("timeupdate", tick);
   audio.addEventListener("loadedmetadata", () => { tick(); const c = cur(); if (c && !c.dur && isFinite(audio.duration)) { c.dur = audio.duration; tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(c)); } });
@@ -317,6 +332,7 @@
     if (b) b.textContent = fmt(d);
     if (s && !seeking) { s.value = p * 10; s.style.setProperty("--p", p + "%"); }
     if (m) m.style.width = p + "%";
+    lyricsTick();
     try { if ("mediaSession" in navigator && d) navigator.mediaSession.setPositionState({ duration: d, playbackRate: audio.playbackRate, position: Math.min(audio.currentTime, d) }); } catch (e) { /* ignoré */ }
   }
   function refreshPlayState() {
@@ -360,7 +376,7 @@
 
   // ---------- Affichage ----------
   const visibleTracks = () => {
-    let l = L.tracks.slice();
+    let l = AUD();
     if (U.detail) {
       if (U.detail.kind === "album") l = l.filter((t) => t.album === U.detail.id);
       else if (U.detail.kind === "folder") l = l.filter((t) => t.folder === U.detail.id);
@@ -409,19 +425,19 @@
         (l.length ? l.map((t, i) => row(t, l, i)).join("") : '<p class="note">Aucun titre ici.</p>');
     } else if (U.tab === "albums") {
       const m = new Map();
-      L.tracks.forEach((t) => { if (!m.has(t.album)) m.set(t.album, []); m.get(t.album).push(t); });
+      AUD().forEach((t) => { if (!m.has(t.album)) m.set(t.album, []); m.get(t.album).push(t); });
       const q = U.q.trim().toLowerCase();
       const albums = [...m.entries()].filter(([a, l]) => !q || (a + " " + l.map((t) => t.artist).join(" ")).toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
-      body = albums.length ? '<div class="cgrid">' + albums.map(([a, l]) => '<div class="al" data-a="album" data-id="' + esc(a) + '">' + cover(l[0], "big") + "<b>" + esc(a) + "</b><small>" + esc(l[0].artist) + " · " + l.length + "</small></div>").join("") + "</div>" : L.tracks.length ? '<p class="note">Aucun résultat.</p>' : emptyLib();
+      body = albums.length ? '<div class="cgrid">' + albums.map(([a, l]) => '<div class="al" data-a="album" data-id="' + esc(a) + '">' + cover(l[0], "big") + "<b>" + esc(a) + "</b><small>" + esc(l[0].artist) + " · " + l.length + "</small></div>").join("") + "</div>" : AUD().length ? '<p class="note">Aucun résultat.</p>' : emptyLib();
     } else if (U.tab === "dossiers") {
       const m = new Map();
-      L.tracks.forEach((t) => { if (!m.has(t.folder)) m.set(t.folder, []); m.get(t.folder).push(t); });
+      AUD().forEach((t) => { if (!m.has(t.folder)) m.set(t.folder, []); m.get(t.folder).push(t); });
       const q = U.q.trim().toLowerCase();
       const dirs = [...m.entries()].filter(([f]) => !q || f.toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
       body = dirs.length ? dirs.map(([f, l]) => {
         const sel = U.selDirs && U.selDirs.has(f);
         return '<div class="tr' + (sel ? " sel" : "") + '" data-a="folder" data-id="' + esc(f) + '"><div class="cvw"><div class="cv ph h1">' + (sel ? I.check : I.folder) + '</div></div><div class="tm"><b>' + esc(f) + "</b><small>" + l.length + " titre" + (l.length > 1 ? "s" : "") + " · " + fmtTotal(l.reduce((s2, t) => s2 + t.dur, 0)) + "</small></div></div>";
-      }).join("") : L.tracks.length ? '<p class="note">Aucun dossier.</p>' : emptyLib();
+      }).join("") : AUD().length ? '<p class="note">Aucun dossier.</p>' : emptyLib();
     } else if (U.tab === "playlists") {
       body = '<button class="bt out wide" data-a="newpl">' + I.plus + " Nouvelle playlist</button>" +
         (L.playlists.length ? L.playlists.map((p) => {
@@ -433,15 +449,15 @@
       const l = visibleTracks();
       body = l.length ? '<div class="act"><button class="bt" data-a="playall">' + I.play + " Lire</button><button class=\"bt out\" data-a=\"shuffleall\">" + I.shuffle + " Aléatoire</button>" +
         '<button class="bt out sm" data-a="sort">' + esc({ titre: "A–Z", artiste: "Artiste", recent: "Récents", duree: "Durée" }[U.sort]) + "</button></div>" + l.map((t, i) => row(t, l, i)).join("")
-        : L.tracks.length ? '<p class="note">' + (U.tab === "favoris" ? "Aucun favori pour l'instant." : "Aucun résultat.") + "</p>" : emptyLib();
+        : AUD().length ? '<p class="note">' + (U.tab === "favoris" ? "Aucun favori pour l'instant." : "Aucun résultat.") + "</p>" : emptyLib();
     }
-    const tot = L.tracks.reduce((s, t) => s + t.dur, 0);
+    const tot = AUD().reduce((s, t) => s + t.dur, 0);
     return '<header class="top">' + (U.selDirs ? '<button class="ib" data-a="dircancel">' + I.close + "</button><h1>" + U.selDirs.size + " dossier" + (U.selDirs.size > 1 ? "s" : "") + '</h1><button class="ib" data-a="dirdel">' + I.trash + "</button>" : U.sel ? '<button class="ib" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
       '<button class="ib" data-a="selplay">' + I.play + '</button><button class="ib" data-a="seladd">' + I.list + '</button><button class="ib" data-a="seldel">' + I.trash + "</button>"
       : '<div class="logo">' + I.head + "</div><h1>Casque</h1><button class=\"ib\" data-a=\"pick\" aria-label=\"Ajouter\">" + I.plus + '</button><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>") + "</header>" +
       (U.detail ? "" : '<div class="sr"><span>' + I.search + '</span><input id="q" type="search" placeholder="Rechercher un titre, un artiste…" value="' + esc(U.q) + '" autocomplete="off" autocapitalize="none"></div>' +
         '<nav class="tabs">' + tabs.map((t) => '<button class="' + (U.tab === t ? "on" : "") + '" data-a="tab" data-id="' + t + '">' + names[t] + "</button>").join("") + "</nav>" +
-        (L.tracks.length && U.tab === "titres" ? '<p class="sum">' + L.tracks.length + " titre" + (L.tracks.length > 1 ? "s" : "") + " · " + fmtTotal(tot) + "</p>" : "")) +
+        (AUD().length && U.tab === "titres" ? '<p class="sum">' + AUD().length + " titre" + (AUD().length > 1 ? "s" : "") + " · " + fmtTotal(tot) + "</p>" : "")) +
       '<main class="list">' + body + "</main>";
   }
   function miniView() {
@@ -453,17 +469,18 @@
   function npView() {
     const t = cur();
     if (!t) return "";
+    if (U.lyr && LY.id !== t.id) setTimeout(() => loadLyrics(cur()), 0);
     const d = isFinite(audio.duration) ? audio.duration : t.dur;
     const p = d ? (audio.currentTime / d) * 100 : 0;
     const u = coverUrl(t);
     return '<div class="cqnp"><header class="top"><button class="ib" data-a="npclose">' + I.down + '</button><h1 class="c">Lecture en cours</h1><button class="ib" data-a="queue">' + I.list + "</button></header>" +
-      '<div class="deck"><div class="vinyl' + (audio.paused ? "" : " on") + '"><div class="grooves"></div><div class="lab" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I.note) + '</div><div class="hole"></div></div>' +
-      '<div class="arm' + (audio.paused ? "" : " on") + '"><i></i></div></div>' +
+      (U.lyr ? lyricsHtml() : '<div class="deck"><div class="vinyl' + (audio.paused ? "" : " on") + '"><div class="grooves"></div><div class="lab" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I.note) + '</div><div class="hole"></div></div>' +
+      '<div class="arm' + (audio.paused ? "" : " on") + '"><i></i></div></div>') +
       '<div class="ti"><div><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + " · " + esc(t.album) + '</small></div><button class="ib" data-a="fav" data-id="' + t.id + '">' + (L.favs.has(t.id) ? '<span class="fvo">' + I.star + "</span>" : I.starO) + "</button></div>" +
       '<input id="np-seek" class="seek" type="range" min="0" max="1000" value="' + p * 10 + '" style="--p:' + p + '%"><div class="tt"><span id="np-cur">' + fmt(audio.currentTime) + '</span><span id="np-tot">' + fmt(d) + "</span></div>" +
       '<div class="ctl"><button class="ib' + (Q.shuffle ? " act" : "") + '" data-a="shuf">' + I.shuffle + '</button><button class="ib big" data-a="prev">' + I.prev + '</button><button class="ib pp big" data-a="pp" data-pp>' + (audio.paused ? I.play : I.pause) +
       '</button><button class="ib big" data-a="next">' + I.next + '</button><button class="ib' + (Q.repeat !== "off" ? " act" : "") + '" data-a="rep">' + (Q.repeat === "one" ? I.repeat1 : I.repeat) + "</button></div>" +
-      '<div class="opt"><button class="cpill" data-a="speed">' + Q.speed + '×</button><button class="cpill' + (Q.sleepAt ? " on" : "") + '" data-a="sleep">' + I.moon + (Q.sleepAt ? " " + Math.max(1, Math.round((Q.sleepAt - Date.now()) / 60000)) + " min" : " Minuterie") + '</button><button class="cpill" data-a="addpl" data-id="' + t.id + '">' + I.plus + " Playlist</button></div></div>";
+      '<div class="opt"><button class="cpill" data-a="speed">' + Q.speed + '×</button><button class="cpill' + (Q.sleepAt ? " on" : "") + '" data-a="sleep">' + I.moon + (Q.sleepAt ? " " + Math.max(1, Math.round((Q.sleepAt - Date.now()) / 60000)) + " min" : " Minuterie") + '</button><button class="cpill" data-a="addpl" data-id="' + t.id + '">' + I.plus + " Playlist</button><button class=\"cpill" + (U.lyr ? " on" : "") + '" data-a="lyr">' + I2.mic + " Paroles</button></div></div>";
   }
   function settingsView() {
     const size = L.tracks.reduce((s, t) => s + t.size, 0);
@@ -481,11 +498,13 @@
     const s = U.sheet;
     if (!s) return "";
     let h = "";
-    if (s.kind === "addpl") {
+    const ps = plusSheet(s);
+    if (ps != null) h = ps;
+    else if (s.kind === "addpl") {
       h = "<h3>Ajouter à une playlist</h3>" + L.playlists.map((p) => '<button class="sh" data-a="addto" data-id="' + p.id + '">' + esc(p.name) + "<small>" + p.ids.length + "</small></button>").join("") + '<button class="sh acc" data-a="newplAdd">' + I.plus + " Nouvelle playlist</button>";
     } else if (s.kind === "menu") {
       const t = byId(s.id); if (!t) return "";
-      h = "<h3>" + esc(t.title) + "</h3>" + [["next", "Lire ensuite"], ["queue1", "Ajouter à la file d'attente"], ["addpl", "Ajouter à une playlist…"], ["fav", L.favs.has(t.id) ? "Retirer des favoris" : "Ajouter aux favoris"], ...(s.pl ? [["rmpl", "Retirer de cette playlist"]] : []), ["info", "Informations"], ["del", "Supprimer de la bibliothèque"]]
+      h = "<h3>" + esc(t.title) + "</h3>" + [...(t.video ? [["vplay", "Regarder la vidéo"]] : []), ["next", "Lire ensuite"], ["queue1", "Ajouter à la file d'attente"], ["addpl", "Ajouter à une playlist…"], ["fav", L.favs.has(t.id) ? "Retirer des favoris" : "Ajouter aux favoris"], ...(s.pl ? [["rmpl", "Retirer de cette playlist"]] : []), ["share", "Partager / Enregistrer dans Fichiers…"], ["info", "Informations"], ["del", "Supprimer de la bibliothèque"]]
         .map(([a, l]) => '<button class="sh' + (a === "del" ? " red" : "") + '" data-a="m_' + a + '" data-id="' + t.id + '">' + l + "</button>").join("");
     } else if (s.kind === "plmenu") {
       h = "<h3>Playlist</h3>" + [["plplay", "Lire"], ["plren", "Renommer"], ["pldel", "Supprimer"]].map(([a, l]) => '<button class="sh' + (a === "pldel" ? " red" : "") + '" data-a="' + a + '" data-id="' + s.id + '">' + l + "</button>").join("");
@@ -515,21 +534,38 @@
     if (host.hidden) return;
     const keepScroll = host.querySelector(".list");
     const sc = keepScroll ? keepScroll.scrollTop : 0;
-    const focusQ = document.activeElement && document.activeElement.id === "q";
+    const fid = document.activeElement && document.activeElement.id;
+    const focusQ = fid === "q" || fid === "ysq";
     const caret = focusQ ? document.activeElement.selectionStart : 0;
     let h;
     if (!L.ready) h = '<div class="empty"><div class="spin"></div></div>';
     else if (U.view === "settings") h = settingsView();
-    else h = libView() + (U.np ? "" : miniView()) + (U.np ? npView() : "");
+    else h = (U.sec === "video" ? videoView() : U.sec === "dl" ? dlView() : U.sec === "search" ? searchView() : libView()) + (U.np ? npView() : U.miniHide ? "" : miniView()) + dockView();
     h += (U.importing ? '<div class="imp"><div class="spin"></div><p>Ajout de la musique…</p><small>' + U.importing.i + " / " + U.importing.n + " · " + esc(U.importing.name) + "</small></div>" : "") +
       sheetView() + (U.toast ? '<div class="toast">' + esc(U.toast) + "</div>" : "") + (L.error ? '<div class="toast">' + esc(L.error) + "</div>" : "");
     host.innerHTML = h;
     const l = host.querySelector(".list");
     if (l) l.scrollTop = sc;
-    if (focusQ) { const q = host.querySelector("#q"); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) { /* ignoré */ } } }
+    if (focusQ) { const q = host.querySelector("#" + fid); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) { /* ignoré */ } } }
     const nm = host.querySelector("#nm");
     if (nm) { nm.focus(); nm.select(); }
     bindSeek();
+    bindMini();
+    lyrOn = -1; lyricsTick();
+  }
+  // Barre de lecture glissée vers le bas : elle disparaît, et revient dès qu'on relance un titre.
+  function bindMini() {
+    const m = host.querySelector(".mini");
+    if (!m) return;
+    let y0 = null, dy = 0;
+    m.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; dy = 0; m.style.transition = "none"; }, { passive: true });
+    m.addEventListener("touchmove", (e) => { if (y0 == null) return; dy = Math.max(0, e.touches[0].clientY - y0); m.style.transform = "translateY(" + dy + "px)"; m.style.opacity = String(Math.max(0.2, 1 - dy / 160)); }, { passive: true });
+    m.addEventListener("touchend", () => {
+      m.style.transition = "transform .2s, opacity .2s";
+      if (dy > 50) { m.style.transform = "translateY(140px)"; m.style.opacity = "0"; setTimeout(() => { U.miniHide = true; audio.pause(); draw(); }, 180); }
+      else { m.style.transform = ""; m.style.opacity = ""; }
+      y0 = null;
+    }, { passive: true });
   }
   function bindSeek() {
     const s = host.querySelector("#np-seek");
@@ -554,7 +590,10 @@
 
   // ---------- Actions ----------
   const sheet = (s) => { U.sheet = s; draw(); };
-  function listOfRow() { return visibleTracks().map((t) => t.id); }
+  function listOfRow() {
+    if (U.sec === "dl") return L.tracks.filter((t) => t.dl && !t.video).sort((a, b) => b.added - a.added).map((t) => t.id);
+    return visibleTracks().map((t) => t.id);
+  }
   function selToggle(id) { if (U.sel.has(id)) U.sel.delete(id); else U.sel.add(id); if (!U.sel.size) U.sel = null; draw(); }
   function newPlaylist(name, ids) {
     const p = { id: uid(), name: name.trim() || "Playlist", ids: ids || [] };
@@ -598,7 +637,29 @@
       case "shuffleall": playList(listOfRow(), 0, { shuffle: true }); break;
       case "sort": sheet({ kind: "sort" }); break;
       case "setsort": U.sort = id; U.sheet = null; draw(); break;
-      case "menu": sheet({ kind: "menu", id, pl: U.detail && U.detail.kind === "playlist" ? U.detail.id : null }); break;
+      case "sec":
+        if (id === "msg") { U.sheet = null; if (window.TMM_API) window.TMM_API.casque.help(); break; }
+        U.sec = id; lsSet("casque_sec", id); U.sheet = null; U.sel = null; U.selDirs = null; U.detail = null; draw();
+        if (id === "dl") pollSoon(300);
+        break;
+      case "vrow": { const t = byId(id); if (t) openVideo({ track: t }); break; }
+      case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) openVideo({ track: t }); break; }
+      case "m_share": shareTrack(id); break;
+      case "dlopen": { const t = byId(id); if (!t) break; if (t.video) openVideo({ track: t }); else playList([t.id], 0); break; }
+      case "dlrm": DL = DL.filter((d) => String(d.mid) !== String(id)); saveDl(); draw(); break;
+      case "ywatch": {
+        const o = U.sr.items[+el.dataset.k];
+        if (!o) break;
+        if (o.src === "yt") openVideo({ yt: o.id, title: o.ti });
+        else if (o.pv) preview(o);
+        else toast("Pas d'extrait pour ce titre.");
+        break;
+      }
+      case "ydl": sheet({ kind: "ydl", k: +el.dataset.k }); break;
+      case "yfmt": { const o = U.sr.items[+el.dataset.k]; if (o) askFriend(o, id); break; }
+      case "yfr": { const s2 = U.sheet; const f = s2 && s2.list && s2.list.find((x) => x.id === id); if (f) sendDl(s2.o, s2.f, f); break; }
+      case "lyr": U.lyr = !U.lyr; if (U.lyr) { LY.id = null; loadLyrics(cur()); } draw(); break;
+      case "menu": prepShare(id); sheet({ kind: "menu", id, pl: U.detail && U.detail.kind === "playlist" ? U.detail.id : null }); break;
       case "plmenu": sheet({ kind: "plmenu", id }); break;
       case "sheetclose": U.sheet = null; draw(); break;
       case "np": U.np = true; draw(); break;
@@ -666,7 +727,9 @@
   host.addEventListener("click", (ev) => { if (lpDone) { ev.stopPropagation(); ev.preventDefault(); lpDone = false; } }, true);
   host.addEventListener("input", (ev) => {
     if (ev.target.id === "q") { U.q = ev.target.value; draw(); }
+    else if (ev.target.id === "ysq") U.sr.q = ev.target.value;
   });
+  host.addEventListener("submit", (ev) => { if (ev.target.id === "ysf") { ev.preventDefault(); const i = host.querySelector("#ysq"); if (i) { U.sr.q = i.value; i.blur(); } doSearch(); } });
   host.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ev.target.id === "nm" && pending) pending(ev.target.value); });
 
   async function checkUpdate() {
@@ -686,6 +749,403 @@
     } catch (e) { U.upd = "Impossible de vérifier : pas de connexion."; draw(); }
   }
 
+  // =====================================================================
+  // Fonctions de Casque Android portées sur iPhone : vidéos, recherche, téléchargements
+  // (faits par le téléphone Android d'un ami, via la messagerie), pochettes, paroles karaoké.
+  // =====================================================================
+  const API = () => window.TMM_API;
+  const I2 = {
+    film: sv('<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V4h-4z"/>'),
+    dl: sv('<path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>'),
+    msg: sv('<path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>'),
+    share: sv('<path d="M16 5l-1.4 1.4-1.6-1.6V16h-2V4.8L9.4 6.4 8 5l4-4 4 4zm4 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V10a2 2 0 012-2h3v2H6v11h12V10h-3V8h3a2 2 0 012 2z"/>'),
+    pip: sv('<path d="M19 11h-8v6h8v-6zm4 8V5a2 2 0 00-2-2H3a2 2 0 00-2 2v14a2 2 0 002 2h18a2 2 0 002-2zm-2 0H3V5h18v14z"/>'),
+    mic: sv('<path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.9V21h2v-3.1A7 7 0 0019 11h-2z"/>'),
+  };
+  const mediaUrl = (path) => (CFG.SUPABASE_URL || "") + "/storage/v1/object/public/chat/" + path;
+
+  // ---------- Ajout d'un fichier reçu dans la bibliothèque ----------
+  async function importBlob(blob, o) {
+    if (!db) throw new Error("db");
+    const mime = o.video ? "video/mp4" : "audio/mpeg";
+    const f = blob.type === mime ? blob : new Blob([blob], { type: mime });
+    let cv = null;
+    if (o.art) { try { const r = await fetch(o.art, { mode: "cors" }); if (r.ok) { const b = await r.blob(); if (/^image\//.test(b.type) && b.size > 500) cv = b; } } catch (e) { /* pochette en ligne seulement */ } }
+    const t = {
+      id: uid(), file: safe(o.title) + (o.video ? ".mp4" : ".mp3"), size: f.size, mime, title: o.title || "Sans titre", artist: o.artist || "Artiste inconnu",
+      album: o.video ? "Vidéos" : "Téléchargements", folder: "Téléchargements", dur: o.d || (o.video ? 0 : await duration(f)), added: Date.now(),
+      cover: cv, art: o.art || "", video: !!o.video, dl: true,
+    };
+    await tx("blobs", "readwrite", (x) => x.objectStore("blobs").put({ id: t.id, blob: f }));
+    await tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t));
+    L.tracks.push(t);
+    if (!o.video) {
+      let p = L.playlists.find((x) => x.name === "Téléchargements");
+      if (!p) p = newPlaylist("Téléchargements");
+      if (p.ids.indexOf(t.id) < 0) p.ids.unshift(t.id);
+      savePl();
+    }
+    return t;
+  }
+  const safe = (n) => String(n || "fichier").replace(/[\\/:*?"<>|\n\r\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "fichier";
+  const putTrack = (t) => db && tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t)).catch(() => {});
+
+  // ---------- Pochettes automatiques (iTunes) ----------
+  const cleanTitle = (s) => String(s || "").replace(/\((official|officiel|clip|lyrics?|audio|video|vidéo|visualizer|paroles)[^)]*\)|\[[^\]]*\]/gi, "").replace(/\s+(ft|feat)\.?\s.*$/i, "").replace(/\s+/g, " ").trim();
+  function guess(t) {
+    let ti = cleanTitle(t.title), ar = t.artist === "Artiste inconnu" ? "" : t.artist;
+    const m = /^(.+?)\s+[-–]\s+(.+)$/.exec(ti);
+    if (m && (!ar || /topic|vevo|records|music/i.test(ar))) { ar = m[1]; ti = m[2]; }
+    return { ti, ar: String(ar || "").replace(/\s*-\s*topic$/i, "").replace(/vevo$/i, "").trim() };
+  }
+  let artBusy = false, artCount = 0;
+  async function artQueue() {
+    if (artBusy || !navigator.onLine) return;
+    artBusy = true;
+    try {
+      for (const t of L.tracks) {
+        if (artCount > 40) break;
+        if (t.cover || t.art || t.artTried) continue;
+        artCount++;
+        t.artTried = true;
+        const g = guess(t);
+        try {
+          const r = await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + encodeURIComponent((g.ar + " " + g.ti).trim()));
+          const j = await r.json();
+          const x = j && j.results && j.results[0];
+          if (x && x.artworkUrl100) { t.art = x.artworkUrl100.replace("100x100", "600x600"); if (x.trackTimeMillis && !t.dur) t.dur = x.trackTimeMillis / 1000; draw(); }
+        } catch (e) { /* hors ligne */ }
+        putTrack(t);
+        await new Promise((ok) => setTimeout(ok, 350));
+      }
+    } finally { artBusy = false; }
+  }
+
+  // ---------- Paroles karaoké (LRCLIB) ----------
+  const LY = { id: null, lines: null, plain: "", st: "" };
+  function parseLrc(txt) {
+    const out = [];
+    String(txt || "").split(/\r?\n/).forEach((l) => {
+      const re = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
+      let m, ts = [], last = 0;
+      while ((m = re.exec(l))) { ts.push(parseInt(m[1], 10) * 60 + parseFloat(m[2])); last = re.lastIndex; }
+      const text = l.slice(last).trim();
+      ts.forEach((x) => out.push({ t: x, s: text }));
+    });
+    return out.sort((a, b) => a.t - b.t);
+  }
+  async function loadLyrics(t) {
+    if (!t || LY.id === t.id) return;
+    LY.id = t.id; LY.lines = null; LY.plain = ""; LY.st = "load";
+    if (t.lrc != null) { LY.lines = t.lrc ? parseLrc(t.lrc) : null; LY.plain = t.lrcPlain || ""; LY.st = LY.lines || LY.plain ? "ok" : "none"; draw(); return; }
+    draw();
+    const g = guess(t);
+    const d = Math.round(t.dur || audio.duration || 0);
+    let j = null;
+    try {
+      const r = await fetch("https://lrclib.net/api/get?track_name=" + encodeURIComponent(g.ti) + "&artist_name=" + encodeURIComponent(g.ar) + (d ? "&duration=" + d : ""));
+      if (r.ok) j = await r.json();
+      if (!j || (!j.syncedLyrics && !j.plainLyrics)) {
+        const r2 = await fetch("https://lrclib.net/api/search?q=" + encodeURIComponent((g.ar + " " + g.ti).trim()));
+        const l = r2.ok ? await r2.json() : [];
+        j = (l || []).find((x) => x.syncedLyrics && (!d || Math.abs((x.duration || 0) - d) < 8)) || (l || []).find((x) => x.syncedLyrics) || (l || [])[0] || null;
+      }
+    } catch (e) { if (LY.id === t.id) { LY.st = "off"; draw(); } return; }
+    t.lrc = (j && j.syncedLyrics) || "";
+    t.lrcPlain = (j && j.plainLyrics) || "";
+    putTrack(t);
+    if (LY.id !== t.id) return;
+    LY.lines = t.lrc ? parseLrc(t.lrc) : null; LY.plain = t.lrcPlain; LY.st = LY.lines || LY.plain ? "ok" : "none";
+    draw();
+  }
+  function lyricsHtml() {
+    if (LY.st === "load") return '<div class="lyr"><div class="spin"></div></div>';
+    if (LY.st === "off") return '<div class="lyr"><p class="note">Paroles indisponibles hors connexion.</p></div>';
+    if (LY.lines && LY.lines.length) return '<div class="lyr" id="lyr">' + LY.lines.map((l, i) => '<p data-i="' + i + '">' + (esc(l.s) || "♪") + "</p>").join("") + "</div>";
+    if (LY.plain) return '<div class="lyr plain">' + esc(LY.plain).replace(/\n/g, "<br>") + "</div>";
+    return '<div class="lyr"><p class="note">Aucune parole trouvée pour ce titre.</p></div>';
+  }
+  let lyrOn = -1;
+  function lyricsTick() {
+    if (!U.np || !U.lyr || !LY.lines) return;
+    const box = host.querySelector("#lyr");
+    if (!box) return;
+    const now = audio.currentTime + 0.25;
+    let i = -1;
+    for (let k = 0; k < LY.lines.length; k++) { if (LY.lines[k].t <= now) i = k; else break; }
+    if (i === lyrOn && box.querySelector("p.on")) return;
+    lyrOn = i;
+    box.querySelectorAll("p.on").forEach((e) => e.classList.remove("on"));
+    const el = i >= 0 ? box.querySelector('p[data-i="' + i + '"]') : null;
+    if (el) { el.classList.add("on"); box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" }); }
+  }
+
+  // ---------- Lecteur vidéo (plein écran, réduit en vignette flottante, image dans l'image) ----------
+  const vbox = document.createElement("div");
+  vbox.id = "cq-video";
+  vbox.hidden = true;
+  document.body.appendChild(vbox);
+  let vUrl = null;
+  function openVideo(src) {
+    // src : {track} (fichier gardé dans le téléphone) ou {yt: id, title}
+    audio.pause();
+    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = null; }
+    const title = src.track ? src.track.title : src.title || "";
+    const body = src.yt
+      ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(src.yt) + '?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'
+      : '<video playsinline controls autoplay autopictureinpicture></video>';
+    vbox.innerHTML = '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(title) + "</b>" +
+      (src.yt ? "" : '<button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + "</button>") + '<button data-v="close" aria-label="Fermer">' + I.close + '</button></div><div class="vb-media">' + body + "</div>";
+    vbox.className = "";
+    vbox.hidden = false;
+    if (src.track) {
+      getOne("blobs", src.track.id).then((r) => {
+        const v = vbox.querySelector("video");
+        if (!r || !v) { toast("Fichier introuvable."); return; }
+        vUrl = URL.createObjectURL(r.blob.type === "video/mp4" ? r.blob : new Blob([r.blob], { type: "video/mp4" }));
+        v.src = vUrl;
+        v.play().catch(() => {});
+      });
+    }
+  }
+  function closeVideo() {
+    const v = vbox.querySelector("video");
+    if (v) { v.pause(); v.removeAttribute("src"); }
+    vbox.innerHTML = ""; vbox.hidden = true; vbox.className = "";
+    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = null; }
+  }
+  vbox.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-v]");
+    if (!b) { if (vbox.classList.contains("mini")) vbox.classList.remove("mini"); return; }
+    ev.stopPropagation();
+    const v = vbox.querySelector("video");
+    if (b.dataset.v === "close") closeVideo();
+    else if (b.dataset.v === "min") vbox.classList.toggle("mini");
+    else if (b.dataset.v === "pip" && v) {
+      try {
+        if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) v.webkitSetPresentationMode(v.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+        else if (document.pictureInPictureEnabled) (document.pictureInPictureElement ? document.exitPictureInPicture() : v.requestPictureInPicture()).catch(() => {});
+        else toast("L'image dans l'image n'est pas disponible ici.");
+      } catch (e) { toast("L'image dans l'image n'est pas disponible ici."); }
+    }
+  });
+  // Glisser la vidéo vers le bas : elle devient une vignette flottante.
+  let vY = null;
+  vbox.addEventListener("touchstart", (e) => { if (e.target.closest(".vb-bar")) vY = e.touches[0].clientY; }, { passive: true });
+  vbox.addEventListener("touchend", (e) => { if (vY != null && e.changedTouches[0].clientY - vY > 60) vbox.classList.add("mini"); vY = null; }, { passive: true });
+
+  // ---------- Recherche (YouTube via des serveurs publics, sinon Apple Music) ----------
+  const PIPED = ["https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee"];
+  const INV = ["https://inv.nadeko.net", "https://invidious.nerdvpn.de", "https://yewtu.be", "https://invidious.privacyredirect.com"];
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+  async function ytSearch(q) {
+    const tries = [];
+    PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=videos&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
+      const l = ((j && j.items) || []).filter((x) => x.url && /watch\?v=/.test(x.url) && !x.isShort).map((x) => ({
+        id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, th: x.thumbnail || "",
+      }));
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/search?type=video&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
+      const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, th: "" }));
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    const any = (ps) => new Promise((ok, ko) => { let n = ps.length; ps.forEach((p) => p.then(ok, () => { if (--n === 0) ko(new Error("aucun")); })); });
+    const l = await any(tries);
+    return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th: x.th || "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg" }));
+  }
+  async function itSearch(q) {
+    const r = await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=25&term=" + encodeURIComponent(q));
+    const j = await r.json();
+    return ((j && j.results) || []).map((x) => ({
+      id: "", q: x.artistName + " " + x.trackName, ti: x.trackName, ch: x.artistName, d: Math.round((x.trackTimeMillis || 0) / 1000),
+      th: (x.artworkUrl100 || "").replace("100x100", "400x400"), pv: x.previewUrl || "", src: "it",
+    }));
+  }
+  async function doSearch() {
+    const q = U.sr.q.trim();
+    if (!q) return;
+    U.sr.loading = true; U.sr.items = []; draw();
+    let items = [], src = "";
+    try { items = await ytSearch(q); src = "yt"; } catch (e) {
+      try { items = await itSearch(q); src = "it"; } catch (e2) { items = []; }
+    }
+    U.sr.loading = false; U.sr.items = items; U.sr.src = src;
+    lsSet("casque_sr", JSON.stringify({ q, items, src }));
+    if (!items.length) toast(navigator.onLine ? "Aucun résultat." : "Pas de connexion internet.");
+    draw();
+  }
+  let pvAudio = null;
+  function preview(o) {
+    if (pvAudio) { pvAudio.pause(); pvAudio = null; if (U.pv === o.pv) { U.pv = null; draw(); return; } }
+    audio.pause();
+    pvAudio = new Audio(o.pv);
+    pvAudio.play().catch(() => {});
+    pvAudio.onended = () => { U.pv = null; draw(); };
+    U.pv = o.pv; draw();
+  }
+
+  // ---------- Téléchargement relayé par un ami Android ----------
+  async function sendDl(o, f, fr) {
+    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Il faut Casque sur Android.";
+    const bot = { t: "dlreq", id: o.id || "", q: o.id ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
+    U.sheet = null; draw();
+    try {
+      const mid = await API().casque.sendTo(fr.id, body, { bot });
+      DL.unshift({ mid, ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: fr.username, at: Date.now(), st: "sent", p: 0 });
+      saveDl();
+      lsSet("casque_dlfriend", fr.id);
+      toast("Demande envoyée à @" + fr.username);
+      U.sec = "dl"; lsSet("casque_sec", "dl");
+      draw();
+      pollSoon();
+    } catch (e) { toast("Demande non envoyée. Vérifie ta connexion."); }
+  }
+  async function askFriend(o, f) {
+    const A = API();
+    if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connecte-toi d'abord à la messagerie."); return; }
+    U.sheet = { kind: "friend", o, f, list: null }; draw();
+    let l = [];
+    try { l = await A.casque.friends(); } catch (e) { /* hors ligne */ }
+    const last = lsGet("casque_dlfriend");
+    l.sort((a, b) => (b.id === last) - (a.id === last));
+    if (U.sheet && U.sheet.kind === "friend") { U.sheet.list = l; draw(); }
+  }
+  let pollT = null, polling = false;
+  const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
+  function pollSoon(ms) { clearTimeout(pollT); if (pendingDl().length) pollT = setTimeout(pollDl, ms || 4000); }
+  async function pollDl() {
+    const A = API();
+    const list = pendingDl();
+    if (!list.length || polling) return;
+    if (!A || !A.casque.ready || !A.casque.ready() || document.hidden) { pollSoon(15000); return; }
+    polling = true;
+    try {
+      const ids = list.map((d) => d.mid).join(",");
+      const bots = (await A.authed("GET", "/rest/v1/messages?select=id,meta&meta->bot->>r=in.(" + ids + ")")) || [];
+      bots.forEach((m) => {
+        const b = m.meta && m.meta.bot, d = b && DL.find((x) => String(x.mid) === String(b.r));
+        if (!d) return;
+        if (b.t === "fail" && d.st !== "done") d.st = "fail";
+        else if (b.t === "wait" && d.st === "sent") d.st = "wait";
+      });
+      const songs = (await A.authed("GET", "/rest/v1/messages?select=id,kind,media,meta&meta->song->>r=in.(" + ids + ")")) || [];
+      saveDl(); draw();
+      for (const m of songs) {
+        const sg = m.meta && m.meta.song, d = sg && DL.find((x) => String(x.mid) === String(sg.r));
+        if (!d || !m.media || d.st === "done" || d.st === "recv") continue;
+        d.st = "recv"; d.p = 0; draw();
+        try {
+          const blob = await fetchProg(mediaUrl(m.media), (p) => { d.p = p; const e = host.querySelector('[data-dl="' + d.mid + '"] i'); if (e) e.style.width = Math.round(p * 100) + "%"; const s2 = host.querySelector('[data-dl="' + d.mid + '"] em'); if (s2) s2.textContent = Math.round(p * 100) + " %"; });
+          const t = await importBlob(blob, { title: sg.t || d.ti, artist: sg.a || d.ch, art: sg.th || d.th, video: m.kind === "video", d: (m.meta && m.meta.d) || 0 });
+          d.st = "done"; d.tid = t.id;
+          toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
+          if (navigator.vibrate) navigator.vibrate(30);
+        } catch (e) { d.st = "wait"; }
+        saveDl(); draw();
+      }
+    } catch (e) { /* réessai plus tard */ }
+    polling = false;
+    pollSoon(12000);
+  }
+  function fetchProg(url, onProg) {
+    return new Promise((ok, ko) => {
+      const x = new XMLHttpRequest();
+      x.open("GET", url);
+      x.responseType = "blob";
+      x.onprogress = (e) => { if (e.lengthComputable && e.total) onProg(e.loaded / e.total); };
+      x.onload = () => (x.status >= 200 && x.status < 300 ? ok(x.response) : ko(new Error("HTTP " + x.status)));
+      x.onerror = () => ko(new Error("réseau"));
+      x.send();
+    });
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollSoon(500); });
+  window.addEventListener("online", () => { pollSoon(500); artQueue(); });
+
+  // ---------- Partager / enregistrer un titre hors de l'appli ----------
+  let shareBlob = null;
+  function prepShare(id) { shareBlob = null; getOne("blobs", id).then((r) => { if (r) shareBlob = { id, blob: r.blob }; }).catch(() => {}); }
+  function shareTrack(id) {
+    const t = byId(id);
+    if (!t) return;
+    if (!shareBlob || shareBlob.id !== id) { toast("Préparation… touche encore une fois."); prepShare(id); return; }
+    const ext = t.video ? "mp4" : (/\.([a-z0-9]+)$/i.exec(t.file) || [])[1] || "mp3";
+    const f = new File([shareBlob.blob], safe(t.title) + "." + ext, { type: t.mime || shareBlob.blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: t.title }).catch(() => {});
+    else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+    }
+  }
+
+  // ---------- Vues ----------
+  function dockView() {
+    const it = [["audio", I.note, "Audios"], ["video", I2.film, "Vidéos"], ["dl", I2.dl, "Téléchargés"], ["search", I.search, "Rechercher"], ["msg", I2.msg, "Messages"]];
+    const busy = pendingDl().length;
+    return '<nav class="dock">' + it.map(([k, ic, l]) => '<button class="' + (U.sec === k ? "on" : "") + '" data-a="sec" data-id="' + k + '">' + ic + "<span>" + l + "</span>" +
+      (k === "dl" && busy ? '<b class="bd">' + busy + "</b>" : "") + "</button>").join("") + "</nav>";
+  }
+  const head = (title) => '<header class="top"><div class="logo">' + I.head + "</div><h1>" + title + '</h1><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button></header>";
+  function videoView() {
+    const l = L.tracks.filter((t) => t.video).sort((a, b) => b.added - a.added);
+    const body = l.length ? '<div class="vgrid">' + l.map((t) => {
+      const u = coverUrl(t);
+      return '<div class="vc" data-a="vrow" data-id="' + t.id + '"><div class="vth" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I2.film) + '<span class="vd">' + fmt(t.dur) + "</span></div>" +
+        '<div class="vm"><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + '</small></div><button class="ib" data-a="menu" data-id="' + t.id + '">' + I.more + "</button></div>";
+    }).join("") + "</div>"
+      : '<div class="empty"><div class="eh">' + I2.film + "</div><h3>Aucune vidéo</h3><p>Cherche une vidéo dans « Rechercher » et demande-la à un ami : son téléphone Android la télécharge et elle arrive ici.</p>" +
+        '<button class="bt" data-a="sec" data-id="search">' + I.search + " Rechercher</button></div>";
+    return head("Vidéos") + '<main class="list">' + body + "</main>";
+  }
+  function dlStatus(d) {
+    if (d.st === "done") return "✓ Ajoutée " + (d.f === "v" ? "aux vidéos" : "à la playlist Téléchargements");
+    if (d.st === "fail") return "⚠️ Le téléchargement a échoué";
+    if (d.st === "recv") return "Réception…";
+    if (d.st === "wait") return "⏳ Téléchargement sur le téléphone de @" + d.fr + "…";
+    return Date.now() - d.at > 180000 ? "En attente : @" + d.fr + " doit ouvrir votre conversation dans Casque (Android)" : "Demande envoyée à @" + d.fr + "…";
+  }
+  function dlView() {
+    const got = L.tracks.filter((t) => t.dl && !t.video).sort((a, b) => b.added - a.added);
+    let body = '<div class="act"><button class="bt out" data-a="pick">' + I.plus + " Importer des fichiers</button></div>";
+    if (DL.length) {
+      body += '<p class="sec2">DEMANDES</p>' + DL.map((d) => '<div class="dq" data-dl="' + d.mid + '"' + (d.st === "done" && d.tid ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dth" style="' + (d.th ? "background-image:url(" + esc(d.th) + ")" : "") + '">' + (d.f === "v" ? I2.film : I.note) + "</div>" +
+        '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small>" +
+        (d.st === "recv" ? '<div class="dbar"><i style="width:' + Math.round((d.p || 0) * 100) + '%"></i></div><em>' + Math.round((d.p || 0) * 100) + " %</em>" : "") + "</div>" +
+        (d.st === "done" || d.st === "fail" ? '<button class="ib" data-a="dlrm" data-id="' + d.mid + '" aria-label="Retirer">' + I.close + "</button>" : "") + "</div>").join("");
+    }
+    body += '<p class="sec2">REÇUS</p>' + (got.length ? got.map((t, i) => row(t, got, i)).join("") : '<p class="note">Les chansons téléchargées par tes amis Android arrivent ici, et dans la playlist « Téléchargements ».</p>');
+    return head("Téléchargements") + '<main class="list">' + body + "</main>";
+  }
+  function searchView() {
+    const S2 = U.sr;
+    let body = "";
+    if (S2.loading) body = '<div class="empty"><div class="spin"></div></div>';
+    else if (S2.items.length) {
+      body = (S2.src === "it" ? '<p class="note">YouTube ne répond pas depuis ce téléphone : résultats Apple Music (extraits de 30 s). Le téléchargement complet passe quand même par ton ami Android.</p>' : "") +
+        S2.items.map((o, k) => '<div class="yr"><div class="yth" data-a="ywatch" data-k="' + k + '" style="background-image:url(' + esc(o.th) + ')">' + (o.src === "it" && U.pv === o.pv ? I.pause : I.play) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
+          '<div class="tm" data-a="ywatch" data-k="' + k + '"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small></div>" +
+          '<button class="ib dlb" data-a="ydl" data-k="' + k + '" aria-label="Télécharger">' + I2.dl + "</button></div>").join("");
+    } else body = '<div class="empty"><div class="eh">' + I.search + "</div><h3>Chercher une chanson ou une vidéo</h3><p>Regarde la vidéo ici, puis touche " + "⬇" + " : la demande part dans ta conversation et le téléphone Android de ton ami la télécharge directement dans ton Casque.</p></div>";
+    return head("Rechercher") + '<form class="sr" id="ysf"><span>' + I.search + '</span><input id="ysq" type="search" enterkeyhint="search" placeholder="Artiste, titre, clip…" value="' + esc(S2.q) + '" autocomplete="off"></form>' +
+      '<main class="list">' + body + "</main>";
+  }
+  function plusSheet(s) {
+    if (s.kind === "ydl") {
+      const o = U.sr.items[s.k]; if (!o) return "";
+      return "<h3>Télécharger « " + esc(o.ti) + " »</h3><p class=\"note\">L'iPhone ne peut pas télécharger lui-même : la demande est envoyée dans la conversation d'un ami qui a Casque sur Android.</p>" +
+        '<button class="sh l" data-a="yfmt" data-id="a" data-k="' + s.k + '">' + I.note + " Audio (MP3)</button>" +
+        '<button class="sh l" data-a="yfmt" data-id="v" data-k="' + s.k + '">' + I2.film + " Vidéo (MP4)</button>";
+    }
+    if (s.kind === "friend") {
+      if (!s.list) return '<h3>Envoyer la demande à…</h3><div class="empty"><div class="spin"></div></div>';
+      if (!s.list.length) return '<h3>Envoyer la demande à…</h3><p class="note">Tu n\'as pas encore d\'ami dans Casque. Ajoute un ami qui a un téléphone Android depuis « Messages ».</p><button class="sh acc" data-a="sec" data-id="msg">' + I2.msg + " Ouvrir les messages</button>";
+      return "<h3>Envoyer la demande à…</h3>" + s.list.map((f) => '<button class="sh l" data-a="yfr" data-id="' + esc(f.id) + '"><span class="fav2">' + esc((f.username || "?").slice(0, 1).toUpperCase()) + "</span> @" + esc(f.username) + "</button>").join("");
+    }
+    return null;
+  }
+
   // ---------- Interface avec app.js ----------
   window.TMM_PLAYER = {
     show(screen) {
@@ -694,6 +1154,7 @@
       document.body.classList.add("cq-on");
       U.view = screen === "settings" ? "settings" : "player";
       if (first || true) draw();
+      pollSoon(800);
     },
     hide() { host.hidden = true; document.body.classList.remove("cq-on"); },
   };

@@ -32,7 +32,7 @@
   // « Casque » : même code, tables à part (préfixe c_), lecteur audio en première page et plusieurs amis.
   const CAS = !!CFG.CASQUE;
   // Nouveau parcours de connexion (Google / Apple d'abord) : uniquement pour « Tu me manques ».
-  const NEWAUTH = !CAS;
+  const NEWAUTH = true; // Google d'abord, pseudo ensuite : même parcours pour les deux applis
   S.cs = /[?&]code=|access_token=/.test(location.search + location.hash) ? "help" : "player"; // écran de Casque : player | settings | help (messagerie)
   S.friends = null;
   S.removeFriend = null;
@@ -121,6 +121,7 @@
     return (j && j.status) || "error";
   }
 
+  let adoptTried = false;
   async function loadSnapshot() {
     const s = await session(false);
     const uid = s.uid;
@@ -132,7 +133,18 @@
       "GET",
       "/rest/v1/requests?select=id,from_id,from_name,to_name&or=(from_id.eq." + uid + ",to_id.eq." + uid + ")"
     );
-    const p = (profiles && profiles[0]) || null;
+    let p = (profiles && profiles[0]) || null;
+    // Même compte Google dans l'autre appli (Casque / Tu me manques) : on reprend son pseudo.
+    if ((!p || !p.username) && !adoptTried) {
+      adoptTried = true;
+      try {
+        const j = await authed("POST", "/rest/v1/rpc/adopt_username", {});
+        if (j && j.status === "ok") {
+          const again = await authed("GET", "/rest/v1/profiles?select=username,partner_name,last_miss_from,last_miss_reply,last_miss_at&id=eq." + uid);
+          p = (again && again[0]) || p;
+        }
+      } catch (e) { /* fonction pas encore installée : on continue normalement */ }
+    }
     const incoming = [];
     const outgoing = [];
     (requests || []).forEach((o) => {
@@ -1048,9 +1060,11 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     const activeId = active && active.id ? active.id : null;
     const selStart = active && typeof active.selectionStart === "number" ? active.selectionStart : null;
 
+    // Casque : il faut être connecté (et avoir un pseudo) avant d'arriver au lecteur.
+    const casLogin = CAS && !S.loading && (S.needAuth || (!S.error && !S.username));
     if (CAS) {
       const P = window.TMM_PLAYER;
-      if (S.cs !== "help") {
+      if (S.cs !== "help" && !casLogin) {
         root.style.display = "none";
         root.innerHTML = "";
         if (P) P.show(S.cs);
@@ -1070,7 +1084,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
 
-    const back = CAS && S.cs === "help" && !(chat() && chat().isOpen()) ? '<button class="cas-back" data-action="casqueBack" aria-label="Retour">‹</button>' : "";
+    const back = CAS && S.cs === "help" && !casLogin && !(chat() && chat().isOpen()) ? '<button class="cas-back" data-action="casqueBack" aria-label="Retour">‹</button>' : "";
     root.innerHTML = html + (CAS ? back : settingsBtn()) + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
 
     if (activeId) {
@@ -1124,6 +1138,24 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       help() { S.cs = "help"; render(); if (!S.loading && !S.needAuth && S.username) loadFriends().then(() => render()); },
       screen(v) { S.cs = v; render(); },
       version: () => CFG.VERSION,
+      ready: () => !S.loading && !S.needAuth && !!S.username,
+      async friends() { await loadFriends(); return (S.friends || []).slice(); },
+      // Envoie un message (ex. demande de téléchargement) dans la conversation d'un ami, sans ouvrir le chat.
+      async sendTo(id, body, meta) {
+        await loadFriends();
+        const f = (S.friends || []).find((x) => x.id === id);
+        if (!f) throw new Error("ami introuvable");
+        if (!f.selected) {
+          const j = await authed("POST", "/rest/v1/rpc/select_peer", { p_id: id });
+          if (!j || j.status !== "ok") throw new Error("select");
+          S.partnerName = f.username;
+          const c = chat(); if (c && c.reset) c.reset();
+        }
+        const r = await authed("POST", "/rest/v1/rpc/send_message", { p_kind: "text", p_body: body, p_media: null, p_meta: meta });
+        if (!r || r.status !== "ok") throw new Error((r && r.status) || "send");
+        loadFriends();
+        return r.id;
+      },
     },
     love() { haptic(); flutter(true); },
     burst(id) { stickerBurst(id); },
