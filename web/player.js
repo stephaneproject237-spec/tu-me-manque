@@ -85,6 +85,7 @@
     draw();
     setTimeout(artQueue, 2500);
     pollSoon(2000);
+    setTimeout(() => { if (U.sec === "search") loadPartner(); }, 1500);
   }
   const savePl = () => db && putKv("playlists", L.playlists);
   const saveFav = () => db && putKv("favs", [...L.favs]);
@@ -294,7 +295,7 @@
   audio.addEventListener("play", () => {
     document.body.classList.add("cq-playing"); refreshPlayState();
     if (pvAudio) { pvAudio.pause(); pvAudio = null; U.pv = null; }
-    const v = vbox.querySelector("video"); if (v && !v.paused) v.pause();
+    if (V.el && !V.el.paused) V.el.pause();
     if (U.miniHide) { U.miniHide = false; draw(); }
   });
   audio.addEventListener("pause", () => { document.body.classList.remove("cq-playing"); refreshPlayState(); });
@@ -552,6 +553,7 @@
     bindSeek();
     bindMini();
     lyrOn = -1; lyricsTick();
+    placeVideo();
   }
   // Barre de lecture glissée vers le bas : elle disparaît, et revient dès qu'on relance un titre.
   function bindMini() {
@@ -606,7 +608,8 @@
     const el = ev.target.closest("[data-a]");
     if (!el) return;
     const a = el.dataset.a, id = el.dataset.id;
-    if (a === "menu" || a === "pp" || a === "prev" || a === "next" || a === "fav" || a === "plmenu") ev.stopPropagation();
+    if (a === "menu" || a === "pp" || a === "prev" || a === "next" || a === "fav" || a === "plmenu" || a === "dlmenu" || a === "dlrm" || a === "yfill" || a === "dlretry") ev.stopPropagation();
+    if (plusClick(a, id, el)) return;
     switch (a) {
       case "pick": pickFiles(false); break;
       case "pickdir": pickFiles(true); break;
@@ -637,28 +640,6 @@
       case "shuffleall": playList(listOfRow(), 0, { shuffle: true }); break;
       case "sort": sheet({ kind: "sort" }); break;
       case "setsort": U.sort = id; U.sheet = null; draw(); break;
-      case "sec":
-        if (id === "msg") { U.sheet = null; if (window.TMM_API) window.TMM_API.casque.help(); break; }
-        U.sec = id; lsSet("casque_sec", id); U.sheet = null; U.sel = null; U.selDirs = null; U.detail = null; draw();
-        if (id === "dl") pollSoon(300);
-        break;
-      case "vrow": { const t = byId(id); if (t) openVideo({ track: t }); break; }
-      case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) openVideo({ track: t }); break; }
-      case "m_share": shareTrack(id); break;
-      case "dlopen": { const t = byId(id); if (!t) break; if (t.video) openVideo({ track: t }); else playList([t.id], 0); break; }
-      case "dlrm": DL = DL.filter((d) => String(d.mid) !== String(id)); saveDl(); draw(); break;
-      case "ywatch": {
-        const o = U.sr.items[+el.dataset.k];
-        if (!o) break;
-        if (o.src === "yt") openVideo({ yt: o.id, title: o.ti });
-        else if (o.pv) preview(o);
-        else toast("Pas d'extrait pour ce titre.");
-        break;
-      }
-      case "ydl": sheet({ kind: "ydl", k: +el.dataset.k }); break;
-      case "yfmt": { const o = U.sr.items[+el.dataset.k]; if (o) askFriend(o, id); break; }
-      case "yfr": { const s2 = U.sheet; const f = s2 && s2.list && s2.list.find((x) => String(x.id) === id); if (f) sendDl(s2.o, s2.f, f); break; }
-      case "lyr": U.lyr = !U.lyr; if (U.lyr) { LY.id = null; loadLyrics(cur()); } draw(); break;
       case "menu": prepShare(id); sheet({ kind: "menu", id, pl: U.detail && U.detail.kind === "playlist" ? U.detail.id : null }); break;
       case "plmenu": sheet({ kind: "plmenu", id }); break;
       case "sheetclose": U.sheet = null; draw(); break;
@@ -727,9 +708,17 @@
   host.addEventListener("click", (ev) => { if (lpDone) { ev.stopPropagation(); ev.preventDefault(); lpDone = false; } }, true);
   host.addEventListener("input", (ev) => {
     if (ev.target.id === "q") { U.q = ev.target.value; draw(); }
-    else if (ev.target.id === "ysq") U.sr.q = ev.target.value;
+    else if (ev.target.id === "ysq") {
+      U.sr.q = ev.target.value; U.sr.focus = true;
+      if (U.sr.q.trim() && U.sr.q.trim() !== U.sr.done) { suggest(U.sr.q); drawSug(); }
+    }
   });
-  host.addEventListener("submit", (ev) => { if (ev.target.id === "ysf") { ev.preventDefault(); const i = host.querySelector("#ysq"); if (i) { U.sr.q = i.value; i.blur(); } doSearch(); } });
+  host.addEventListener("submit", (ev) => { if (ev.target.id === "ysf") { ev.preventDefault(); const i = host.querySelector("#ysq"); doSearch(i ? i.value : U.sr.q); } });
+  host.addEventListener("focusin", (ev) => { if (ev.target.id === "ysq") U.sr.focus = true; });
+  host.addEventListener("focusout", (ev) => {
+    if (ev.target.id !== "ysq") return;
+    setTimeout(() => { if (U.sr.focus && !(document.activeElement && document.activeElement.id === "ysq")) { U.sr.focus = false; draw(); } }, 350);
+  });
   host.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ev.target.id === "nm" && pending) pending(ev.target.value); });
 
   async function checkUpdate() {
@@ -750,19 +739,28 @@
   }
 
   // =====================================================================
-  // Fonctions de Casque Android portées sur iPhone : vidéos, recherche, téléchargements
-  // (faits par le téléphone Android d'un ami, via la messagerie), pochettes, paroles karaoké.
+  // Fonctions de Casque Android portées sur iPhone (même mise en page que l'appli Android) :
+  // Rechercher (lecteur en haut, formats, autres résultats), Vidéos, Téléchargements,
+  // vidéo flottante, pochettes, paroles karaoké.
+  // L'iPhone ne télécharge pas lui-même : la demande part dans « Tu me manques »,
+  // et le téléphone Android du partenaire télécharge puis renvoie le fichier.
   // =====================================================================
   const API = () => window.TMM_API;
   const I2 = {
     film: sv('<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V4h-4z"/>'),
     dl: sv('<path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>'),
-    msg: sv('<path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>'),
     share: sv('<path d="M16 5l-1.4 1.4-1.6-1.6V16h-2V4.8L9.4 6.4 8 5l4-4 4 4zm4 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V10a2 2 0 012-2h3v2H6v11h12V10h-3V8h3a2 2 0 012 2z"/>'),
     pip: sv('<path d="M19 11h-8v6h8v-6zm4 8V5a2 2 0 00-2-2H3a2 2 0 00-2 2v14a2 2 0 002 2h18a2 2 0 002-2zm-2 0H3V5h18v14z"/>'),
     mic: sv('<path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.9V21h2v-3.1A7 7 0 0019 11h-2z"/>'),
+    full: sv('<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>'),
+    hist: sv('<path d="M13 3a9 9 0 00-9 9H1l3.9 3.9L9 12H6a7 7 0 112.1 5l-1.4 1.4A9 9 0 1013 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/>'),
+    nw: sv('<path d="M9 5v2h6.6L4 18.6 5.4 20 17 8.4V15h2V5z" transform="rotate(-90 12 12)"/>'),
+    refresh: sv('<path d="M17.7 6.3A8 8 0 104 12h2a6 6 0 111.8 4.2L10 14H4v6l2.3-2.3A8 8 0 1017.7 6.3z"/>'),
   };
   const mediaUrl = (path) => (CFG.SUPABASE_URL || "") + "/storage/v1/object/public/chat/" + path;
+  const safe = (n) => String(n || "fichier").replace(/[\\/:*?"<>|\n\r\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "fichier";
+  const putTrack = (t) => db && tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t)).catch(() => {});
+  const fmtViews = (n) => !n ? "" : n >= 1e9 ? (n / 1e9).toFixed(1).replace(".0", "") + " Md de vues" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " M de vues" : n >= 1e3 ? Math.round(n / 1e3) + " k vues" : n + " vues";
 
   // ---------- Ajout d'un fichier reçu dans la bibliothèque ----------
   async function importBlob(blob, o) {
@@ -774,7 +772,7 @@
     const t = {
       id: uid(), file: safe(o.title) + (o.video ? ".mp4" : ".mp3"), size: f.size, mime, title: o.title || "Sans titre", artist: o.artist || "Artiste inconnu",
       album: o.video ? "Vidéos" : "Téléchargements", folder: "Téléchargements", dur: o.d || (o.video ? 0 : await duration(f)), added: Date.now(),
-      cover: cv, art: o.art || "", video: !!o.video, dl: true,
+      cover: cv, art: o.art || "", video: !!o.video, dl: true, yid: o.yid || "",
     };
     await tx("blobs", "readwrite", (x) => x.objectStore("blobs").put({ id: t.id, blob: f }));
     await tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t));
@@ -787,8 +785,6 @@
     }
     return t;
   }
-  const safe = (n) => String(n || "fichier").replace(/[\\/:*?"<>|\n\r\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "fichier";
-  const putTrack = (t) => db && tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t)).catch(() => {});
 
   // ---------- Pochettes automatiques (iTunes) ----------
   const cleanTitle = (s) => String(s || "").replace(/\((official|officiel|clip|lyrics?|audio|video|vidéo|visualizer|paroles)[^)]*\)|\[[^\]]*\]/gi, "").replace(/\s+(ft|feat)\.?\s.*$/i, "").replace(/\s+/g, " ").trim();
@@ -827,7 +823,8 @@
     const out = [];
     String(txt || "").split(/\r?\n/).forEach((l) => {
       const re = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
-      let m, ts = [], last = 0;
+      let m, last = 0;
+      const ts = [];
       while ((m = re.exec(l))) { ts.push(parseInt(m[1], 10) * 60 + parseFloat(m[2])); last = re.lastIndex; }
       const text = l.slice(last).trim();
       ts.forEach((x) => out.push({ t: x, s: text }));
@@ -880,143 +877,281 @@
     if (el) { el.classList.add("on"); box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" }); }
   }
 
-  // ---------- Lecteur vidéo (plein écran, réduit en vignette flottante, image dans l'image) ----------
+  // ---------- Lecteur vidéo unique : dans la page Rechercher, en bulle flottante, ou en plein écran ----------
+  // L'élément reste le même (la vidéo ne s'arrête pas) : on le déplace seulement à l'écran.
   const vbox = document.createElement("div");
   vbox.id = "cq-video";
   vbox.hidden = true;
   document.body.appendChild(vbox);
-  let vUrl = null;
-  function openVideo(src) {
-    // src : {track} (fichier gardé dans le téléphone) ou {yt: id, title}
-    audio.pause();
-    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = null; }
-    const title = src.track ? src.track.title : src.title || "";
-    const body = src.yt
-      ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(src.yt) + '?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'
-      : '<video playsinline controls autoplay autopictureinpicture></video>';
-    vbox.innerHTML = '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(title) + "</b>" +
-      (src.yt ? "" : '<button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + "</button>") + '<button data-v="close" aria-label="Fermer">' + I.close + '</button></div><div class="vb-media">' + body + "</div>";
-    vbox.className = "";
-    vbox.hidden = false;
-    if (src.track) {
-      getOne("blobs", src.track.id).then((r) => {
-        const v = vbox.querySelector("video");
-        if (!r || !v) { toast("Fichier introuvable."); return; }
-        vUrl = URL.createObjectURL(r.blob.type === "video/mp4" ? r.blob : new Blob([r.blob], { type: "video/mp4" }));
-        v.src = vUrl;
-        v.play().catch(() => {});
-      });
-    }
-  }
-  function closeVideo() {
-    const v = vbox.querySelector("video");
-    if (v) { v.pause(); v.removeAttribute("src"); }
-    vbox.innerHTML = ""; vbox.hidden = true; vbox.className = "";
-    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = null; }
-  }
-  vbox.addEventListener("click", (ev) => {
-    const b = ev.target.closest("[data-v]");
-    if (!b) { if (vbox.classList.contains("mini")) vbox.classList.remove("mini"); return; }
-    ev.stopPropagation();
-    const v = vbox.querySelector("video");
-    if (b.dataset.v === "close") closeVideo();
-    else if (b.dataset.v === "min") vbox.classList.toggle("mini");
-    else if (b.dataset.v === "pip" && v) {
-      try {
-        if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) v.webkitSetPresentationMode(v.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
-        else if (document.pictureInPictureEnabled) (document.pictureInPictureElement ? document.exitPictureInPicture() : v.requestPictureInPicture()).catch(() => {});
-        else toast("L'image dans l'image n'est pas disponible ici.");
-      } catch (e) { toast("L'image dans l'image n'est pas disponible ici."); }
-    }
-  });
-  // Glisser la vidéo vers le bas : elle devient une vignette flottante.
-  let vY = null;
-  vbox.addEventListener("touchstart", (e) => { if (e.target.closest(".vb-bar")) vY = e.touches[0].clientY; }, { passive: true });
-  vbox.addEventListener("touchend", (e) => { if (vY != null && e.changedTouches[0].clientY - vY > 60) vbox.classList.add("mini"); vY = null; }, { passive: true });
-
-  // ---------- Recherche (YouTube via des serveurs publics, sinon Apple Music) ----------
+  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0 };
   const PIPED = ["https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee"];
   const INV = ["https://inv.nadeko.net", "https://invidious.nerdvpn.de", "https://yewtu.be", "https://invidious.privacyredirect.com"];
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+  const anyOf = (ps) => new Promise((ok, ko) => { let n = ps.length; if (!n) ko(new Error("vide")); ps.forEach((p) => p.then(ok, () => { if (--n === 0) ko(new Error("aucun")); })); });
+  // Flux MP4 direct (lu par le lecteur de l'iPhone : image dans l'image possible). Sinon : lecteur YouTube intégré.
+  async function ytStream(id) {
+    const tries = [];
+    PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/streams/" + id).then((r) => r.json()), 8000).then((j) => {
+      const s = ((j && j.videoStreams) || []).filter((x) => !x.videoOnly && x.url && /mp4/i.test(x.mimeType || x.format || ""));
+      s.sort((a, b) => (parseInt(b.quality, 10) || 0) - (parseInt(a.quality, 10) || 0));
+      if (!s.length) throw new Error("pas de flux");
+      return s[0].url;
+    })));
+    INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/videos/" + id + "?local=true&fields=formatStreams").then((r) => r.json()), 8000).then((j) => {
+      const f = ((j && j.formatStreams) || []).filter((x) => x.url);
+      const best = f.find((x) => String(x.itag) === "22") || f.find((x) => String(x.itag) === "18") || f[0];
+      if (!best) throw new Error("pas de flux");
+      return /^https?:/.test(best.url) ? best.url : b + best.url;
+    })));
+    return anyOf(tries);
+  }
+  function videoShell(inner) {
+    vbox.innerHTML = '<div class="vb-media">' + inner + "</div>" +
+      '<div class="vb-ctl"><button data-v="close" class="tl" aria-label="Fermer">' + I.close + '</button><button data-v="full" class="tr" aria-label="Plein écran">' + I2.full + "</button>" +
+      '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button></div>" +
+      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>";
+    vbox.hidden = false;
+  }
+  async function playYt(o) {
+    if (V.key === "yt:" + o.id) { V.full = false; placeVideo(); return; }
+    stopVideo();
+    audio.pause();
+    V.key = "yt:" + o.id; V.yid = o.id; V.title = o.ti; V.full = false;
+    videoShell('<div class="vb-load"><div class="spin"></div></div>');
+    placeVideo();
+    let url = null;
+    try { url = await ytStream(o.id); } catch (e) { url = null; }
+    if (V.key !== "yt:" + o.id) return;
+    if (url) {
+      vbox.querySelector(".vb-media").innerHTML = '<video playsinline controls autoplay autopictureinpicture x-webkit-airplay="allow"></video>';
+      V.el = vbox.querySelector("video");
+      V.el.src = url;
+      V.el.onerror = () => { if (V.key === "yt:" + o.id) embedYt(o.id); };
+      bindVideoEl();
+      V.el.play().catch(() => {});
+    } else embedYt(o.id);
+  }
+  function embedYt(id) {
+    vbox.querySelector(".vb-media").innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+    V.el = null;
+    vbox.classList.add("ifr");
+  }
+  function playFile(t) {
+    stopVideo();
+    audio.pause();
+    V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = true;
+    videoShell('<video playsinline controls autoplay autopictureinpicture></video>');
+    V.el = vbox.querySelector("video");
+    bindVideoEl();
+    placeVideo();
+    getOne("blobs", t.id).then((r) => {
+      if (!r || !V.el || V.key !== "file:" + t.id) { if (!r) toast("Fichier introuvable."); return; }
+      V.url = URL.createObjectURL(r.blob.type === "video/mp4" ? r.blob : new Blob([r.blob], { type: "video/mp4" }));
+      V.el.src = V.url;
+      V.el.play().catch(() => {});
+    });
+  }
+  function bindVideoEl() {
+    const v = V.el;
+    if (!v) return;
+    const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
+    v.addEventListener("play", () => { audio.pause(); upd(); });
+    v.addEventListener("pause", upd);
+  }
+  function stopVideo() {
+    if (V.el) { try { V.el.pause(); V.el.removeAttribute("src"); V.el.load(); } catch (e) { /* ignoré */ } }
+    if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
+    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0;
+    vbox.innerHTML = ""; vbox.hidden = true; vbox.className = ""; vbox.removeAttribute("style");
+  }
+  // Où afficher la vidéo : en plein écran, dans la carte de la page Rechercher, sinon en bulle flottante.
+  function placeVideo() {
+    if (!V.key) { vbox.hidden = true; return; }
+    vbox.hidden = host.hidden;
+    const ifr = vbox.classList.contains("ifr");
+    vbox.className = ifr ? "ifr" : "";
+    vbox.removeAttribute("style");
+    if (V.full) { vbox.classList.add("full"); return; }
+    const slot = !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
+    if (slot) {
+      const r = slot.getBoundingClientRect();
+      const list = host.querySelector(".list");
+      const lr = list ? list.getBoundingClientRect() : { top: 0 };
+      const dock = host.querySelector(".dock");
+      const bottomLimit = dock ? dock.getBoundingClientRect().top - 6 : window.innerHeight;
+      const ct = Math.max(0, lr.top - r.top), cb = Math.max(0, r.bottom - bottomLimit);
+      vbox.classList.add("inline");
+      vbox.style.cssText = "top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px;" +
+        (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 24px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
+      return;
+    }
+    vbox.classList.add("mini");
+    const miniUp = host.querySelector(".mini") ? 66 : 0;
+    vbox.style.cssText = "bottom:calc(" + (92 + miniUp) + "px + env(safe-area-inset-bottom));transform:translate(" + V.dx + "px," + V.dy + "px)";
+  }
+  window.addEventListener("resize", () => placeVideo());
+  host.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("list") && V.key) placeVideo(); }, true);
+  vbox.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-v]");
+    if (!b) { if (vbox.classList.contains("mini")) vbox.classList.toggle("ctl"); return; }
+    ev.stopPropagation();
+    const k = b.dataset.v, v = V.el;
+    if (k === "close") stopVideo();
+    else if (k === "min") { V.full = false; placeVideo(); }
+    else if (k === "full") { V.full = true; vbox.classList.remove("ctl"); placeVideo(); }
+    else if (k === "pp" && v) { if (v.paused) v.play().catch(() => {}); else v.pause(); }
+    else if (k === "pip") pip(true);
+  });
+  function pip(ask) {
+    const v = V.el;
+    if (!v) { if (ask) toast("Touche le bouton plein écran de la vidéo YouTube, puis l'icône « image dans l'image »."); return false; }
+    try {
+      if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) { v.webkitSetPresentationMode("picture-in-picture"); return true; }
+      if (document.pictureInPictureEnabled) { v.requestPictureInPicture().catch(() => {}); return true; }
+    } catch (e) { /* ignoré */ }
+    if (ask) toast("L'image dans l'image n'est pas disponible ici.");
+    return false;
+  }
+  // En quittant l'appli pendant une vidéo : bulle flottante (image dans l'image) si l'iPhone l'accepte.
+  document.addEventListener("visibilitychange", () => { if (document.hidden && V.el && !V.el.paused) pip(false); });
+  // Glisser la bulle flottante ; glisser le plein écran vers le bas pour le réduire.
+  let drag = null;
+  vbox.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    if (vbox.classList.contains("mini")) drag = { x: t.clientX - V.dx, y: t.clientY - V.dy, moved: false, mini: true };
+    else if (V.full && e.target.closest(".vb-bar")) drag = { y0: t.clientY, mini: false };
+  }, { passive: true });
+  vbox.addEventListener("touchmove", (e) => {
+    if (!drag || !drag.mini) return;
+    const t = e.touches[0];
+    V.dx = Math.min(0, Math.max(-(window.innerWidth - 230), t.clientX - drag.x));
+    V.dy = Math.min(0, Math.max(-(window.innerHeight - 340), t.clientY - drag.y));
+    drag.moved = true;
+    vbox.style.transform = "translate(" + V.dx + "px," + V.dy + "px)";
+  }, { passive: true });
+  vbox.addEventListener("touchend", (e) => {
+    if (drag && !drag.mini && e.changedTouches[0].clientY - drag.y0 > 60) { V.full = false; placeVideo(); }
+    drag = null;
+  }, { passive: true });
+
+  // ---------- Recherche ----------
+  const SR = U.sr;
+  if (!SR.sel && SR.items.length) SR.sel = SR.items[0].id;
+  if (SR.items.length && !SR.done) SR.done = SR.q;
+  let hist = []; try { hist = JSON.parse(lsGet("casque_hist") || "[]") || []; } catch (e) { hist = []; }
+  const saveSr = () => lsSet("casque_sr", JSON.stringify({ q: SR.done || SR.q, done: SR.done, items: SR.items, src: SR.src, sel: SR.sel }));
   async function ytSearch(q) {
     const tries = [];
     PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=videos&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
       const l = ((j && j.items) || []).filter((x) => x.url && /watch\?v=/.test(x.url) && !x.isShort).map((x) => ({
-        id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, th: x.thumbnail || "",
+        id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "",
       }));
       if (!l.length) throw new Error("vide");
       return l;
     })));
     INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/search?type=video&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
-      const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, th: "" }));
+      const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "" }));
       if (!l.length) throw new Error("vide");
       return l;
     })));
-    const any = (ps) => new Promise((ok, ko) => { let n = ps.length; ps.forEach((p) => p.then(ok, () => { if (--n === 0) ko(new Error("aucun")); })); });
-    const l = await any(tries);
-    return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th: x.th || "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg" }));
+    const l = await anyOf(tries);
+    return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th: "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg", hd: "https://i.ytimg.com/vi/" + x.id + "/hqdefault.jpg" }));
   }
   async function itSearch(q) {
     const r = await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=25&term=" + encodeURIComponent(q));
     const j = await r.json();
     return ((j && j.results) || []).map((x) => ({
-      id: "", q: x.artistName + " " + x.trackName, ti: x.trackName, ch: x.artistName, d: Math.round((x.trackTimeMillis || 0) / 1000),
-      th: (x.artworkUrl100 || "").replace("100x100", "400x400"), pv: x.previewUrl || "", src: "it",
+      id: "it" + x.trackId, q: x.artistName + " " + x.trackName, ti: x.trackName, ch: x.artistName, d: Math.round((x.trackTimeMillis || 0) / 1000), v: 0,
+      th: (x.artworkUrl100 || "").replace("100x100", "400x400"), hd: (x.artworkUrl100 || "").replace("100x100", "600x600"), pv: x.previewUrl || "", src: "it",
     }));
   }
-  async function doSearch() {
-    const q = U.sr.q.trim();
+  let srTok = 0;
+  async function doSearch(q) {
+    q = String(q || SR.q).trim();
     if (!q) return;
-    U.sr.loading = true; U.sr.items = []; draw();
+    const inp = host.querySelector("#ysq"); if (inp) inp.blur();
+    SR.q = q; SR.done = q; SR.sug = []; SR.focus = false;
+    hist = [q].concat(hist.filter((h) => h.toLowerCase() !== q.toLowerCase())).slice(0, 12);
+    lsSet("casque_hist", JSON.stringify(hist));
+    const my = ++srTok;
+    SR.loading = true; SR.err = ""; SR.items = []; draw();
     let items = [], src = "";
     try { items = await ytSearch(q); src = "yt"; } catch (e) {
       try { items = await itSearch(q); src = "it"; } catch (e2) { items = []; }
     }
-    U.sr.loading = false; U.sr.items = items; U.sr.src = src;
-    lsSet("casque_sr", JSON.stringify({ q, items, src }));
-    if (!items.length) toast(navigator.onLine ? "Aucun résultat." : "Pas de connexion internet.");
+    if (my !== srTok) return;
+    SR.loading = false; SR.items = items; SR.src = src; SR.sel = items[0] ? items[0].id : null;
+    if (!items.length) SR.err = navigator.onLine ? "Aucun résultat pour « " + q + " »." : "Recherche impossible. Vérifie ta connexion internet.";
+    saveSr();
+    const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
     draw();
+  }
+  // Suggestions pendant la frappe (comme sur Android).
+  let sugT = null;
+  function suggest(q) {
+    clearTimeout(sugT);
+    if (!q.trim()) { SR.sug = []; drawSug(); return; }
+    sugT = setTimeout(() => {
+      const cb = "cqSug" + Date.now();
+      const s = document.createElement("script");
+      window[cb] = (j) => { delete window[cb]; s.remove(); if (SR.q === q) { SR.sug = ((j && j[1]) || []).map((x) => (Array.isArray(x) ? x[0] : x)).slice(0, 8); drawSug(); } };
+      s.onerror = () => { delete window[cb]; s.remove(); };
+      s.src = "https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&hl=fr&q=" + encodeURIComponent(q) + "&callback=" + cb;
+      document.head.appendChild(s);
+    }, 220);
+  }
+  function sugHtml() {
+    const q = SR.q.trim();
+    return (SR.sug || []).map((s) => '<div class="sg" data-a="ysug" data-id="' + esc(s) + '">' + I.search + "<span>" + esc(s) + '</span><button data-a="yfill" data-id="' + esc(s) + '">' + I2.nw + "</button></div>").join("") +
+      (!(SR.sug || []).length && q ? '<div class="sg go" data-a="ysug" data-id="' + esc(q) + '">' + I.search + "<span>Rechercher « " + esc(q) + " »</span></div>" : "");
+  }
+  function drawSug() {
+    const box = host.querySelector(".list");
+    if (!box || U.sec !== "search" || !SR.focus) return;
+    box.innerHTML = sugHtml();
   }
   let pvAudio = null;
   function preview(o) {
-    if (pvAudio) { pvAudio.pause(); pvAudio = null; if (U.pv === o.pv) { U.pv = null; draw(); return; } }
-    audio.pause();
+    if (pvAudio) { pvAudio.pause(); const same = U.pv === o.pv; pvAudio = null; U.pv = null; draw(); if (same) return; }
+    if (!o.pv) { toast("Pas d'extrait pour ce titre."); return; }
+    stopVideo(); audio.pause();
     pvAudio = new Audio(o.pv);
     pvAudio.play().catch(() => {});
-    pvAudio.onended = () => { U.pv = null; draw(); };
+    pvAudio.onended = () => { U.pv = null; pvAudio = null; draw(); };
     U.pv = o.pv; draw();
   }
 
-  // ---------- Téléchargement relayé par un ami Android ----------
-  async function sendDl(o, f, fr) {
-    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Il faut Casque sur Android.";
-    const bot = { t: "dlreq", id: o.id || "", q: o.id ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
-    U.sheet = null; draw();
-    try {
-      const mid = fr.tmm ? await API().casque.sendToTmm(body.replace("pour mon Casque ? Il faut Casque sur Android.", "pour mon Casque ? (Tu me manques sur Android)"), { bot }) : await API().casque.sendTo(fr.id, body, { bot });
-      DL.unshift({ mid, app: fr.tmm ? "tmm" : "cas", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: fr.username, at: Date.now(), st: "sent", p: 0 });
-      saveDl();
-      lsSet("casque_dlfriend", fr.id);
-      toast("Demande envoyée à @" + fr.username);
-      U.sec = "dl"; lsSet("casque_sec", "dl");
-      draw();
-      pollSoon();
-    } catch (e) { toast("Demande non envoyée. Vérifie ta connexion."); }
-  }
-  async function askFriend(o, f) {
+  // ---------- Téléchargement fait par le partenaire Android de « Tu me manques » ----------
+  let TP = { st: "?", p: null, at: 0 }; // partenaire : st = ? | ok | none
+  async function loadPartner(force) {
     const A = API();
-    if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connecte-toi d'abord à la messagerie."); return; }
-    U.sheet = { kind: "friend", o, f, list: null }; draw();
-    let l = [];
-    try { l = await A.casque.friends(); } catch (e) { /* hors ligne */ }
-    const last = lsGet("casque_dlfriend");
-    l.sort((a, b) => (b.id === last) - (a.id === last));
-    // Partenaire « Tu me manques » sur Android : proposé en premier.
-    try { const t = await A.casque.tmmPartner(); if (t) l.unshift(t); } catch (e) { /* ignoré */ }
-    if (U.sheet && U.sheet.kind === "friend") { U.sheet.list = l; draw(); }
+    if (!A || !A.casque.tmmPartner || (!force && Date.now() - TP.at < 60000)) return;
+    TP.at = Date.now();
+    const p = await A.casque.tmmPartner();
+    TP = { st: p ? "ok" : "none", p, at: TP.at };
+    if (U.sec === "search") draw();
+  }
+  const dlFor = (o, f) => DL.find((d) => d.f === f && ((o.src === "yt" && d.yid === o.id) || (o.src !== "yt" && d.ti === o.ti && d.ch === o.ch)));
+  async function sendDl(o, f) {
+    const A = API();
+    if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connexion en cours, réessaie dans un instant."); return; }
+    if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Relie d'abord ton pseudo à un partenaire Android dans Tu me manques."); draw(); return; } }
+    const old = dlFor(o, f);
+    if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
+    if (old) DL = DL.filter((d) => d !== old);
+    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Ouvre cette conversation sur ton Android.";
+    const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
+    const d = { mid: 0, app: "tmm", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: TP.p.username, at: Date.now(), st: "sending", p: 0 };
+    DL.unshift(d); draw();
+    try {
+      d.mid = await A.casque.sendToTmm(body, { bot });
+      d.st = "sent"; saveDl(); draw();
+      pollSoon();
+    } catch (e) { DL = DL.filter((x) => x !== d); toast("Demande non envoyée. Vérifie ta connexion."); draw(); }
   }
   let pollT = null, polling = false;
   const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
+  const activeDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait" || d.st === "recv" || d.st === "sending");
   function pollSoon(ms) { clearTimeout(pollT); if (pendingDl().length) pollT = setTimeout(pollDl, ms || 4000); }
   async function pollDl() {
     const A = API();
@@ -1026,33 +1161,39 @@
     polling = true;
     try {
       for (const app of ["cas", "tmm"]) {
-      const mine = list.filter((d) => (d.app || "cas") === app);
-      if (!mine.length) continue;
-      const pre = app === "tmm" ? "/tmm" : "";
-      const of = (r) => DL.find((x) => (x.app || "cas") === app && String(x.mid) === String(r));
-      const ids = mine.map((d) => d.mid).join(",");
-      const bots = (await A.authed("GET", pre + "/rest/v1/messages?select=id,meta&meta->bot->>r=in.(" + ids + ")")) || [];
-      bots.forEach((m) => {
-        const b = m.meta && m.meta.bot, d = b && of(b.r);
-        if (!d) return;
-        if (b.t === "fail" && d.st !== "done") d.st = "fail";
-        else if (b.t === "wait" && d.st === "sent") d.st = "wait";
-      });
-      const songs = (await A.authed("GET", pre + "/rest/v1/messages?select=id,kind,media,meta&meta->song->>r=in.(" + ids + ")")) || [];
-      saveDl(); draw();
-      for (const m of songs) {
-        const sg = m.meta && m.meta.song, d = sg && of(sg.r);
-        if (!d || !m.media || d.st === "done" || d.st === "recv") continue;
-        d.st = "recv"; d.p = 0; draw();
-        try {
-          const blob = await fetchProg(mediaUrl(m.media), (p) => { d.p = p; const e = host.querySelector('[data-dl="' + d.mid + '"] i'); if (e) e.style.width = Math.round(p * 100) + "%"; const s2 = host.querySelector('[data-dl="' + d.mid + '"] em'); if (s2) s2.textContent = Math.round(p * 100) + " %"; });
-          const t = await importBlob(blob, { title: sg.t || d.ti, artist: sg.a || d.ch, art: sg.th || d.th, video: m.kind === "video", d: (m.meta && m.meta.d) || 0 });
-          d.st = "done"; d.tid = t.id;
-          toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
-          if (navigator.vibrate) navigator.vibrate(30);
-        } catch (e) { d.st = "wait"; }
+        const mine = list.filter((d) => (d.app || "cas") === app && d.mid);
+        if (!mine.length) continue;
+        const pre = app === "tmm" ? "/tmm" : "";
+        const of = (r) => DL.find((x) => (x.app || "cas") === app && String(x.mid) === String(r));
+        const ids = mine.map((d) => d.mid).join(",");
+        const bots = (await A.authed("GET", pre + "/rest/v1/messages?select=id,meta&meta->bot->>r=in.(" + ids + ")")) || [];
+        bots.forEach((m) => {
+          const b = m.meta && m.meta.bot, d = b && of(b.r);
+          if (!d) return;
+          if (b.t === "fail" && d.st !== "done") d.st = "fail";
+          else if (b.t === "wait" && d.st === "sent") d.st = "wait";
+        });
+        const songs = (await A.authed("GET", pre + "/rest/v1/messages?select=id,kind,media,meta&meta->song->>r=in.(" + ids + ")")) || [];
         saveDl(); draw();
-      }
+        for (const m of songs) {
+          const sg = m.meta && m.meta.song, d = sg && of(sg.r);
+          if (!d || !m.media || d.st === "done" || d.st === "recv") continue;
+          d.st = "recv"; d.p = 0; draw();
+          try {
+            const blob = await fetchProg(mediaUrl(m.media), (p) => {
+              d.p = p;
+              host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
+                const i = row.querySelector(".dbar i"); if (i) i.style.width = Math.round(p * 100) + "%";
+                const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
+              });
+            });
+            const t = await importBlob(blob, { title: sg.t || d.ti, artist: sg.a || d.ch, art: sg.th || d.th, video: m.kind === "video", d: (m.meta && m.meta.d) || 0, yid: d.yid });
+            d.st = "done"; d.tid = t.id; d.size = blob.size;
+            toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
+            if (navigator.vibrate) navigator.vibrate(30);
+          } catch (e) { d.st = "wait"; }
+          saveDl(); draw();
+        }
       }
     } catch (e) { /* réessai plus tard */ }
     polling = false;
@@ -1088,70 +1229,162 @@
     }
   }
 
-  // ---------- Vues ----------
+  // ---------- Vues (mise en page de l'appli Android) ----------
+  const big = (title, trailing) => '<header class="lt"><h1>' + title + "</h1>" + (trailing || "") + "</header>";
+  const gear = '<button class="ib gl" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>";
+  const emptyState = (icon, title, text, action) => '<div class="es"><div class="esi">' + icon + "</div><h3>" + title + "</h3><p>" + text + "</p>" +
+    (action ? '<button class="bt" data-a="sec" data-id="search">' + I.search + " " + action + "</button>" : "") + "</div>";
   function dockView() {
-    const it = [["audio", I.note, "Audios"], ["video", I2.film, "Vidéos"], ["dl", I2.dl, "Téléchargés"], ["search", I.search, "Rechercher"]];
-    const busy = pendingDl().length;
-    return '<nav class="dock">' + it.map(([k, ic, l]) => '<button class="' + (U.sec === k ? "on" : "") + '" data-a="sec" data-id="' + k + '">' + ic + "<span>" + l + "</span>" +
-      (k === "dl" && busy ? '<b class="bd">' + busy + "</b>" : "") + "</button>").join("") + "</nav>";
+    const it = [["audio", I.note, "Audios"], ["video", I2.film, "Vidéos"], ["dl", I2.dl, "Téléchargements"]];
+    const busy = activeDl().length;
+    return '<nav class="dock"><div class="dk">' + it.map(([k, ic, l]) => '<button class="' + (U.sec === k ? "on" : "") + '" data-a="sec" data-id="' + k + '"><i>' + ic +
+      (k === "dl" && busy ? '<b class="bd">' + busy + "</b>" : "") + "</i><span>" + l + "</span></button>").join("") + "</div>" +
+      '<button class="dks' + (U.sec === "search" ? " on" : "") + '" data-a="sec" data-id="search" aria-label="Rechercher">' + I.search + "</button></nav>";
   }
-  const head = (title) => '<header class="top"><div class="logo">' + I.head + "</div><h1>" + title + '</h1><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button></header>";
   function videoView() {
     const l = L.tracks.filter((t) => t.video).sort((a, b) => b.added - a.added);
-    const body = l.length ? '<div class="vgrid">' + l.map((t) => {
-      const u = coverUrl(t);
-      return '<div class="vc" data-a="vrow" data-id="' + t.id + '"><div class="vth" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I2.film) + '<span class="vd">' + fmt(t.dur) + "</span></div>" +
-        '<div class="vm"><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + '</small></div><button class="ib" data-a="menu" data-id="' + t.id + '">' + I.more + "</button></div>";
-    }).join("") + "</div>"
-      : '<div class="empty"><div class="eh">' + I2.film + "</div><h3>Aucune vidéo</h3><p>Cherche une vidéo dans « Rechercher » et demande-la à un ami : son téléphone Android la télécharge et elle arrive ici.</p>" +
-        '<button class="bt" data-a="sec" data-id="search">' + I.search + " Rechercher</button></div>";
-    return head("Vidéos") + '<main class="list">' + body + "</main>";
+    if (!l.length) return big("Vidéos", gear) + '<main class="list">' + emptyState(I2.film, "Pas encore de vidéo", "Les clips que tu télécharges en MP4 s'affichent ici. Tu peux les regarder sans connexion.", "Trouver une vidéo") + "</main>";
+    const size = l.reduce((s, t) => s + (t.size || 0), 0);
+    return big("Vidéos", gear) + '<main class="list"><p class="cnt">' + l.length + " vidéo(s) · " + (size / 1048576).toFixed(1) + " Mo</p>" +
+      '<div class="vgrid">' + l.map((t) => {
+        const u = coverUrl(t);
+        return '<div class="vt"><div class="vth" data-a="vrow" data-id="' + t.id + '" style="' + (u ? "background-image:url(" + u + ")" : "") + '"><span class="gp">' + I.play + '</span><span class="vd">' + fmt(t.dur) + "</span></div>" +
+          '<div class="vm"><div><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + ' · MP4</small></div><button class="ib sm2" data-a="menu" data-id="' + t.id + '">' + I.more + "</button></div></div>";
+      }).join("") + "</div></main>";
   }
   function dlStatus(d) {
-    if (d.st === "done") return "✓ Ajoutée " + (d.f === "v" ? "aux vidéos" : "à la playlist Téléchargements");
-    if (d.st === "fail") return "⚠️ Le téléchargement a échoué";
-    if (d.st === "recv") return "Réception…";
-    if (d.st === "wait") return "⏳ Téléchargement sur le téléphone de @" + d.fr + "…";
-    return Date.now() - d.at > 180000 ? "En attente : @" + d.fr + " doit ouvrir votre conversation dans " + (d.app === "tmm" ? "Tu me manques" : "Casque") + " (Android)" : "Demande envoyée à @" + d.fr + "…";
+    const kind = d.f === "v" ? "MP4" : "MP3";
+    if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (d.f === "v" ? "Vidéos" : "Audios");
+    if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;
+    if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
+    if (d.st === "wait") return kind + " · téléchargement sur le téléphone de @" + d.fr + "…";
+    if (d.st === "sending") return kind + " · envoi de la demande…";
+    return kind + " · " + (Date.now() - d.at > 180000 ? "en attente : @" + d.fr + " doit ouvrir votre conversation dans Tu me manques" : "demande envoyée à @" + d.fr);
+  }
+  function dlRow(d) {
+    const act = d.st === "sent" || d.st === "wait" || d.st === "recv" || d.st === "sending";
+    const ok = d.st === "done" && d.tid && byId(d.tid);
+    const btn = act ? '<button class="ib rb" data-a="dlrm" data-id="' + d.mid + '" aria-label="Annuler">' + I.close + "</button>"
+      : d.st === "fail" ? '<button class="ib rb bl" data-a="dlretry" data-id="' + d.mid + '" aria-label="Réessayer">' + I2.refresh + '</button><button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.close + "</button>"
+        : ok ? '<button class="ib rb fill" data-a="dlopen" data-id="' + d.tid + '" aria-label="Lire">' + I.play + '</button><button class="ib rb t" data-a="dlmenu" data-id="' + d.tid + '">' + I.more + "</button>"
+          : '<button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.trash + "</button>";
+    return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth" style="' + (d.th ? "background-image:url(" + esc(d.th) + ")" : "") + '"><span class="' + (d.f === "v" ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
+      '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small></div>" + btn + "</div>" +
+      (act ? '<div class="dbar' + (d.st === "recv" && d.p ? "" : " ind") + '"><i style="width:' + (d.st === "recv" ? Math.round((d.p || 0) * 100) : 30) + '%"></i></div>' : "") + "</div>";
   }
   function dlView() {
-    const got = L.tracks.filter((t) => t.dl && !t.video).sort((a, b) => b.added - a.added);
-    let body = '<div class="act"><button class="bt out" data-a="pick">' + I.plus + " Importer des fichiers</button></div>";
-    if (DL.length) {
-      body += '<p class="sec2">DEMANDES</p>' + DL.map((d) => '<div class="dq" data-dl="' + d.mid + '"' + (d.st === "done" && d.tid ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dth" style="' + (d.th ? "background-image:url(" + esc(d.th) + ")" : "") + '">' + (d.f === "v" ? I2.film : I.note) + "</div>" +
-        '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small>" +
-        (d.st === "recv" ? '<div class="dbar"><i style="width:' + Math.round((d.p || 0) * 100) + '%"></i></div><em>' + Math.round((d.p || 0) * 100) + " %</em>" : "") + "</div>" +
-        (d.st === "done" || d.st === "fail" ? '<button class="ib" data-a="dlrm" data-id="' + d.mid + '" aria-label="Retirer">' + I.close + "</button>" : "") + "</div>").join("");
-    }
-    body += '<p class="sec2">REÇUS</p>' + (got.length ? got.map((t, i) => row(t, got, i)).join("") : '<p class="note">Les chansons téléchargées par tes amis Android arrivent ici, et dans la playlist « Téléchargements ».</p>');
-    return head("Téléchargements") + '<main class="list">' + body + "</main>";
+    const act = DL.filter((d) => ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0);
+    const done = DL.filter((d) => d.st === "done" || d.st === "fail");
+    let body = "";
+    if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Ton partenaire Android de Tu me manques la télécharge pour toi, puis elle apparaît ici, dans Audios ou Vidéos.", "Rechercher");
+    if (act.length) body += '<p class="sec2">EN COURS · ' + act.length + "</p>" + act.map(dlRow).join("");
+    if (done.length) body += '<p class="sec2">TERMINÉS</p>' + done.map(dlRow).join("");
+    return big("Téléchargements", done.length ? '<button class="chip" data-a="dlclear">Effacer</button>' : "") + '<main class="list">' + body + "</main>";
+  }
+  function fmtRow(o, f) {
+    const d = dlFor(o, f);
+    const act = d && ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0;
+    const done = d && d.st === "done" && d.tid && byId(d.tid);
+    const sz = o.d ? "≈ " + ((o.d * (f === "v" ? 110000 : 24000)) / 1048576).toFixed(1) + " Mo" : "";
+    const sub = !d ? (f === "v" ? "Petit fichier, idéal hors connexion" : "Bonne qualité · 192 kbit/s") : done ? (f === "v" ? "Téléchargé · dans Vidéos" : "Téléchargé · dans Audios") : d.st === "fail" ? "Échec · touche pour réessayer" : dlStatus(d).replace(/^MP[34] · /, "");
+    const right = act ? '<span class="ring' + (d.st === "recv" && d.p ? "" : " ind") + '" style="--p:' + Math.round((d.p || 0) * 100) + '"><i></i></span>'
+      : done ? '<span class="okb">' + I.play + "</span>" : '<span class="dlb">' + I2.dl + "</span>";
+    return '<div class="fr" data-a="yget" data-id="' + f + '"><span class="fi' + (f === "v" ? " v" : "") + '">' + (f === "v" ? I2.film : I.note) + "</span>" +
+      '<div class="tm"><b>' + (f === "v" ? "MP4 480p" : "MP3") + (sz ? " <em>" + sz + "</em>" : "") + '</b><small class="' + (done ? "done" : d && d.st === "fail" ? "fail" : "") + '">' + esc(sub) + "</small></div>" + right + "</div>";
   }
   function searchView() {
-    const S2 = U.sr;
+    const q = SR.q || "";
+    const bar = '<form class="gsr" id="ysf">' + I.search + '<input id="ysq" type="search" enterkeyhint="search" placeholder="Titre, artiste, clip…" value="' + esc(q) + '" autocomplete="off" autocorrect="off">' +
+      (q ? '<button type="button" class="clr" data-a="yclear" aria-label="Effacer">' + I.close + "</button>" : "") + "</form>";
     let body = "";
-    if (S2.loading) body = '<div class="empty"><div class="spin"></div></div>';
-    else if (S2.items.length) {
-      body = (S2.src === "it" ? '<p class="note">YouTube ne répond pas depuis ce téléphone : résultats Apple Music (extraits de 30 s). Le téléchargement complet passe quand même par ton ami Android.</p>' : "") +
-        S2.items.map((o, k) => '<div class="yr"><div class="yth" data-a="ywatch" data-k="' + k + '" style="background-image:url(' + esc(o.th) + ')">' + (o.src === "it" && U.pv === o.pv ? I.pause : I.play) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
-          '<div class="tm" data-a="ywatch" data-k="' + k + '"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small></div>" +
-          '<button class="ib dlb" data-a="ydl" data-k="' + k + '" aria-label="Télécharger">' + I2.dl + "</button></div>").join("");
-    } else body = '<div class="empty"><div class="eh">' + I.search + "</div><h3>Chercher une chanson ou une vidéo</h3><p>Regarde la vidéo ici, puis touche " + "⬇" + " : la demande part dans ta conversation et le téléphone Android de ton ami la télécharge directement dans ton Casque.</p></div>";
-    return head("Rechercher") + '<form class="sr" id="ysf"><span>' + I.search + '</span><input id="ysq" type="search" enterkeyhint="search" placeholder="Artiste, titre, clip…" value="' + esc(S2.q) + '" autocomplete="off"></form>' +
-      '<main class="list">' + body + "</main>";
+    if (SR.focus && q.trim() && q.trim() !== SR.done) body = sugHtml();
+    else if (!SR.done && !SR.items.length) {
+      if (hist.length) body += '<div class="hh"><h2>Recherches récentes</h2><button data-a="yhclear">Effacer</button></div><div class="chips">' + hist.map((h) => '<button class="chip" data-a="ysug" data-id="' + esc(h) + '">' + I2.hist + " " + esc(h) + "</button>").join("") + "</div>";
+      body += emptyState(I.search, "Trouve une chanson", "Tape le titre d'une chanson ou le nom d'un artiste. Tu pourras regarder la vidéo, puis la télécharger en MP3 ou en vidéo.", "");
+    } else if (SR.loading) {
+      body = '<div class="skp"><i class="sk16"></i><i class="skl"></i><i class="sks"></i></div>' + '<div class="skr"><i></i><span><b></b><b></b></span></div>'.repeat(5);
+    } else {
+      if (SR.err) body += '<div class="err"><p>' + esc(SR.err) + '</p><button class="chip" data-a="ysug" data-id="' + esc(SR.done || q) + '">' + I2.refresh + " Réessayer</button></div>";
+      const lq = (SR.done || "").toLowerCase();
+      const local = lq.length >= 2 ? AUD().filter((t) => (t.title + " " + t.artist).toLowerCase().indexOf(lq) >= 0).slice(0, 3) : [];
+      if (local.length) body += '<p class="sec2">DÉJÀ DANS TES AUDIOS</p>' + local.map((t) => '<div class="lr" data-a="lplay" data-id="' + t.id + '">' + cover(t, "sm") + '<div class="tm"><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + "</small></div>" + I.play + "</div>").join("");
+      const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
+      if (sel) {
+        const playing = V.yid === sel.id;
+        body += '<div class="pc"><div class="pslot" data-id="' + esc(sel.id) + '" style="background-image:url(' + esc(sel.hd || sel.th) + ')">' +
+          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
+          "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>";
+        body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
+          (TP.st === "none" ? '<p class="note">Pour télécharger depuis l\'iPhone, ton pseudo doit être lié à un partenaire qui a <b>Tu me manques sur Android</b> : son téléphone télécharge pour toi et le fichier arrive ici tout seul.</p>'
+            : (TP.st === "ok" ? '<p class="via">Fait par le téléphone Android de @' + esc(TP.p.username) + " (Tu me manques)</p>" : "") +
+              '<p class="fk">AUDIO</p>' + fmtRow(sel, "a") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "v")) + "</div>";
+        const others = SR.items.filter((x) => x !== sel);
+        if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map((o) => {
+          const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
+          return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth" style="background-image:url(' + esc(o.th) + ')">' + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
+            '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (got ? '<small class="done">Téléchargé</small>' : "") + "</div></div>";
+        }).join("");
+      }
+    }
+    return big("Rechercher") + bar + '<main class="list">' + body + "</main>";
   }
   function plusSheet(s) {
-    if (s.kind === "ydl") {
-      const o = U.sr.items[s.k]; if (!o) return "";
-      return "<h3>Télécharger « " + esc(o.ti) + " »</h3><p class=\"note\">L'iPhone ne peut pas télécharger lui-même : la demande est envoyée dans la conversation d'un ami qui a Casque sur Android.</p>" +
-        '<button class="sh l" data-a="yfmt" data-id="a" data-k="' + s.k + '">' + I.note + " Audio (MP3)</button>" +
-        '<button class="sh l" data-a="yfmt" data-id="v" data-k="' + s.k + '">' + I2.film + " Vidéo (MP4)</button>";
-    }
-    if (s.kind === "friend") {
-      if (!s.list) return '<h3>Envoyer la demande à…</h3><div class="empty"><div class="spin"></div></div>';
-      if (!s.list.length) return '<h3>Envoyer la demande à…</h3><p class="note">Personne pour télécharger pour toi : ajoute un ami qui a un téléphone Android dans Paramètres › À propos, ou relie ton pseudo à un partenaire Android dans « Tu me manques ».</p>';
-      return "<h3>Envoyer la demande à…</h3>" + s.list.map((f) => '<button class="sh l" data-a="yfr" data-id="' + esc(f.id) + '"><span class="fav2">' + esc((f.username || "?").slice(0, 1).toUpperCase()) + "</span> @" + esc(f.username) + (f.tmm ? " <small>· Tu me manques</small>" : "") + "</button>").join("");
+    if (s.kind === "dlmenu") {
+      const t = byId(s.id); if (!t) return "";
+      return "<h3>" + esc(t.title) + "</h3>" + [["dlopen", t.video ? "Regarder" : "Écouter"], ["m_share", "Envoyer hors de Casque…"], ...(t.video ? [] : [["m_addpl", "Ajouter à une playlist…"]]), ["dlrmt", "Retirer de la liste"], ["m_del", "Supprimer le fichier"]]
+        .map(([a, l]) => '<button class="sh' + (a === "m_del" ? " red" : "") + '" data-a="' + a + '" data-id="' + t.id + '">' + l + "</button>").join("");
     }
     return null;
+  }
+  // Actions propres à ces écrans (renvoie true si l'action est traitée).
+  function plusClick(a, id, el) {
+    switch (a) {
+      case "sec":
+        U.sec = id; lsSet("casque_sec", id); U.sheet = null; U.sel = null; U.selDirs = null; U.detail = null; SR.focus = false;
+        if (id === "search") loadPartner();
+        draw();
+        if (id === "dl") pollSoon(300);
+        return true;
+      case "vrow": { const t = byId(id); if (t) playFile(t); return true; }
+      case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) playFile(t); return true; }
+      case "m_share": shareTrack(id); return true;
+      case "dlopen": { const t = byId(id); U.sheet = null; if (!t) { draw(); return true; } if (t.video) { draw(); playFile(t); } else playList([t.id], 0); return true; }
+      case "dlmenu": prepShare(id); sheet({ kind: "dlmenu", id }); return true;
+      case "dlrmt": DL = DL.filter((d) => d.tid !== id); saveDl(); U.sheet = null; draw(); return true;
+      case "dlrm": DL = DL.filter((d) => String(d.mid) !== String(id)); saveDl(); draw(); return true;
+      case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
+      case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
+      case "yplay": {
+        const o = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
+        if (!o) return true;
+        if (o.src === "yt") { playYt(o); draw(); } else preview(o);
+        return true;
+      }
+      case "ysel": {
+        if (V.yid && V.yid !== id) stopVideo();
+        if (pvAudio) { pvAudio.pause(); pvAudio = null; U.pv = null; }
+        SR.sel = id; saveSr();
+        const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
+        draw();
+        return true;
+      }
+      case "yget": {
+        const o = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
+        if (!o) return true;
+        const d = dlFor(o, id);
+        if (d && d.st === "done" && d.tid && byId(d.tid)) return plusClick("dlopen", d.tid, el);
+        if (d && d.st !== "fail") { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return true; }
+        sendDl(o, id);
+        return true;
+      }
+      case "ysug": SR.q = id; doSearch(id); return true;
+      case "yfill": { SR.q = id + " "; const i = host.querySelector("#ysq"); if (i) { i.value = SR.q; i.focus(); } suggest(SR.q); return true; }
+      case "yclear": { SR.q = ""; SR.sug = []; SR.focus = true; draw(); const i = host.querySelector("#ysq"); if (i) i.focus(); return true; }
+      case "yhclear": hist = []; lsSet("casque_hist", "[]"); draw(); return true;
+      case "lplay": { const ids = [id]; playList(ids, 0); return true; }
+      case "lyr": U.lyr = !U.lyr; if (U.lyr) { LY.id = null; loadLyrics(cur()); } draw(); return true;
+      default: return false;
+    }
   }
 
   // ---------- Interface avec app.js ----------
@@ -1164,7 +1397,7 @@
       if (first || true) draw();
       pollSoon(800);
     },
-    hide() { host.hidden = true; document.body.classList.remove("cq-on"); },
+    hide() { host.hidden = true; document.body.classList.remove("cq-on"); placeVideo(); },
   };
   loadAll();
 })();
