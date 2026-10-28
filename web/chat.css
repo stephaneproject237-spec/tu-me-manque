@@ -585,3 +585,10 @@ html.tmm-locked body > *:not(#tmm-lock) { visibility: hidden; }
 .ch-row.theirs .ch-prog { justify-content: flex-start; }
 .ch-prog b { flex: none; width: 160px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); overflow: hidden; }
 .ch-prog i { display: block; height: 100%; width: 2%; border-radius: 2px; background: #FF4F86; transition: width .2s; }
+/* Bot @recherche */
+.bt-card .ak-q { margin: 6px 0 4px; }
+.ak-a { font-size: 14px; line-height: 1.45; overflow: hidden; }
+.ak-a b { display: block; font-size: 16px; margin-bottom: 3px; }
+.ak-a img { float: right; width: 64px; height: 64px; object-fit: cover; border-radius: 12px; margin: 0 0 6px 10px; }
+.ak-src { display: block; margin-top: 8px; color: #9FC3FF; font-size: 12px; }
+.ak-src a { color: #9FC3FF; }

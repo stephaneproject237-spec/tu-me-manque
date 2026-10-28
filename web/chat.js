@@ -678,7 +678,7 @@
   function refreshBotRow(id) {
     const old = host.querySelector('.ch-row.botrow[data-id="' + id + '"]');
     const m = msgs.find((x) => x.id === id);
-    if (old && m) old.replaceWith(botRow(m));
+    if (old && m) old.replaceWith(rowEl(m));
   }
   // Ce que ce navigateur fait lui-même : musique libre (Audius) quand aucun Android ne répond.
   const botSeen = {};
@@ -688,7 +688,7 @@
   function refreshFor(id) {
     const x = msgs.find((y) => y.id === id), xb = botOf(x);
     if (!xb) return;
-    if (xb.t === "res" || xb.t === "dlreq") refreshBotRow(x.id); else if (xb.t === "pick" && xb.r) refreshBotRow(xb.r);
+    if (xb.t === "res" || xb.t === "dlreq" || xb.t === "spk") refreshBotRow(x.id); else if (xb.t === "sr") refreshBotRow(x.id); else if (xb.t === "pick" && xb.r) refreshBotRow(xb.r);
   }
   async function botScan() {
     const now = Date.now();
@@ -696,7 +696,7 @@
     for (const m of msgs) {
       const b = botOf(m);
       if (!b || m.pending || !m.id) continue;
-      if ((b.t === "pick" || b.t === "wait" || b.t === "fail") && b.r && !botSeen["r" + m.id]) { botSeen["r" + m.id] = 1; refreshFor(b.r); }
+      if ((b.t === "pick" || b.t === "wait" || b.t === "fail" || b.t === "sr" || b.t === "spk") && b.r && !botSeen["r" + m.id]) { botSeen["r" + m.id] = 1; refreshFor(b.r); }
       if (now - new Date(m.created_at).getTime() > 15 * 60000 || botDone[m.id]) continue;
       if (!botSeen[m.id]) botSeen[m.id] = now;
       if (b.t === "q" && m.sender_id === me && b.dev === "w") {
@@ -736,8 +736,161 @@
   }
   setInterval(() => { if (opened) botScan(); }, 5000);
 
+  // ---------- Bot @recherche : une question, la réponse trouvée en ligne, visible de tous ----------
+  const ASK = (() => {
+    const jsonp = (url) => new Promise((ok, ko) => {
+      const cb = "tmmAsk" + Date.now() + Math.floor(Math.random() * 1e4);
+      const s = document.createElement("script");
+      const t = setTimeout(() => { cleanup(); ko(new Error("timeout")); }, 9000);
+      const cleanup = () => { clearTimeout(t); delete window[cb]; s.remove(); };
+      window[cb] = (j) => { cleanup(); ok(j); };
+      s.onerror = () => { cleanup(); ko(new Error("réseau")); };
+      s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
+      document.head.appendChild(s);
+    });
+    const getJ = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
+    const QW = /^(dis[- ]moi|peux[- ]tu me dire|sais[- ]tu|est[- ]ce que|qu'?est[- ]ce que?|c'?est quoi|qui est|qui était|qui sont|qui a|quel(le)?s? (est|sont|était|étaient)|quel(le)?s?|combien (de|d')?|comment|pourquoi|où (est|se trouve|sont)?|quand (est|a|a eu lieu)?|explique[- ]moi|définition de|definition de|cherche|trouve)\s+/i;
+    function keywords(q) {
+      let s = q.trim().replace(/[?!. ]+$/, "");
+      for (let i = 0; i < 3; i++) s = s.replace(QW, "").trim();
+      s = s.replace(/^(le|la|les|l'|un|une|des|du|de la|de l')\s*/i, "");
+      return s || q;
+    }
+    function shorten(t, max) {
+      max = max || 460;
+      const s = String(t || "").replace(/\s+/g, " ").trim();
+      if (s.length <= max) return s;
+      const cut = s.slice(0, max), end = cut.lastIndexOf(". ");
+      return end > 120 ? cut.slice(0, end + 1) : cut.trim() + "…";
+    }
+    function calc(q) {
+      const e = q.toLowerCase().replace(/combien (font|fait)|calcule|=/g, "").replace(/×|x/g, "*").replace(/÷/g, "/").replace(/,/g, ".").trim().replace(/\?$/, "");
+      if (!/^[0-9+\-*/().%\s]+$/.test(e) || !/[0-9]/.test(e) || !/[+\-*/%]/.test(e)) return null;
+      let v;
+      try { v = Function('"use strict";return (' + e + ")")(); } catch (er) { return null; }
+      if (typeof v !== "number" || !isFinite(v)) return null;
+      return { ti: "Calcul", a: e + " = " + (Number.isInteger(v) ? v : +v.toFixed(6)).toLocaleString("fr-FR"), u: "", src: "Calcul", img: "", o: [] };
+    }
+    function clock(q) {
+      const l = q.toLowerCase(), now = new Date();
+      if (/quelle heure|l'heure qu'il est/.test(l)) return { ti: "Heure", a: "Il est " + now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + " (heure de ce téléphone).", u: "", src: "Horloge", img: "", o: [] };
+      if (/quel jour|quelle date|on est le combien|date d'aujourd'hui/.test(l)) return { ti: "Date", a: "Nous sommes le " + now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) + ".", u: "", src: "Calendrier", img: "", o: [] };
+      return null;
+    }
+    const WMO = { 0: "ciel dégagé", 1: "plutôt dégagé", 2: "partiellement nuageux", 3: "couvert", 45: "brouillard", 48: "brouillard givrant", 51: "bruine légère", 53: "bruine", 55: "forte bruine", 61: "pluie faible", 63: "pluie", 65: "forte pluie", 71: "neige faible", 73: "neige", 75: "forte neige", 80: "averses", 81: "averses", 82: "fortes averses", 95: "orages", 96: "orages avec grêle", 99: "orages avec grêle" };
+    async function weather(q) {
+      const m = /(?:à|a|au|aux|de|sur|pour|in)\s+([\p{L}' -]{2,40})\s*\??$/iu.exec(q.trim());
+      if (!m) return null;
+      const place = m[1].trim().replace(/^(la |le |les |l')/i, "");
+      const g = ((await getJ("https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name=" + encodeURIComponent(place))).results || [])[0];
+      if (!g) return null;
+      const f = await getJ("https://api.open-meteo.com/v1/forecast?latitude=" + g.latitude + "&longitude=" + g.longitude + "&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1");
+      const c = f.current, d = f.daily;
+      const rain = d.precipitation_probability_max && d.precipitation_probability_max[0];
+      return {
+        ti: "Météo à " + g.name + (g.country ? ", " + g.country : ""),
+        a: "Maintenant : " + Math.round(c.temperature_2m) + " °C, " + (WMO[c.weather_code] || "temps variable") + ", vent " + Math.round(c.wind_speed_10m) + " km/h. Aujourd'hui entre " +
+          Math.round(d.temperature_2m_min[0]) + " et " + Math.round(d.temperature_2m_max[0]) + " °C" + (rain != null ? ", risque de pluie " + rain + " %." : "."),
+        u: "https://open-meteo.com", src: "Open-Meteo", img: "", o: [],
+      };
+    }
+    const ddg = (q) => jsonp("https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&kl=fr-fr&q=" + encodeURIComponent(q));
+    async function ddgAnswer(q) {
+      const j = await ddg(q), a = String(j.Answer || "").trim();
+      if (!a || a[0] === "{") return null;
+      return { ti: j.Heading || "Réponse", a, u: j.AbstractURL || "", src: "DuckDuckGo", img: "", o: [] };
+    }
+    async function ddgAbstract(q) {
+      const j = await ddg(q), a = String(j.AbstractText || "").trim();
+      if (a.length < 30) return null;
+      const img = j.Image ? (j.Image[0] === "/" ? "https://duckduckgo.com" + j.Image : j.Image) : "";
+      return { ti: j.Heading || "", a: shorten(a), u: j.AbstractURL || "", src: j.AbstractSource || "DuckDuckGo", img, o: [] };
+    }
+    async function wikiQuery(lang, params) {
+      const j = await getJ("https://" + lang + ".wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&origin=*&prop=extracts|pageimages|info&exintro=1&explaintext=1&exsentences=4&piprop=thumbnail&pithumbsize=240&inprop=url&" + params);
+      return (j.query && j.query.pages) || [];
+    }
+    async function wiki(q, lang) {
+      const l = (await wikiQuery(lang, "generator=search&gsrlimit=5&gsrsearch=" + encodeURIComponent(q)))
+        .sort((a, b) => (a.index || 99) - (b.index || 99))
+        .filter((p) => (p.extract || "").length > 40 && !/peut désigner|may refer to/.test(p.extract));
+      const p = l[0];
+      if (!p) return null;
+      return { ti: p.title, a: shorten(p.extract), u: p.fullurl || "", src: lang === "fr" ? "Wikipédia" : "Wikipedia (en)", img: (p.thumbnail && p.thumbnail.source) || "", o: l.slice(1, 4).map((x) => ({ ti: x.title })) };
+    }
+    async function page(title) {
+      const p = (await wikiQuery("fr", "titles=" + encodeURIComponent(title)))[0];
+      if (!p || !p.extract) return wiki(title, "fr");
+      return { ti: p.title, a: shorten(p.extract), u: p.fullurl || "", src: "Wikipédia", img: (p.thumbnail && p.thumbnail.source) || "", o: [] };
+    }
+    const tryIt = async (f) => { try { return await f(); } catch (e) { return null; } };
+    async function search(q) {
+      q = String(q || "").trim();
+      if (!q) return null;
+      const c = calc(q) || clock(q); if (c) return c;
+      if (/m[ée]t[ée]o|quel temps|temp[ée]rature/i.test(q)) { const w = await tryIt(() => weather(q)); if (w) return w; }
+      const kw = keywords(q);
+      return (await tryIt(() => ddgAnswer(q))) || (await tryIt(() => wiki(kw, "fr"))) || (kw !== q ? await tryIt(() => wiki(q, "fr")) : null) ||
+        (await tryIt(() => ddgAbstract(kw))) || (await tryIt(() => wiki(kw, "en")));
+    }
+    return { search, page };
+  })();
+
+  const askBusy = {};
+  async function askScan() {
+    const now = Date.now();
+    for (const m of msgs) {
+      const b = botOf(m);
+      if (!b || m.pending || !m.id || (b.t !== "sq" && b.t !== "spk")) continue;
+      if (now - new Date(m.created_at).getTime() > 10 * 60000 || botDone["a" + m.id] || askBusy[m.id]) continue;
+      if (findBot("sr", m.id)) { markBot("a" + m.id); continue; }
+      if (m.sender_id !== me && now - new Date(m.created_at).getTime() < 20000) continue;
+      askBusy[m.id] = 1;
+      try {
+        const q = b.t === "sq" ? b.q : b.ti;
+        const a = b.t === "sq" ? await ASK.search(q) : await ASK.page(b.ti);
+        if (findBot("sr", m.id)) { markBot("a" + m.id); continue; }
+        if (!a) await sendBot("🔎 Je n'ai pas trouvé de réponse fiable à « " + q + " ». Essaie avec d'autres mots.", { t: "sr", r: m.id, q: String(q).slice(0, 120), none: true });
+        else {
+          const meta = { t: "sr", r: m.id, q: String(q).slice(0, 120), ti: String(a.ti || "").slice(0, 90), a: String(a.a || "").slice(0, 480), u: String(a.u || "").slice(0, 220), src: String(a.src || "").slice(0, 30), img: String(a.img || "").slice(0, 260), o: (a.o || []).slice(0, 3).map((x) => ({ ti: String(x.ti).slice(0, 70) })) };
+          await sendBot("🔎 " + (meta.ti ? meta.ti + " : " : "") + meta.a.slice(0, 300), meta);
+        }
+        markBot("a" + m.id);
+      } catch (e) { /* réessai au prochain passage */ } finally { delete askBusy[m.id]; }
+    }
+  }
+  setInterval(() => { if (opened) askScan(); }, 4000);
+
+  function askRow(m) {
+    const b = botOf(m), who = m.sender_id === me ? "Toi" : "@" + esc(partner);
+    let h = '<div class="bt-head"><i>🔎</i><b>@recherche</b></div>';
+    if (b.t === "spk") {
+      h += "<p>" + who + " a choisi : " + esc(b.ti || "") + "</p>" + (findBot("sr", m.id) ? "" : '<small class="bt-st">⏳ Recherche en cours…</small>');
+    } else if (b.none) {
+      h += '<p><small>« ' + esc(b.q || "") + " »</small></p><p>" + esc((m.body || "").replace(/^🔎 /, "")) + "</p>";
+    } else {
+      h += '<p class="ak-q"><small>« ' + esc(b.q || "") + " »</small></p>" +
+        '<div class="ak-a">' + (b.img ? '<img src="' + esc(b.img) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : "") +
+        (b.ti ? "<b>" + esc(b.ti) + "</b>" : "") + "<span>" + esc(b.a || "") + "</span></div>" +
+        '<small class="ak-src">Source : ' + esc(b.src || "web") + (b.u ? ' · <a href="' + esc(b.u) + '" target="_blank" rel="noopener noreferrer">ouvrir ↗</a>' : "") + "</small>";
+      if (b.o && b.o.length) {
+        h += '<small class="bt-st">Ce n\'est pas ça ? Autres pistes :</small><div class="gm-opts">' + b.o.map((o, k) => {
+          const taken = msgs.some((x) => { const xb = botOf(x); return xb && xb.t === "spk" && xb.r === m.id && xb.k === k; });
+          return '<button type="button" class="gm-opt bt-opt' + (taken ? " sel" : "") + '"' + (taken || !m.id ? " disabled" : "") + ' data-c="askpick" data-r="' + m.id + '" data-k="' + k + '"><i>' + "ABC"[k] + "</i><span><b>" + esc(o.ti) + "</b></span></button>";
+        }).join("") + "</div>";
+      }
+    }
+    const row = document.createElement("div");
+    row.className = "ch-row botrow" + (m.pending ? " pending" : "");
+    row.dataset.day = dayKey(m.created_at);
+    if (m.pending) row.dataset.tmp = m.tmp; else row.dataset.id = m.id;
+    row.innerHTML = '<div class="bt-card">' + h + "</div>";
+    return row;
+  }
+
   function rowEl(m) {
-    if (botOf(m) && botOf(m).t !== "q" && !m.deleted_at) return botRow(m);
+    if (botOf(m) && (botOf(m).t === "sr" || botOf(m).t === "spk") && !m.deleted_at) return askRow(m);
+    if (botOf(m) && botOf(m).t !== "q" && botOf(m).t !== "sq" && !m.deleted_at) return botRow(m);
     if (m.kind === "game" && window.TMM_GAMES) {
       return window.TMM_GAMES.row(m, { me, partner, msgs: () => msgs, dayKey, hhmm });
     }
@@ -1278,6 +1431,14 @@
     if (!text) return;
     inp.value = "";
     onInput();
+    // Bot @recherche : la question part dans le chat, un téléphone cherche la réponse en ligne.
+    if (/^@recherche\b/i.test(text)) {
+      const q = text.replace(/^@recherche/i, "").trim();
+      if (!q) { toast("Écris ta question après @recherche."); inp.value = "@recherche "; onInput(); return; }
+      sendBot("@recherche " + q, { t: "sq", q: q.slice(0, 200) });
+      setTimeout(askScan, 600);
+      return;
+    }
     // Bot @music : on ouvre sa boîte de dialogue au lieu d'envoyer le message.
     if (/^@music\b/i.test(text)) {
       const q = text.replace(/^@music/i, "").trim();
@@ -1728,6 +1889,12 @@
         const res = msgs.find((x) => String(x.id) === t.dataset.r), k = Number(t.dataset.k), f = t.dataset.f;
         const rb = botOf(res), o = rb && (rb.o || [])[k];
         if (o && !findBot("pick", res.id)) { sendBot("🎵 Choix : " + o.ti + (f === "v" ? " (vidéo)" : " (audio)"), { t: "pick", r: res.id, k, f, dev: "w" }); t.closest(".gm-opts").querySelectorAll("button").forEach((x) => { x.disabled = true; }); }
+        break;
+      }
+      case "askpick": {
+        if (t.disabled) break;
+        const res = msgs.find((x) => String(x.id) === t.dataset.r), rb = botOf(res), k = Number(t.dataset.k), o = rb && (rb.o || [])[k];
+        if (o) { t.disabled = true; t.classList.add("sel"); sendBot("🔎 Voir plutôt : " + o.ti, { t: "spk", r: res.id, k, ti: o.ti }); setTimeout(askScan, 600); }
         break;
       }
       case "botreply": { const inp = $("ch-input"); inp.value = "@music "; onInput(); inp.focus(); break; }
