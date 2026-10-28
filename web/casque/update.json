@@ -1,7 +1,7 @@
 {
  "version": "web 1.4",
- "notes": "Création du compte au démarrage puis directement la musique ; téléchargements demandés depuis un iPhone.",
- "versionCode": 30,
- "versionName": "1.30",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-30/casque.apk"
+ "notes": "Verre liquide amélioré, les listes défilent sous les barres.",
+ "versionCode": 31,
+ "versionName": "1.31",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-31/casque.apk"
 }
