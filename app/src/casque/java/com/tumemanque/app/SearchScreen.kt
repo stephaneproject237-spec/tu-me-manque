@@ -274,7 +274,7 @@ fun SearchScreen() {
                 item(key = "formats") {
                     FormatsPanel(selected) { kind ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Dl.enqueue(ctx, selected, kind)
+                        Sub.download(ctx, scope) { Dl.enqueue(ctx, selected, kind) }
                     }
                 }
                 val others = results.filter { it.id != selected.id }

@@ -68,7 +68,13 @@ fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, on
         }
         // Fenêtre flottante d'Android : on ne montre que la vidéo (le reste de l'écran reste en mémoire).
         if (Vp.inPip) PipScreen()
+        else {
+            // Abonnement : rappel avant la fin, écran de paiement quand l'essai ou l'abonnement est terminé.
+            if (Sub.paywall == null) SubReminder()
+            Paywall()
+        }
     }
+    LaunchedEffect(Unit) { while (true) { Sub.refresh(); kotlinx.coroutines.delay(10 * 60_000L) } }
 }
 
 @Composable
