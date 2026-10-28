@@ -1,7 +1,7 @@
 {
  "version": "web 1.5",
- "notes": "En-tête plus transparent : on voit la liste passer dessous.",
- "versionCode": 32,
- "versionName": "1.32",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-32/casque.apk"
+ "notes": "Plusieurs tailles de téléchargement, lecture continue des vidéos, bulle vidéo repoussable à gauche. Karaoké retiré.",
+ "versionCode": 38,
+ "versionName": "1.38",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-38/casque.apk"
 }
