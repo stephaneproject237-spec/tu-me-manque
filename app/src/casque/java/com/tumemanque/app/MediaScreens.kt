@@ -138,7 +138,7 @@ private fun DownloadRow(t: DlTask) {
                     RoundBtn(Ic.More, { menu = true }, size = 34.dp, iconSize = 18.dp, fill = Color.Transparent, tint = P.sub)
                     DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
                         DropdownMenuItem(text = { Text(if (t.kind.video) "Regarder" else "Écouter", color = P.text) }, onClick = { menu = false; openResult(ctx, t) })
-                        DropdownMenuItem(text = { Text("Envoyer hors de Casque…", color = P.text) }, onClick = {
+                        DropdownMenuItem(text = { Text("Envoyer hors de Free tune…", color = P.text) }, onClick = {
                             menu = false
                             t.resultId?.let { if (t.kind.video) Share.videos(ctx, listOf(it)) else Share.tracks(ctx, listOf(it)) }
                         })
@@ -304,7 +304,7 @@ private fun VideoTile(v: VideoItem, selected: Boolean, selecting: Boolean, onCli
                 DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
                     DropdownMenuItem(text = { Text("Regarder", color = P.text) }, onClick = { menu = false; onClick() })
                     DropdownMenuItem(text = { Text("Sélectionner", color = P.text) }, onClick = { menu = false; onLong() })
-                    DropdownMenuItem(text = { Text("Envoyer hors de Casque…", color = P.text) }, onClick = { menu = false; Share.videos(ctx, listOf(v.id)) })
+                    DropdownMenuItem(text = { Text("Envoyer hors de Free tune…", color = P.text) }, onClick = { menu = false; Share.videos(ctx, listOf(v.id)) })
                     DropdownMenuItem(text = { Text("Supprimer", color = P.danger) }, onClick = { menu = false; onDelete() })
                 }
             }

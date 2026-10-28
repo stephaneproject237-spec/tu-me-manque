@@ -305,7 +305,7 @@ object Dl {
                 val saved = Store.save(app, media, title, artist, video = false)
                 resultId = saved.first
                 Covers.fetch(app, t0.video, resultId, square = true)
-                Lib.addTrack(Track(resultId, title, artist, "Casque", dur, saved.second, 0L, System.currentTimeMillis(), size))
+                Lib.addTrack(Track(resultId, title, artist, "Free tune", dur, saved.second, 0L, System.currentTimeMillis(), size))
             } else {
                 val saved = Store.save(app, media, t0.video.title, t0.video.channel, video = true)
                 resultId = saved.first
@@ -567,7 +567,7 @@ class DownloadService : Service() {
             .setSilent(true)
             .setContentIntent(openApp())
         if (t == null) {
-            b.setContentTitle("Casque").setContentText("Préparation du téléchargement…").setProgress(0, 0, true)
+            b.setContentTitle("Free tune").setContentText("Préparation du téléchargement…").setProgress(0, 0, true)
         } else {
             val pct = (t.progress * 100).toInt()
             b.setContentTitle(t.video.title)
