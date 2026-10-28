@@ -127,9 +127,45 @@ object Vp {
     var aspect by mutableFloatStateOf(16f / 9f)
         private set
     private var localId: String? = null
+    /** La petite fenêtre a été poussée vers la gauche : on ne la voit plus, mais le son continue. */
+    var miniHidden by mutableStateOf(false)
+    /** Lecture continue : à la fin d'une vidéo YouTube, une autre du même thème démarre. */
+    var autoplay by mutableStateOf(false)
+        private set
+    /** Vidéos proposées juste avant (résultats de la recherche) : la suivante part en premier. */
+    var queue: List<YtVideo> = emptyList()
+    private val played = LinkedHashSet<String>()
+    private var appCtx: Context? = null
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    /** Une vidéo YouTube (et non un fichier téléchargé) est chargée. */
+    val isYt: Boolean get() = key != null && localId == null
+
+    fun setAutoplay(ctx: Context, on: Boolean) {
+        autoplay = on
+        ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).edit().putBoolean("autoplay", on).apply()
+    }
+
+    /** Lance la vidéo suivante du même thème (la suivante des résultats, sinon une recherche sur le titre). */
+    private fun playNextRelated() {
+        val ctx = appCtx ?: return
+        val cur = lastYt ?: return
+        scope.launch {
+            played.add(cur.id)
+            var n = queue.dropWhile { it.id != cur.id }.drop(1).firstOrNull { it.id !in played }
+                ?: queue.firstOrNull { it.id !in played }
+            if (n == null) {
+                val found = runCatching { Yt.search(cur.title, 12) }.getOrDefault(emptyList())
+                queue = (queue + found).distinctBy { it.id }
+                n = found.firstOrNull { it.id !in played }
+            }
+            if (n != null && key == cur.id) playYt(ctx, n, auto = true)
+        }
+    }
 
     fun player(ctx: Context): ExoPlayer {
         exo?.let { return it }
+        appCtx = ctx.applicationContext
+        autoplay = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).getBoolean("autoplay", false)
         val p = ExoPlayer.Builder(ctx.applicationContext)
             .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).setUsage(C.USAGE_MEDIA).build(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -142,7 +178,7 @@ object Vp {
             override fun onPlaybackStateChanged(state: Int) {
                 loading = state == Player.STATE_BUFFERING
                 ended = state == Player.STATE_ENDED
-                if (state == Player.STATE_ENDED) saveLocal()
+                if (state == Player.STATE_ENDED) { saveLocal(); if (autoplay && isYt) playNextRelated() }
             }
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
@@ -175,9 +211,12 @@ object Vp {
     }
 
     /** Lit une vidéo YouTube (sans la télécharger). */
-    suspend fun playYt(ctx: Context, v: YtVideo) {
+    suspend fun playYt(ctx: Context, v: YtVideo, auto: Boolean = false) {
         val p = player(ctx)
         saveLocal()
+        if (!auto) played.clear()
+        played.add(v.id)
+        miniHidden = false
         localId = null
         lastYt = v
         key = v.id; title = v.title; error = null; errorDetail = ""; ended = false; loading = true
@@ -216,6 +255,7 @@ object Vp {
         val p = player(ctx)
         saveLocal()
         localId = item.id
+        miniHidden = false
         key = item.id; title = item.video.title; error = null; ended = false
         Hub.player.pause()
         p.setMediaItem(MediaItem.fromUri(item.id), Vids.position(item.id))
@@ -252,7 +292,7 @@ object Vp {
         saveLocal()
         exo?.stop(); exo?.clearMediaItems()
         key = null; localId = null; playing = false; loading = false; error = null
-        fullscreen = false; mini = false
+        fullscreen = false; mini = false; miniHidden = false
     }
 }
 
@@ -341,6 +381,10 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 Text(fmt(dur), color = Color(0xCCFFFFFF), fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 val act = LocalContext.current.activity()
+                if (Vp.isYt) {
+                    val c = LocalContext.current
+                    RoundBtn(Ic.Repeat, { Vp.setAutoplay(c, !Vp.autoplay); touch = System.currentTimeMillis() }, size = 36.dp, iconSize = 20.dp, fill = Color.Transparent, tint = if (Vp.autoplay) P.blueSoft else Color.White)
+                }
                 if (act != null && Pip.supported(act)) {
                     RoundBtn(Ic.Pip, { Pip.enter(act) }, size = 36.dp, iconSize = 20.dp, fill = Color.Transparent, tint = Color.White)
                 }
@@ -400,18 +444,34 @@ fun BoxScope.MiniVideo(bottom: Dp) {
     var off by remember { mutableStateOf(Offset.Zero) }
     var showCtl by remember { mutableStateOf(true) }
     LaunchedEffect(showCtl, Vp.playing) { if (showCtl && Vp.playing) { delay(2500); showCtl = false } }
+    if (Vp.miniHidden) {
+        // Poussée vers la gauche : la vidéo n'est plus visible, le son continue. Une languette permet de la rappeler.
+        Box(Modifier.matchParentSize()) {
+            Box(
+                Modifier.align(Alignment.BottomStart).padding(bottom = bottom + 8.dp)
+                    .clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
+                    .background(Color(0xCC1C1C22))
+                    .clickable { Vp.miniHidden = false; off = Offset.Zero }
+                    .padding(horizontal = 6.dp, vertical = 12.dp),
+            ) { CIcon(Ic.Pip, Color.White, 18.dp) }
+        }
+        return
+    }
     BoxWithConstraints(Modifier.matchParentSize()) {
         val w = 210.dp
         val h = (w / Vp.aspect.coerceIn(0.56f, 2.4f)).coerceAtMost(300.dp)
         val maxX = with(density) { (maxWidth - w - 24.dp).toPx() }.coerceAtLeast(0f)
         val maxY = with(density) { (maxHeight - h - bottom - 60.dp).toPx() }.coerceAtLeast(0f)
+        val extra = with(density) { (w * 0.7f).toPx() }
         Box(
             Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = bottom)
                 .offset { IntOffset(off.x.roundToInt(), off.y.roundToInt()) }
-                .pointerInput(maxX, maxY) {
-                    detectDragGestures { change, drag ->
+                .pointerInput(maxX, maxY, extra) {
+                    detectDragGestures(
+                        onDragEnd = { if (off.x < -maxX - extra * 0.35f) Vp.miniHidden = true else off = Offset(off.x.coerceAtLeast(-maxX), off.y) },
+                    ) { change, drag ->
                         change.consume()
-                        off = Offset((off.x + drag.x).coerceIn(-maxX, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
+                        off = Offset((off.x + drag.x).coerceIn(-maxX - extra, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
                     }
                 }
                 .size(w, h)

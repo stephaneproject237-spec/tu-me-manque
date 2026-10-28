@@ -1,6 +1,6 @@
 {
-  "name": "Casque",
-  "short_name": "Casque",
+  "name": "Free tune",
+  "short_name": "Free tune",
   "description": "Lecteur audio et messagerie entre amis.",
   "lang": "fr",
   "start_url": "./",

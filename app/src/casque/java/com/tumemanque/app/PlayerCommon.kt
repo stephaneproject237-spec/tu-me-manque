@@ -180,10 +180,6 @@ fun TrackMenu(
             item("Ajouter à la file d'attente") { Hub.enqueue(listOf(t)) }
             item("Ajouter à une playlist…") { onAddToPlaylist() }
             item("Envoyer hors de Free tune…") { Share.tracks(ctx, listOf(t.id)) }
-            item("Paroles (karaoké)") {
-                if (Hub.currentId != t.id) { Hub.playNext(t); Hub.next(); if (!Hub.playing) Hub.toggle() }
-                Shell.lyrics = true; Shell.tab = "audios"; Shell.openNow++
-            }
             item(if (fav) "Retirer des favoris" else "Ajouter aux favoris") { Lib.toggleFav(t.id) }
             extra.forEach { (l, f) -> item(l, f) }
             item("Informations") { onInfo() }

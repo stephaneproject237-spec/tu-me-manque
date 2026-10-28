@@ -227,13 +227,6 @@ body.cq-on{overflow:hidden}
 #player .ib.sm2{width:28px;height:28px;color:var(--sub)}#player .ib.sm2 svg{width:18px;height:18px}
 #player .sh.l{justify-content:flex-start;gap:4px}
 #player .cpill svg{width:15px;height:15px;vertical-align:-2px}
-/* Paroles karaoké */
-#player .lyr{margin:4px 18px 10px;height:min(78vw,340px);overflow-y:auto;-webkit-overflow-scrolling:touch;flex:none;border-radius:22px;padding:40% 14px;
-  background:rgba(255,255,255,.04);-webkit-mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
-#player .lyr.plain{padding:20px 16px;font-size:16px;line-height:1.6;color:var(--tx);-webkit-mask-image:none;mask-image:none}
-#player .lyr p{margin:0 0 14px;font-size:21px;font-weight:700;line-height:1.3;color:rgba(234,240,250,.32);transition:color .25s,transform .25s;transform-origin:left center}
-#player .lyr p.on{color:#fff;transform:scale(1.04)}
-#player .lyr .note,#player .lyr .spin{margin:0 auto;text-align:center;font-size:14px;font-weight:400;color:var(--sub)}
 /* Lecteur vidéo : dans la carte, en bulle flottante, en plein écran */
 #cq-video{position:fixed;z-index:6;background:#000;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
 #cq-video[hidden]{display:none}
@@ -288,3 +281,12 @@ body.cq-on{overflow:hidden}
 #player .thi.ok{opacity:1}#player .thi.gone{display:none}
 #player .rth>.vd,#player .dth>span,#player .pslot>.gplay,#player .pslot>.vd{z-index:2}
 #player .pslot>.gplay{position:relative}
+
+/* Bulle vidéo poussée à gauche : languette pour la rappeler */
+#cq-video.mini.away{transition:transform .22s ease;pointer-events:none}
+#cq-vtab{position:fixed;left:0;z-index:9;width:24px;height:54px;border:0;border-radius:0 14px 14px 0;background:rgba(28,28,34,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+#cq-vtab[hidden]{display:none}
+#cq-vtab::before{content:"";width:6px;height:6px;border-top:2px solid #fff;border-right:2px solid #fff;transform:rotate(45deg);margin-left:-3px}
+#cq-video .vb-bar button.on{background:rgba(10,132,255,.55)}
+#player .pc .cpill.auto{margin-top:8px}
+#player .pc .cpill.on{background:rgba(10,132,255,.35);color:#fff}

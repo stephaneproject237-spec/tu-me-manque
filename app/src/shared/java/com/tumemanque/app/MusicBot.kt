@@ -157,14 +157,20 @@ object MbEngine {
         }.sortedByDescending { score(q, it) }
     }
 
+    /** Formats proposés : audio « al » (léger), « a » (standard), « ah » (haute qualité) ; vidéo « vl » (360p), « v » (480p), « vh » (720p). */
+    fun audioKbps(f: String) = when (f) { "al" -> 96; "ah" -> 320; else -> 192 }
+    fun videoHeight(f: String) = when (f) { "vl" -> 360; "vh" -> 720; else -> 480 }
+    /** Taille estimée (octets) d'un format pour une durée en secondes. */
+    fun estimate(f: String, sec: Int): Long = if (sec <= 0) 0 else if (f.startsWith("v")) sec * when (f) { "vl" -> 70_000L; "vh" -> 220_000L; else -> 110_000L } else sec * audioKbps(f) * 125L
+
     /** Télécharge la chanson en MP3. */
-    suspend fun download(ctx: Context, s: MbSong, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
+    suspend fun download(ctx: Context, s: MbSong, kbps: Int = 192, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         ensure(ctx)
         val dir = File(ctx.cacheDir, "cam/music/${s.id}").apply { deleteRecursively(); mkdirs() }
         val req = YoutubeDLRequest(s.url)
             .addOption("--no-playlist").addOption("--no-mtime").addOption("--newline").addOption("--no-warnings")
             .addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
-            .addOption("-x").addOption("--audio-format", "mp3").addOption("--audio-quality", "192K")
+            .addOption("-x").addOption("--audio-format", "mp3").addOption("--audio-quality", "${kbps}K")
             .addOption("--embed-metadata")
             .addOption("-o", File(dir, "song.%(ext)s").absolutePath)
         YoutubeDL.getInstance().execute(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) }
@@ -176,19 +182,25 @@ object MbEngine {
     }
 
     /** Télécharge la vidéo en MP4 (480p max, sous 48 Mo pour pouvoir l'envoyer dans le chat). */
-    suspend fun downloadVideo(ctx: Context, s: MbSong, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
+    suspend fun downloadVideo(ctx: Context, s: MbSong, height: Int = 480, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         ensure(ctx)
         val dir = File(ctx.cacheDir, "cam/video/${s.id}").apply { deleteRecursively(); mkdirs() }
-        val req = YoutubeDLRequest(s.url)
-            .addOption("--no-playlist").addOption("--no-mtime").addOption("--newline").addOption("--no-warnings")
-            .addOption("-f", "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b")
-            .addOption("-S", "res:480,vcodec:h264,acodec:m4a,ext:mp4:m4a")
-            .addOption("--merge-output-format", "mp4")
-            .addOption("--max-filesize", "48M")
-            .addOption("-o", File(dir, "video.%(ext)s").absolutePath)
-        YoutubeDL.getInstance().execute(req, "botv${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) }
-        val f = dir.listFiles()?.filter { it.extension.equals("mp4", true) }?.maxByOrNull { it.length() }
-            ?: throw Exception("Vidéo trop lourde ou introuvable")
+        // Trop lourde pour le chat (48 Mo) : on retente automatiquement dans une qualité plus basse.
+        var f: File? = null
+        for (h in listOf(720, 480, 360).filter { it <= height }.ifEmpty { listOf(360) }) {
+            dir.listFiles()?.forEach { it.delete() }
+            val req = YoutubeDLRequest(s.url)
+                .addOption("--no-playlist").addOption("--no-mtime").addOption("--newline").addOption("--no-warnings")
+                .addOption("-f", "bv*[height<=$h]+ba/b[height<=$h]/bv*+ba/b")
+                .addOption("-S", "res:$h,vcodec:h264,acodec:m4a,ext:mp4:m4a")
+                .addOption("--merge-output-format", "mp4")
+                .addOption("--max-filesize", "48M")
+                .addOption("-o", File(dir, "video.%(ext)s").absolutePath)
+            runCatching { YoutubeDL.getInstance().execute(req, "botv${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }
+            f = dir.listFiles()?.filter { it.extension.equals("mp4", true) }?.maxByOrNull { it.length() }
+            if (f != null) break
+        }
+        f = f ?: throw Exception("Vidéo trop lourde ou introuvable")
         val nice = File(dir, safeName(s.title) + ".mp4")
         f.renameTo(nice)
         nice
@@ -569,7 +581,7 @@ private fun BotBtn(label: String, modifier: Modifier, main: Boolean = false, onC
             .background(if (main) Brush.linearGradient(listOf(BPink, Color(0xFFD81B60))) else Brush.linearGradient(listOf(Color(0x1FFFFFFF), Color(0x1FFFFFFF))))
             .clickable { onClick() }.padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+    ) { Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
 }
 
 // =============================================================================================
@@ -594,10 +606,10 @@ object ChatBot {
     fun ask() = send?.invoke("🎵 @music : quelle chanson voulez-vous ? Répondez « @music artiste titre ».", JSONObject().put("t", "ask"))
     fun query(q: String) = send?.invoke("@music $q", JSONObject().put("t", "q").put("q", q).put("dev", "a"))
 
-    /** f = "a" (audio) ou "v" (vidéo). */
+    /** f = "al" / "a" / "ah" (audio : léger, standard, haute qualité) ou "vl" / "v" / "vh" (vidéo : 360p, 480p, 720p). */
     fun pick(res: ChatMsg, k: Int, f: String = "a") {
         val o = bot(res)?.optJSONArray("o")?.optJSONObject(k) ?: return
-        send?.invoke("🎵 Choix : ${o.optString("ti")}" + if (f == "v") " (vidéo)" else " (audio)", JSONObject().put("t", "pick").put("r", res.id).put("k", k).put("f", f).put("dev", "a"))
+        send?.invoke("🎵 Choix : ${o.optString("ti")}" + (if (f.startsWith("v")) " (vidéo ${MbEngine.videoHeight(f)}p)" else " (audio ${MbEngine.audioKbps(f)} kbit/s)"), JSONObject().put("t", "pick").put("r", res.id).put("k", k).put("f", f).put("dev", "a"))
     }
 
     /** Ce téléphone Android fait le travail (recherche, téléchargement) quand c'est son tour. */
@@ -640,8 +652,9 @@ object ChatBot {
                     if (msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id }) { markDone(ctx, m.id); continue }
                     val o = rb.optJSONArray("o")?.optJSONObject(b.optInt("k")) ?: continue
                     val song = MbSong(o.optString("id"), o.optString("ti"), o.optString("ch"), o.optInt("d"), 0)
-                    val video = b.optString("f") == "v" && src != "au"
-                    fetchAndSend(ctx, scope, m.id, song, video, if (src == "au") o.optString("u") else null, o.optString("art"))
+                    val fm = b.optString("f").ifEmpty { "a" }
+                    val video = fm.startsWith("v") && src != "au"
+                    fetchAndSend(ctx, scope, m.id, song, video, fm, if (src == "au") o.optString("u") else null, o.optString("art"))
                 }
                 // Demande venue d'un iPhone (qui ne peut pas télécharger) : le téléphone Android de l'ami s'en charge.
                 "dlreq" -> {
@@ -652,14 +665,15 @@ object ChatBot {
                     val q = b.optString("q")
                     if (id.isEmpty() && q.isEmpty() && b.optString("u").isEmpty()) { markDone(ctx, m.id); continue }
                     val song = MbSong(id, b.optString("ti").ifEmpty { q.ifEmpty { "Chanson" } }, b.optString("ch"), b.optInt("d"), 0)
-                    val video = b.optString("f") == "v" && b.optString("u").isEmpty()
-                    fetchAndSend(ctx, scope, m.id, song, video, b.optString("u").ifEmpty { null }, b.optString("art"), if (id.isEmpty()) q.ifEmpty { null } else null)
+                    val fm = b.optString("f").ifEmpty { "a" }
+                    val video = fm.startsWith("v") && b.optString("u").isEmpty()
+                    fetchAndSend(ctx, scope, m.id, song, video, fm, b.optString("u").ifEmpty { null }, b.optString("art"), if (id.isEmpty()) q.ifEmpty { null } else null)
                 }
             }
         }
     }
 
-    private fun fetchAndSend(ctx: Context, scope: CoroutineScope, ref: Long, song0: MbSong, video: Boolean, url: String?, art: String, search: String? = null) {
+    private fun fetchAndSend(ctx: Context, scope: CoroutineScope, ref: Long, song0: MbSong, video: Boolean, fm: String, url: String?, art: String, search: String? = null) {
         busy.add(ref)
         send?.invoke("⏳ Téléchargement ${if (video) "de la vidéo" else "de la chanson"} « ${song0.title} »…", JSONObject().put("t", "wait").put("r", ref))
         scope.launch {
@@ -668,11 +682,11 @@ object ChatBot {
                 // Demande sans identifiant YouTube (recherche faite sur iPhone ailleurs) : on prend le meilleur résultat.
                 if (search != null) song = MbEngine.search(ctx, search).firstOrNull() ?: throw Exception("rien")
                 if (video) {
-                    val f = MbEngine.downloadVideo(ctx, song) { }
+                    val f = MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fm)) { }
                     val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp4").also { f.copyTo(it, overwrite = true) }
                     sendVideo?.invoke(keep, song, ref)
                 } else {
-                    val f = if (url != null) httpSong(ctx, url, song) else MbEngine.download(ctx, song) { }
+                    val f = if (url != null) httpSong(ctx, url, song) else MbEngine.download(ctx, song, MbEngine.audioKbps(fm)) { }
                     val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp3").also { f.copyTo(it, overwrite = true) }
                     sendSong?.invoke(keep, if (url != null && art.isNotEmpty()) song.copy(id = art) else song, ref)
                 }
@@ -756,9 +770,21 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
                             }
                             // Audio ou vidéo ?
                             if (choosing == k && pick == null) {
-                                Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    BotBtn("🎵 Audio", Modifier.weight(1f), main = true) { choosing = -1; ChatBot.pick(m, k, "a") }
-                                    BotBtn("🎬 Vidéo", Modifier.weight(1f), main = true) { choosing = -1; ChatBot.pick(m, k, "v") }
+                                val sec = o.optInt("d")
+                                fun lab(n: String, f: String): String { val e = MbEngine.estimate(f, sec); return if (e > 0) "$n\n≈ ${fmtMo(e)}" else n }
+                                Column(Modifier.fillMaxWidth().padding(start = 34.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("🎵 Audio", color = BSoft, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        BotBtn(lab("Léger", "al"), Modifier.weight(1f)) { choosing = -1; ChatBot.pick(m, k, "al") }
+                                        BotBtn(lab("Standard", "a"), Modifier.weight(1f), main = true) { choosing = -1; ChatBot.pick(m, k, "a") }
+                                        BotBtn(lab("Haute", "ah"), Modifier.weight(1f)) { choosing = -1; ChatBot.pick(m, k, "ah") }
+                                    }
+                                    Text("🎬 Vidéo", color = BSoft, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        BotBtn(lab("360p", "vl"), Modifier.weight(1f)) { choosing = -1; ChatBot.pick(m, k, "vl") }
+                                        BotBtn(lab("480p", "v"), Modifier.weight(1f), main = true) { choosing = -1; ChatBot.pick(m, k, "v") }
+                                        BotBtn(lab("720p", "vh"), Modifier.weight(1f)) { choosing = -1; ChatBot.pick(m, k, "vh") }
+                                    }
                                 }
                             }
                         }
@@ -766,8 +792,8 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         when {
-                            pick == null -> if (audioOnly) "Touchez une proposition pour la télécharger." else "Touchez une proposition, puis choisissez audio ou vidéo."
-                            song != null -> if (chosenFmt == "v") "✓ Vidéo envoyée dans la conversation, juste en dessous." else "✓ Chanson envoyée dans la conversation, juste en dessous."
+                            pick == null -> if (audioOnly) "Touchez une proposition pour la télécharger." else "Touchez une proposition, puis choisissez audio ou vidéo et la taille."
+                            song != null -> if (chosenFmt.startsWith("v")) "✓ Vidéo envoyée dans la conversation, juste en dessous." else "✓ Chanson envoyée dans la conversation, juste en dessous."
                             failed -> "⚠️ Le téléchargement a échoué. Redemandez avec @music."
                             else -> "⏳ Téléchargement en cours…"
                         },
@@ -777,7 +803,7 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
                 "dlreq" -> {
                     val got = msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id }
                     val failed = msgs.any { ChatBot.bot(it)?.let { x -> x.optString("t") == "fail" && x.optLong("r") == m.id } == true }
-                    Text("${who} demande ${if (b.optString("f") == "v") "la vidéo" else "la chanson"} « ${b.optString("ti")} »", color = BTxt, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${who} demande ${if (b.optString("f").startsWith("v")) "la vidéo" else "la chanson"} « ${b.optString("ti")} »", color = BTxt, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         when {
@@ -795,3 +821,6 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
         }
     }
 }
+
+/** Taille en Mo, lisible (« 3,4 Mo »). */
+internal fun fmtMo(b: Long): String = if (b < 1_048_576) "${b / 1024} Ko" else "%.1f Mo".format(b / 1_048_576.0).replace('.', ',')

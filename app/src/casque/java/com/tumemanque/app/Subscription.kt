@@ -206,7 +206,7 @@ fun Paywall() {
                 Spacer(Modifier.height(10.dp))
                 listOf(
                     "Téléchargements illimités, en audio et en vidéo",
-                    "Lecture hors connexion, playlists, paroles karaoké",
+                    "Lecture hors connexion, playlists",
                     "Valable 30 jours sur ton compte (Android et iPhone)",
                     "Sans renouvellement automatique : tu paies quand tu veux",
                 ).forEach { t ->

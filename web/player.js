@@ -48,7 +48,7 @@
   // ---------- État ----------
   const L = { tracks: [], playlists: [], favs: new Set(), ready: false, error: null };
   const U = { tab: "titres", q: "", sort: "titre", sel: null, selDirs: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "",
-    sec: lsGet("casque_sec") || "audio", miniHide: false, lyr: false, sr: { q: "", items: [], loading: false, src: "" } };
+    sec: lsGet("casque_sec") || "audio", miniHide: false, sr: { q: "", items: [], loading: false, src: "" } };
   try { const o = JSON.parse(lsGet("casque_sr") || "null"); if (o && o.items) U.sr = Object.assign(U.sr, o, { loading: false }); } catch (e) { /* ignoré */ }
   // Demandes de téléchargement envoyées à un ami Android : {mid, ti, ch, th, f, fr, at, st, p, tid}
   let DL = []; try { DL = JSON.parse(lsGet("casque_dlreqs") || "[]") || []; } catch (e) { DL = []; }
@@ -83,7 +83,6 @@
     }
     L.ready = true;
     draw();
-    setTimeout(artQueue, 2500);
     pollSoon(2000);
     setTimeout(() => { if (U.sec === "search") loadPartner(); }, 1500);
   }
@@ -200,7 +199,6 @@
       } catch (e) { toast("Espace insuffisant sur le téléphone."); break; }
     }
     U.importing = null;
-    setTimeout(artQueue, 800);
     toast(added + " titre" + (added > 1 ? "s" : "") + " ajouté" + (added > 1 ? "s" : "") + (dup ? " · " + dup + " déjà présent" + (dup > 1 ? "s" : "") : ""));
     draw();
   }
@@ -312,7 +310,9 @@
       navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album, artwork: art });
     } catch (e) { /* ignoré */ }
   }
-  if ("mediaSession" in navigator) {
+  // Boutons de l'écran verrouillé et du centre de contrôle : lecture, pause, précédent, suivant.
+  function audioHandlers() {
+    if (!("mediaSession" in navigator)) return;
     const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* ignoré */ } };
     set("play", () => audio.play().catch(() => {}));
     set("pause", () => audio.pause());
@@ -321,7 +321,9 @@
     set("seekto", (d) => { audio.currentTime = d.seekTime; });
     set("seekbackward", () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
     set("seekforward", () => { audio.currentTime = audio.currentTime + 10; });
+    try { navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing"; } catch (e) { /* ignoré */ }
   }
+  audioHandlers();
 
   // ---------- Mises à jour légères de l'affichage ----------
   function tick() {
@@ -333,7 +335,6 @@
     if (b) b.textContent = fmt(d);
     if (s && !seeking) { s.value = p * 10; s.style.setProperty("--p", p + "%"); }
     if (m) m.style.width = p + "%";
-    lyricsTick();
     try { if ("mediaSession" in navigator && d) navigator.mediaSession.setPositionState({ duration: d, playbackRate: audio.playbackRate, position: Math.min(audio.currentTime, d) }); } catch (e) { /* ignoré */ }
   }
   function refreshPlayState() {
@@ -470,18 +471,17 @@
   function npView() {
     const t = cur();
     if (!t) return "";
-    if (U.lyr && LY.id !== t.id) setTimeout(() => loadLyrics(cur()), 0);
     const d = isFinite(audio.duration) ? audio.duration : t.dur;
     const p = d ? (audio.currentTime / d) * 100 : 0;
     const u = coverUrl(t);
     return '<div class="cqnp"><header class="top"><button class="ib" data-a="npclose">' + I.down + '</button><h1 class="c">Lecture en cours</h1><button class="ib" data-a="queue">' + I.list + "</button></header>" +
-      (U.lyr ? lyricsHtml() : '<div class="deck"><div class="vinyl' + (audio.paused ? "" : " on") + '"><div class="grooves"></div><div class="lab" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I.note) + '</div><div class="hole"></div></div>' +
+      ('<div class="deck"><div class="vinyl' + (audio.paused ? "" : " on") + '"><div class="grooves"></div><div class="lab" style="' + (u ? "background-image:url(" + u + ")" : "") + '">' + (u ? "" : I.note) + '</div><div class="hole"></div></div>' +
       '<div class="arm' + (audio.paused ? "" : " on") + '"><i></i></div></div>') +
       '<div class="ti"><div><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + " · " + esc(t.album) + '</small></div><button class="ib" data-a="fav" data-id="' + t.id + '">' + (L.favs.has(t.id) ? '<span class="fvo">' + I.star + "</span>" : I.starO) + "</button></div>" +
       '<input id="np-seek" class="seek" type="range" min="0" max="1000" value="' + p * 10 + '" style="--p:' + p + '%"><div class="tt"><span id="np-cur">' + fmt(audio.currentTime) + '</span><span id="np-tot">' + fmt(d) + "</span></div>" +
       '<div class="ctl"><button class="ib' + (Q.shuffle ? " act" : "") + '" data-a="shuf">' + I.shuffle + '</button><button class="ib big" data-a="prev">' + I.prev + '</button><button class="ib pp big" data-a="pp" data-pp>' + (audio.paused ? I.play : I.pause) +
       '</button><button class="ib big" data-a="next">' + I.next + '</button><button class="ib' + (Q.repeat !== "off" ? " act" : "") + '" data-a="rep">' + (Q.repeat === "one" ? I.repeat1 : I.repeat) + "</button></div>" +
-      '<div class="opt"><button class="cpill" data-a="speed">' + Q.speed + '×</button><button class="cpill' + (Q.sleepAt ? " on" : "") + '" data-a="sleep">' + I.moon + (Q.sleepAt ? " " + Math.max(1, Math.round((Q.sleepAt - Date.now()) / 60000)) + " min" : " Minuterie") + '</button><button class="cpill" data-a="addpl" data-id="' + t.id + '">' + I.plus + " Playlist</button><button class=\"cpill" + (U.lyr ? " on" : "") + '" data-a="lyr">' + I2.mic + " Paroles</button></div></div>";
+      '<div class="opt"><button class="cpill" data-a="speed">' + Q.speed + '×</button><button class="cpill' + (Q.sleepAt ? " on" : "") + '" data-a="sleep">' + I.moon + (Q.sleepAt ? " " + Math.max(1, Math.round((Q.sleepAt - Date.now()) / 60000)) + " min" : " Minuterie") + '</button><button class="cpill" data-a="addpl" data-id="' + t.id + '">' + I.plus + " Playlist</button></div></div>";
   }
   function settingsView() {
     const size = L.tracks.reduce((s, t) => s + t.size, 0);
@@ -566,7 +566,6 @@
     if (nm) { nm.focus(); nm.select(); }
     bindSeek();
     bindMini();
-    lyrOn = -1; lyricsTick();
     placeVideo();
   }
   // L'en-tête devient plus opaque dès que le contenu passe dessous.
@@ -806,104 +805,18 @@
     return t;
   }
 
-  // ---------- Pochettes automatiques (iTunes) ----------
-  const cleanTitle = (s) => String(s || "").replace(/\((official|officiel|clip|lyrics?|audio|video|vidéo|visualizer|paroles)[^)]*\)|\[[^\]]*\]/gi, "").replace(/\s+(ft|feat)\.?\s.*$/i, "").replace(/\s+/g, " ").trim();
-  function guess(t) {
-    let ti = cleanTitle(t.title), ar = t.artist === "Artiste inconnu" ? "" : t.artist;
-    const m = /^(.+?)\s+[-–]\s+(.+)$/.exec(ti);
-    if (m && (!ar || /topic|vevo|records|music/i.test(ar))) { ar = m[1]; ti = m[2]; }
-    return { ti, ar: String(ar || "").replace(/\s*-\s*topic$/i, "").replace(/vevo$/i, "").trim() };
-  }
-  let artBusy = false, artCount = 0;
-  async function artQueue() {
-    if (artBusy || !navigator.onLine) return;
-    artBusy = true;
-    try {
-      for (const t of L.tracks) {
-        if (artCount > 40) break;
-        if (t.cover || t.art || t.artTried) continue;
-        artCount++;
-        t.artTried = true;
-        const g = guess(t);
-        try {
-          const r = await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + encodeURIComponent((g.ar + " " + g.ti).trim()));
-          const j = await r.json();
-          const x = j && j.results && j.results[0];
-          if (x && x.artworkUrl100) { t.art = x.artworkUrl100.replace("100x100", "600x600"); if (x.trackTimeMillis && !t.dur) t.dur = x.trackTimeMillis / 1000; draw(); }
-        } catch (e) { /* hors ligne */ }
-        putTrack(t);
-        await new Promise((ok) => setTimeout(ok, 350));
-      }
-    } finally { artBusy = false; }
-  }
-
-  // ---------- Paroles karaoké (LRCLIB) ----------
-  const LY = { id: null, lines: null, plain: "", st: "" };
-  function parseLrc(txt) {
-    const out = [];
-    String(txt || "").split(/\r?\n/).forEach((l) => {
-      const re = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
-      let m, last = 0;
-      const ts = [];
-      while ((m = re.exec(l))) { ts.push(parseInt(m[1], 10) * 60 + parseFloat(m[2])); last = re.lastIndex; }
-      const text = l.slice(last).trim();
-      ts.forEach((x) => out.push({ t: x, s: text }));
-    });
-    return out.sort((a, b) => a.t - b.t);
-  }
-  async function loadLyrics(t) {
-    if (!t || LY.id === t.id) return;
-    LY.id = t.id; LY.lines = null; LY.plain = ""; LY.st = "load";
-    if (t.lrc != null) { LY.lines = t.lrc ? parseLrc(t.lrc) : null; LY.plain = t.lrcPlain || ""; LY.st = LY.lines || LY.plain ? "ok" : "none"; draw(); return; }
-    draw();
-    const g = guess(t);
-    const d = Math.round(t.dur || audio.duration || 0);
-    let j = null;
-    try {
-      const r = await fetch("https://lrclib.net/api/get?track_name=" + encodeURIComponent(g.ti) + "&artist_name=" + encodeURIComponent(g.ar) + (d ? "&duration=" + d : ""));
-      if (r.ok) j = await r.json();
-      if (!j || (!j.syncedLyrics && !j.plainLyrics)) {
-        const r2 = await fetch("https://lrclib.net/api/search?q=" + encodeURIComponent((g.ar + " " + g.ti).trim()));
-        const l = r2.ok ? await r2.json() : [];
-        j = (l || []).find((x) => x.syncedLyrics && (!d || Math.abs((x.duration || 0) - d) < 8)) || (l || []).find((x) => x.syncedLyrics) || (l || [])[0] || null;
-      }
-    } catch (e) { if (LY.id === t.id) { LY.st = "off"; draw(); } return; }
-    t.lrc = (j && j.syncedLyrics) || "";
-    t.lrcPlain = (j && j.plainLyrics) || "";
-    putTrack(t);
-    if (LY.id !== t.id) return;
-    LY.lines = t.lrc ? parseLrc(t.lrc) : null; LY.plain = t.lrcPlain; LY.st = LY.lines || LY.plain ? "ok" : "none";
-    draw();
-  }
-  function lyricsHtml() {
-    if (LY.st === "load") return '<div class="lyr"><div class="spin"></div></div>';
-    if (LY.st === "off") return '<div class="lyr"><p class="note">Paroles indisponibles hors connexion.</p></div>';
-    if (LY.lines && LY.lines.length) return '<div class="lyr" id="lyr">' + LY.lines.map((l, i) => '<p data-i="' + i + '">' + (esc(l.s) || "♪") + "</p>").join("") + "</div>";
-    if (LY.plain) return '<div class="lyr plain">' + esc(LY.plain).replace(/\n/g, "<br>") + "</div>";
-    return '<div class="lyr"><p class="note">Aucune parole trouvée pour ce titre.</p></div>';
-  }
-  let lyrOn = -1;
-  function lyricsTick() {
-    if (!U.np || !U.lyr || !LY.lines) return;
-    const box = host.querySelector("#lyr");
-    if (!box) return;
-    const now = audio.currentTime + 0.25;
-    let i = -1;
-    for (let k = 0; k < LY.lines.length; k++) { if (LY.lines[k].t <= now) i = k; else break; }
-    if (i === lyrOn && box.querySelector("p.on")) return;
-    lyrOn = i;
-    box.querySelectorAll("p.on").forEach((e) => e.classList.remove("on"));
-    const el = i >= 0 ? box.querySelector('p[data-i="' + i + '"]') : null;
-    if (el) { el.classList.add("on"); box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" }); }
-  }
-
   // ---------- Lecteur vidéo unique : dans la page Rechercher, en bulle flottante, ou en plein écran ----------
   // L'élément reste le même (la vidéo ne s'arrête pas) : on le déplace seulement à l'écran.
   const vbox = document.createElement("div");
   vbox.id = "cq-video";
   vbox.hidden = true;
   document.body.appendChild(vbox);
-  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0 };
+  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0, hid: false, auto: lsGet("casque_auto") === "1", played: [] };
+  // Languette sur le bord gauche : la bulle poussée à gauche est cachée, le son continue.
+  const vtab = document.createElement("button");
+  vtab.id = "cq-vtab"; vtab.hidden = true; vtab.setAttribute("aria-label", "Rappeler la vidéo");
+  document.body.appendChild(vtab);
+  vtab.addEventListener("click", () => { V.hid = false; V.dx = 0; placeVideo(); });
   const PIPED = ["https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee"];
   const INV = ["https://inv.nadeko.net", "https://invidious.nerdvpn.de", "https://yewtu.be", "https://invidious.privacyredirect.com"];
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
@@ -929,14 +842,15 @@
     vbox.innerHTML = '<div class="vb-media">' + inner + "</div>" +
       '<div class="vb-ctl"><button data-v="close" class="tl" aria-label="Fermer">' + I.close + '</button><button data-v="full" class="tr" aria-label="Plein écran">' + I2.full + "</button>" +
       '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button></div>" +
-      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>";
+      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>";
     vbox.hidden = false;
   }
   async function playYt(o) {
     if (V.key === "yt:" + o.id) { V.full = false; placeVideo(); return; }
     stopVideo();
     audio.pause();
-    V.key = "yt:" + o.id; V.yid = o.id; V.title = o.ti; V.full = false;
+    V.key = "yt:" + o.id; V.yid = o.id; V.title = o.ti; V.full = false; V.hid = false;
+    if (V.played.indexOf(o.id) < 0) V.played.push(o.id);
     videoShell('<div class="vb-load"><div class="spin"></div></div>');
     placeVideo();
     let url = null;
@@ -959,7 +873,7 @@
   function playFile(t) {
     stopVideo();
     audio.pause();
-    V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = true;
+    V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = true; V.hid = false;
     videoShell('<video playsinline controls autoplay autopictureinpicture></video>');
     V.el = vbox.querySelector("video");
     bindVideoEl();
@@ -977,18 +891,44 @@
     const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
     v.addEventListener("play", () => { audio.pause(); upd(); bgPrime(); videoSession(); });
     v.addEventListener("pause", upd);
+    v.addEventListener("ended", () => { if (V.auto && V.yid) nextRelated(false); });
+  }
+  // Vidéo suivante du même thème : la suivante des résultats, sinon une recherche sur le titre.
+  let relBusy = false;
+  async function nextRelated(manual) {
+    if (relBusy || !V.yid) return;
+    relBusy = true;
+    try {
+      const cur = V.yid, title = V.title;
+      const idx = SR.items.findIndex((x) => x.id === cur);
+      let n = SR.items.slice(idx + 1).find((x) => x.src === "yt" && V.played.indexOf(x.id) < 0) || SR.items.find((x) => x.src === "yt" && V.played.indexOf(x.id) < 0);
+      if (!n) {
+        const l = await ytSearch(title).catch(() => []);
+        n = l.find((x) => V.played.indexOf(x.id) < 0 && x.id !== cur);
+        if (n) { SR.items = SR.items.concat([n]); }
+      }
+      if (!n) { if (manual) toast("Pas d'autre vidéo trouvée."); return; }
+      SR.sel = n.id; saveSr();
+      const wasFull = V.full;
+      await playYt(n);
+      V.full = wasFull; placeVideo();
+      if (U.sec === "search") draw();
+    } finally { relBusy = false; }
   }
   function stopVideo() {
     bgOn = false; try { bgA.pause(); bgA.removeAttribute("src"); } catch (e) { /* ignoré */ }
     if (V.el) { try { V.el.pause(); V.el.removeAttribute("src"); V.el.load(); } catch (e) { /* ignoré */ } }
     if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
-    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0;
+    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0; V.hid = false;
     vbox.innerHTML = ""; vbox.hidden = true; vbox.className = ""; vbox.removeAttribute("style");
+    vtab.hidden = true;
+    audioHandlers();
   }
   // Où afficher la vidéo : en plein écran, dans la carte de la page Rechercher, sinon en bulle flottante.
   function placeVideo() {
-    if (!V.key) { vbox.hidden = true; return; }
+    if (!V.key) { vbox.hidden = true; vtab.hidden = true; return; }
     vbox.hidden = host.hidden;
+    vtab.hidden = true;
     const ifr = vbox.classList.contains("ifr");
     vbox.className = ifr ? "ifr" : "";
     vbox.removeAttribute("style");
@@ -1008,7 +948,10 @@
     }
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
-    vbox.style.cssText = "bottom:calc(" + (92 + miniUp) + "px + env(safe-area-inset-bottom));transform:translate(" + V.dx + "px," + V.dy + "px)";
+    const bot = "calc(" + (92 + miniUp) + "px + env(safe-area-inset-bottom))";
+    vtab.hidden = !V.hid || host.hidden;
+    if (V.hid) { vtab.style.bottom = "calc(" + (100 + miniUp) + "px + env(safe-area-inset-bottom))"; vbox.classList.add("away"); }
+    vbox.style.cssText = "bottom:" + bot + ";transform:translate(" + (V.hid ? -(window.innerWidth + 20) : V.dx) + "px," + V.dy + "px)";
   }
   window.addEventListener("resize", () => placeVideo());
   host.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("list") && V.key) placeVideo(); }, true);
@@ -1022,7 +965,14 @@
     else if (k === "full") { V.full = true; vbox.classList.remove("ctl"); placeVideo(); }
     else if (k === "pp" && v) { if (v.paused) v.play().catch(() => {}); else v.pause(); }
     else if (k === "pip") pip(true);
+    else if (k === "auto") toggleAuto();
   });
+  function toggleAuto() {
+    V.auto = !V.auto; lsSet("casque_auto", V.auto ? "1" : "0");
+    vbox.querySelectorAll('[data-v="auto"]').forEach((b) => b.classList.toggle("on", V.auto));
+    toast(V.auto ? "Lecture continue activée : une vidéo du même thème suivra." : "Lecture continue désactivée.");
+    host.querySelectorAll('[data-a="yauto"]').forEach((b) => b.classList.toggle("on", V.auto));
+  }
   function pip(ask) {
     const v = V.el;
     if (!v) { if (ask) toast("Touche le bouton plein écran de la vidéo YouTube, puis l'icône « image dans l'image »."); return false; }
@@ -1041,6 +991,7 @@
   bgA.setAttribute("playsinline", "");
   bgA.preload = "auto";
   let bgOn = false;
+  bgA.addEventListener("ended", () => { if (bgOn && V.auto && V.yid) nextRelated(false); });
   function bgPrime() {
     // Appelé pendant le geste qui lance la vidéo : l'iPhone autorise ensuite ce lecteur à jouer en arrière-plan.
     const v = V.el;
@@ -1060,6 +1011,12 @@
       const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* ignoré */ } };
       set("play", () => (bgOn ? bgA : V.el) && (bgOn ? bgA : V.el).play().catch(() => {}));
       set("pause", () => { if (bgOn) bgA.pause(); else if (V.el) V.el.pause(); });
+      set("previoustrack", () => { if (bgOn) bgA.currentTime = 0; else if (V.el) V.el.currentTime = 0; });
+      set("nexttrack", V.yid ? () => nextRelated(true) : null);
+      set("seekto", (d) => { if (bgOn) bgA.currentTime = d.seekTime; else if (V.el) V.el.currentTime = d.seekTime; });
+      set("seekbackward", () => { const e = bgOn ? bgA : V.el; if (e) e.currentTime = Math.max(0, e.currentTime - 10); });
+      set("seekforward", () => { const e = bgOn ? bgA : V.el; if (e) e.currentTime = e.currentTime + 10; });
+      navigator.mediaSession.playbackState = "playing";
     } catch (e) { /* ignoré */ }
   }
   function toBackground() {
@@ -1098,13 +1055,16 @@
   vbox.addEventListener("touchmove", (e) => {
     if (!drag || !drag.mini) return;
     const t = e.touches[0];
-    V.dx = Math.min(0, Math.max(-(window.innerWidth - 230), t.clientX - drag.x));
+    V.dx = Math.min(0, Math.max(-(window.innerWidth - 230) - 150, t.clientX - drag.x));
     V.dy = Math.min(0, Math.max(-(window.innerHeight - 340), t.clientY - drag.y));
     drag.moved = true;
     vbox.style.transform = "translate(" + V.dx + "px," + V.dy + "px)";
   }, { passive: true });
   vbox.addEventListener("touchend", (e) => {
     if (drag && !drag.mini && e.changedTouches[0].clientY - drag.y0 > 60) { V.full = false; placeVideo(); }
+    // Poussée au-delà du bord gauche : la bulle se cache, le son continue.
+    else if (drag && drag.mini && drag.moved && V.dx < -(window.innerWidth - 230) - 60) { V.hid = true; placeVideo(); }
+    else if (drag && drag.mini && V.dx < -(window.innerWidth - 230)) { V.dx = -(window.innerWidth - 230); placeVideo(); }
     drag = null;
   }, { passive: true });
 
@@ -1213,7 +1173,7 @@
     const old = dlFor(o, f);
     if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
     if (old) DL = DL.filter((d) => d !== old);
-    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Ouvre cette conversation sur ton Android.";
+    const body = "📥 @music : peux-tu télécharger " + (isV(f) ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Ouvre cette conversation sur ton Android.";
     const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
     const d = { mid: 0, app: "tmm", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: TP.p.username, at: Date.now(), st: "sending", p: 0 };
     DL.unshift(d); draw();
@@ -1285,7 +1245,7 @@
     });
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pollSoon(500); });
-  window.addEventListener("online", () => { pollSoon(500); artQueue(); });
+  window.addEventListener("online", () => { pollSoon(500); });
 
   // ---------- Partager / enregistrer un titre hors de l'appli ----------
   let shareBlob = null;
@@ -1362,8 +1322,8 @@
       }).join("") + "</div></main>";
   }
   function dlStatus(d) {
-    const kind = d.f === "v" ? "MP4" : "MP3";
-    if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (d.f === "v" ? "Vidéos" : "Audios");
+    const kind = isV(d.f) ? "MP4" : "MP3";
+    if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
     if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;
     if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
     if (d.st === "wait") return kind + " · téléchargement sur le téléphone de @" + d.fr + "…";
@@ -1377,7 +1337,7 @@
       : d.st === "fail" ? '<button class="ib rb bl" data-a="dlretry" data-id="' + d.mid + '" aria-label="Réessayer">' + I2.refresh + '</button><button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.close + "</button>"
         : ok ? '<button class="ib rb fill" data-a="dlopen" data-id="' + d.tid + '" aria-label="Lire">' + I.play + '</button><button class="ib rb t" data-a="dlmenu" data-id="' + d.tid + '">' + I.more + "</button>"
           : '<button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.trash + "</button>";
-    return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth">' + thumbImg({ th: d.th, yid: d.yid, ti: d.ti, ch: d.ch }) + '<span class="' + (d.f === "v" ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
+    return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth">' + thumbImg({ th: d.th, yid: d.yid, ti: d.ti, ch: d.ch }) + '<span class="' + (isV(d.f) ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
       '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small></div>" + btn + "</div>" +
       (act ? '<div class="dbar' + (d.st === "recv" && d.p ? "" : " ind") + '"><i style="width:' + (d.st === "recv" ? Math.round((d.p || 0) * 100) : 30) + '%"></i></div>' : "") + "</div>";
   }
@@ -1390,16 +1350,22 @@
     if (done.length) body += '<p class="sec2">TERMINÉS</p>' + done.map(dlRow).join("");
     return big("Téléchargements", done.length ? '<button class="chip" data-a="dlclear">Effacer</button>' : "") + '<main class="list">' + body + "</main>";
   }
+  // Formats : audio « al » léger, « a » standard, « ah » haute qualité ; vidéo « vl » 360p, « v » 480p, « vh » 720p.
+  const isV = (f) => String(f || "").charAt(0) === "v";
+  const FMT = {
+    al: ["MP3 léger", "96 kbit/s · prend peu de place", 12000], a: ["MP3", "Bonne qualité · 192 kbit/s", 24000], ah: ["MP3 haute qualité", "320 kbit/s", 40000],
+    vl: ["MP4 360p", "Petit fichier, idéal hors connexion", 70000], v: ["MP4 480p", "Qualité moyenne", 110000], vh: ["MP4 720p", "HD · plus lourd", 220000],
+  };
   function fmtRow(o, f) {
     const d = dlFor(o, f);
     const act = d && ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0;
     const done = d && d.st === "done" && d.tid && byId(d.tid);
-    const sz = o.d ? "≈ " + ((o.d * (f === "v" ? 110000 : 24000)) / 1048576).toFixed(1) + " Mo" : "";
-    const sub = !d ? (f === "v" ? "Petit fichier, idéal hors connexion" : "Bonne qualité · 192 kbit/s") : done ? (f === "v" ? "Téléchargé · dans Vidéos" : "Téléchargé · dans Audios") : d.st === "fail" ? "Échec · touche pour réessayer" : dlStatus(d).replace(/^MP[34] · /, "");
+    const sz = o.d ? "≈ " + ((o.d * FMT[f][2]) / 1048576).toFixed(1) + " Mo" : "";
+    const sub = !d ? FMT[f][1] : done ? (isV(f) ? "Téléchargé · dans Vidéos" : "Téléchargé · dans Audios") : d.st === "fail" ? "Échec · touche pour réessayer" : dlStatus(d).replace(/^MP[34] · /, "");
     const right = act ? '<span class="ring' + (d.st === "recv" && d.p ? "" : " ind") + '" style="--p:' + Math.round((d.p || 0) * 100) + '"><i></i></span>'
       : done ? '<span class="okb">' + I.play + "</span>" : '<span class="dlb">' + I2.dl + "</span>";
-    return '<div class="fr" data-a="yget" data-id="' + f + '"><span class="fi' + (f === "v" ? " v" : "") + '">' + (f === "v" ? I2.film : I.note) + "</span>" +
-      '<div class="tm"><b>' + (f === "v" ? "MP4 480p" : "MP3") + (sz ? " <em>" + sz + "</em>" : "") + '</b><small class="' + (done ? "done" : d && d.st === "fail" ? "fail" : "") + '">' + esc(sub) + "</small></div>" + right + "</div>";
+    return '<div class="fr" data-a="yget" data-id="' + f + '"><span class="fi' + (isV(f) ? " v" : "") + '">' + (isV(f) ? I2.film : I.note) + "</span>" +
+      '<div class="tm"><b>' + FMT[f][0] + (sz ? " <em>" + sz + "</em>" : "") + '</b><small class="' + (done ? "done" : d && d.st === "fail" ? "fail" : "") + '">' + esc(sub) + "</small></div>" + right + "</div>";
   }
   function searchView() {
     const q = SR.q || "";
@@ -1422,11 +1388,12 @@
         const playing = V.yid === sel.id;
         body += '<div class="pc"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
-          "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>";
+          "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
+          (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
         body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
           (TP.st === "none" ? '<p class="note">Pour télécharger depuis l\'iPhone, ton pseudo doit être lié à un partenaire qui a <b>Tu me manques sur Android</b> : son téléphone télécharge pour toi et le fichier arrive ici tout seul.</p>'
             : (TP.st === "ok" ? '<p class="via">Fait par le téléphone Android de @' + esc(TP.p.username) + " (Tu me manques)</p>" : "") +
-              '<p class="fk">AUDIO</p>' + fmtRow(sel, "a") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "v")) + "</div>";
+              '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh")) + "</div>";
         const others = SR.items.filter((x) => x !== sel);
         if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map((o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
@@ -1463,6 +1430,7 @@
       case "dlrm": DL = DL.filter((d) => String(d.mid) !== String(id)); saveDl(); draw(); return true;
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
+      case "yauto": toggleAuto(); return true;
       case "yplay": {
         const o = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
         if (!o) return true;
@@ -1491,7 +1459,6 @@
       case "yclear": { SR.q = ""; SR.sug = []; SR.focus = true; draw(); const i = host.querySelector("#ysq"); if (i) i.focus(); return true; }
       case "yhclear": hist = []; lsSet("casque_hist", "[]"); draw(); return true;
       case "lplay": { const ids = [id]; playList(ids, 0); return true; }
-      case "lyr": U.lyr = !U.lyr; if (U.lyr) { LY.id = null; loadLyrics(cur()); } draw(); return true;
       default: return false;
     }
   }

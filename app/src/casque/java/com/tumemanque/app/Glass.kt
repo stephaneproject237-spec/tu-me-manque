@@ -190,8 +190,6 @@ object Shell {
     var openNow by mutableIntStateOf(0)
     /** Mini-lecteur glissé vers le bas (il revient quand on relance un audio). */
     var miniHidden by mutableStateOf(false)
-    /** Paroles en mode karaoké ouvertes. */
-    var lyrics by mutableStateOf(false)
 }
 
 private data class TabDef(val key: String, val label: String, val icon: ImageVector)
@@ -206,9 +204,7 @@ private val TABS_MAIN = listOf(
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
     remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); true }
-    // Pochettes manquantes : on les cherche en arrière-plan.
     val allTracks by Lib.tracks.collectAsState()
-    LaunchedEffect(allTracks.size) { delay(1500); Artwork.fill(ctx, allTracks) }
     val haze = remember { HazeState() }
     val byId by Lib.byId.collectAsState()
     val current = Hub.currentId?.let { byId[it] }

@@ -139,6 +139,9 @@ fun SearchScreen() {
         delay(220)
         suggestions = Yt.suggest(query)
     }
+    // Lecture continue : la vidéo suivante est la suivante des résultats ; l'écran suit quand elle change.
+    LaunchedEffect(resultsJson) { if (results.isNotEmpty()) Vp.queue = results }
+    LaunchedEffect(Vp.key) { Vp.key?.let { k -> if (results.any { it.id == k }) selectedId = k } }
     // On prépare le lecteur et les tailles des formats dès qu'une vidéo est choisie.
     LaunchedEffect(selected?.id) { selected?.let { v -> runCatching { Yt.info(v.id) } } }
 
