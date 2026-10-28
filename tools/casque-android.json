@@ -1,6 +1,6 @@
 {
- "versionCode": 31,
- "versionName": "1.31",
- "notes": "Verre liquide amélioré, les listes défilent sous les barres.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-31/casque.apk"
+ "versionCode": 32,
+ "versionName": "1.32",
+ "notes": "En-tête plus transparent : on voit la liste passer dessous.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-32/casque.apk"
 }
