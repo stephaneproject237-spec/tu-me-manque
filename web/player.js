@@ -536,12 +536,13 @@
     const keepScroll = host.querySelector(".list");
     const sc = keepScroll ? keepScroll.scrollTop : 0;
     const fid = document.activeElement && document.activeElement.id;
-    const focusQ = fid === "q" || fid === "ysq";
+    const focusQ = fid === "q" || fid === "ysq" || fid === "pwphone";
     const caret = focusQ ? document.activeElement.selectionStart : 0;
     let h;
     if (!L.ready) h = '<div class="empty"><div class="spin"></div></div>';
     else if (U.view === "settings") h = settingsView();
-    else h = (U.sec === "video" ? videoView() : U.sec === "dl" ? dlView() : U.sec === "search" ? searchView() : libView()) + (U.np ? npView() : U.miniHide ? "" : miniView()) + dockView();
+    else h = (U.sec === "video" ? videoView() : U.sec === "dl" ? dlView() : U.sec === "search" ? searchView() : libView()) + (U.np ? npView() : U.miniHide ? "" : miniView()) + dockView() + subReminder();
+    if (L.ready) h += paywallView();
     h += (U.importing ? '<div class="imp"><div class="spin"></div><p>Ajout de la musique…</p><small>' + U.importing.i + " / " + U.importing.n + " · " + esc(U.importing.name) + "</small></div>" : "") +
       sheetView() + (U.toast ? '<div class="toast">' + esc(U.toast) + "</div>" : "") + (L.error ? '<div class="toast">' + esc(L.error) + "</div>" : "");
     host.innerHTML = h;
@@ -728,6 +729,11 @@
   host.addEventListener("click", (ev) => { if (lpDone) { ev.stopPropagation(); ev.preventDefault(); lpDone = false; } }, true);
   host.addEventListener("input", (ev) => {
     if (ev.target.id === "q") { U.q = ev.target.value; draw(); }
+    else if (ev.target.id === "pwphone") {
+      ev.target.value = ev.target.value.replace(/\D/g, "").slice(0, 9);
+      SUB.phone = ev.target.value;
+      const op = host.querySelector("#pwop"); if (op) op.textContent = opOf(SUB.phone);
+    }
     else if (ev.target.id === "ysq") {
       U.sr.q = ev.target.value; U.sr.focus = true;
       if (U.sr.q.trim() && U.sr.q.trim() !== U.sr.done) { suggest(U.sr.q); drawSug(); }
@@ -1212,6 +1218,7 @@
     if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Relie d'abord ton pseudo à un partenaire Android dans Tu me manques."); draw(); return; } }
     const old = dlFor(o, f);
     if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
+    if (!(await useDownload())) return;
     if (old) DL = DL.filter((d) => d !== old);
     const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Free tune ? Ouvre cette conversation sur ton Android.";
     const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
@@ -1446,8 +1453,83 @@
     return null;
   }
   // Actions propres à ces écrans (renvoie true si l'action est traitée).
+  // ---------- Abonnement Free tune : essai 24 h / 3 téléchargements, puis 500 FCFA / mois (Orange Money, MTN MoMo) ----------
+  const SUB = { state: null, paidUntil: null, trialLeft: 3, paywall: null, step: "form", msg: "", ussd: "", ref: null, phone: "", hideRem: false };
+  const iso = (s) => { const t = s ? Date.parse(s) : NaN; return isNaN(t) ? null : t; };
+  const frDate = (t) => (t ? new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "");
+  async function subRefresh() {
+    const A = API();
+    if (!A || !A.casque.ready || !A.casque.ready()) return;
+    let j = null;
+    try { j = await A.authed("POST", "/rest/v1/rpc/sub_status", {}); } catch (e) { return; } // pas encore installé : rien n'est bloqué
+    if (!j || j.status !== "ok") return;
+    SUB.state = j.state; SUB.paidUntil = iso(j.paid_until); SUB.trialLeft = j.trial_left == null ? 3 : j.trial_left;
+    if (SUB.state === "expired" && !SUB.paywall) { SUB.paywall = SUB.trialLeft <= 0 && !SUB.paidUntil ? "dl" : "expired"; SUB.step = "form"; }
+    draw();
+  }
+  setInterval(subRefresh, 10 * 60000);
+  setInterval(() => { if (SUB.state === null && !host.hidden) subRefresh(); }, 15000);
+  async function useDownload() {
+    const A = API();
+    let j = null;
+    try { j = await A.authed("POST", "/rest/v1/rpc/use_download", {}); } catch (e) { return true; }
+    if (j && j.status === "pay") { SUB.state = "expired"; SUB.paywall = "dl"; SUB.step = "form"; draw(); return false; }
+    if (j && j.status === "ok" && j.state === "trial") {
+      SUB.trialLeft = j.trial_left || 0;
+      toast(SUB.trialLeft > 0 ? "Essai gratuit : encore " + SUB.trialLeft + " téléchargement(s)" : "C'était ton dernier téléchargement gratuit");
+    }
+    return true;
+  }
+  const opOf = (d) => (/^6(7\d|5[0-4]|8[0-4])/.test(d) ? "MTN Mobile Money" : /^6(9\d|5[5-9]|8[5-9])/.test(d) ? "Orange Money" : "");
+  async function subPay() {
+    const d = SUB.phone;
+    if (!/^6\d{8}$/.test(d)) { SUB.step = "fail"; SUB.msg = "Numéro invalide : 9 chiffres, commençant par 6."; draw(); return; }
+    SUB.step = "wait"; SUB.msg = ""; draw();
+    let j = null;
+    try { j = await API().authed("POST", "/functions/v1/abonnement", { action: "pay", phone: d }); } catch (e) { j = { status: "error", message: "" }; }
+    if (j && j.status === "pending") { SUB.ussd = j.ussd_code || ""; SUB.ref = j.reference; draw(); subPoll(j.reference, 0); }
+    else { SUB.step = "fail"; SUB.msg = j && j.status === "bad_phone" ? "Numéro invalide : 9 chiffres, commençant par 6." : "Paiement impossible pour le moment. " + String((j && j.message) || "").slice(0, 120); draw(); }
+  }
+  async function subPoll(ref, n) {
+    if (SUB.ref !== ref) return;
+    if (n >= 45) { SUB.step = "fail"; SUB.msg = "Pas de confirmation reçue. Si tu as été débité, ton abonnement s'activera dans quelques minutes."; SUB.ref = null; draw(); return; }
+    await new Promise((ok) => setTimeout(ok, 4000));
+    let j = null;
+    try { j = await API().authed("POST", "/functions/v1/abonnement", { action: "check", reference: ref }); } catch (e) { j = null; }
+    const st = j && j.status;
+    if (st === "successful") { SUB.ref = null; await subRefresh(); SUB.step = "ok"; draw(); return; }
+    if (st === "failed") { SUB.ref = null; SUB.step = "fail"; SUB.msg = "Le paiement a été refusé ou annulé. Vérifie ton solde et réessaie."; draw(); return; }
+    subPoll(ref, n + 1);
+  }
+  function subReminder() {
+    if (SUB.state !== "active" || !SUB.paidUntil || SUB.hideRem || SUB.paywall) return "";
+    if (SUB.paidUntil - Date.now() > 3 * 86400000) return "";
+    return '<div class="subrem" data-a="pw_open"><div><b>Ton abonnement se termine le ' + esc(frDate(SUB.paidUntil)) + "</b><small>Touche ici pour le renouveler (500 FCFA / mois)</small></div>" +
+      '<button class="ib" data-a="pw_hide" aria-label="Fermer">' + I.close + "</button></div>";
+  }
+  function paywallView() {
+    if (!SUB.paywall) return "";
+    const blocking = SUB.state === "expired" && SUB.step !== "ok";
+    const why = SUB.paywall === "dl" ? "Tu as utilisé tes 3 téléchargements gratuits." : SUB.paywall === "expired" ? (SUB.paidUntil ? "Ton abonnement est terminé." : "Ton essai gratuit est terminé.") : "Continue à profiter de Free tune.";
+    let act = "";
+    if (SUB.step === "wait") act = '<div class="pw-box"><div class="spin"></div><b>Confirme le paiement sur ton téléphone</b><small>Une demande de 500 FCFA arrive sur ton téléphone : valide-la avec ton code secret.' + (SUB.ussd ? "<br>Si rien n'apparaît, compose " + esc(SUB.ussd) + "." : "") + "</small></div>";
+    else if (SUB.step === "ok") act = '<div class="pw-box ok"><i>' + I.check + "</i><b>Merci ! Ton abonnement est actif</b><small>jusqu'au " + esc(frDate(SUB.paidUntil)) + '</small><button class="bt wide" data-a="pw_close">Continuer</button></div>';
+    else act = (SUB.step === "fail" ? '<p class="pw-err">' + esc(SUB.msg) + "</p>" : "") +
+      '<label class="pw-l">Ton numéro Orange Money ou MTN MoMo</label><div class="pw-ph"><span>+237</span><input id="pwphone" type="tel" inputmode="numeric" maxlength="9" placeholder="6XX XX XX XX" value="' + esc(SUB.phone) + '" autocomplete="tel"></div>' +
+      '<small class="pw-op" id="pwop">' + esc(opOf(SUB.phone)) + '</small><button class="bt wide pw-go" data-a="pw_pay">Payer 500 FCFA</button>';
+    return '<div class="pw">' + (blocking ? "" : '<button class="ib gl pw-x" data-a="pw_close" aria-label="Fermer">' + I.close + "</button>") +
+      '<div class="pw-in"><div class="pw-logo">' + I.head + "</div><h1>Free tune Premium</h1><p class=\"pw-why\">" + esc(why) + "</p>" +
+      '<div class="pw-card"><div class="pw-price"><b>500</b> FCFA / mois</div>' +
+      ["Téléchargements illimités, en audio et en vidéo", "Lecture hors connexion, playlists, paroles karaoké", "Valable 30 jours sur ton compte (iPhone et Android)", "Sans renouvellement automatique : tu paies quand tu veux"]
+        .map((t) => '<div class="pw-li"><i>' + I.check + "</i>" + t + "</div>").join("") + "</div>" + act +
+      '<a class="pw-cgu" href="https://stephaneproject237-spec.github.io/tu-me-manque/legal/conditions.html" target="_blank" rel="noopener">Paiement sécurisé par Campay · Conditions générales</a></div></div>';
+  }
   function plusClick(a, id, el) {
     switch (a) {
+      case "pw_pay": { const i = host.querySelector("#pwphone"); if (i) SUB.phone = i.value.replace(/\D/g, "").slice(0, 9); subPay(); return true; }
+      case "pw_close": SUB.paywall = null; SUB.step = "form"; draw(); return true;
+      case "pw_open": SUB.paywall = "renew"; SUB.step = "form"; draw(); return true;
+      case "pw_hide": SUB.hideRem = true; draw(); return true;
       case "sec":
         U.sec = id; lsSet("casque_sec", id); U.sheet = null; U.sel = null; U.selDirs = null; U.detail = null; SR.focus = false;
         if (id === "search") loadPartner();
@@ -1505,6 +1587,7 @@
       U.view = screen === "settings" ? "settings" : "player";
       if (first || true) draw();
       pollSoon(800);
+      subRefresh();
     },
     hide() { host.hidden = true; document.body.classList.remove("cq-on"); placeVideo(); },
   };

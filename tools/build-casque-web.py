@@ -10,7 +10,7 @@ W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
 APP_NAME = "Free tune"
 VERSION = "web 1.6"
-NOTES = "Casque devient Free tune : nouveau nom et nouveau logo. Nouveau dans le chat : @recherche."
+NOTES = "Casque devient Free tune : nouveau nom, nouveau logo, @recherche dans le chat, abonnement."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
