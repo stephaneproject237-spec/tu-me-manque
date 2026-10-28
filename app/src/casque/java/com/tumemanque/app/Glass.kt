@@ -143,18 +143,20 @@ fun GlassScaffold(header: @Composable ColumnScope.() -> Unit, content: @Composab
                     haze,
                     HazeStyle(
                         backgroundColor = P.bg,
-                        tints = listOf(HazeTint(Color(0x990B0D10))),
-                        blurRadius = 30.dp,
+                        tints = listOf(HazeTint(Color(0x380B0D10))),
+                        blurRadius = 18.dp,
                         noiseFactor = 0.03f,
                         fallbackTint = HazeTint(Color(0xF20B0D10)),
                     ),
                 )
+                // Un peu plus sombre tout en haut (heure, batterie lisibles), presque transparent en bas.
+                .background(Brush.verticalGradient(listOf(Color(0x590B0D10), Color(0x140B0D10), Color(0x00000000))))
                 .background(Brush.verticalGradient(listOf(Color(0x0FFFFFFF), Color(0x00FFFFFF))))
                 .statusBarsPadding()
                 .padding(bottom = 4.dp),
             content = header,
         )
-        Box(Modifier.fillMaxWidth().padding(top = top).height(0.7.dp).background(Color(0x1AFFFFFF)))
+        Box(Modifier.fillMaxWidth().padding(top = top).height(0.7.dp).background(Color(0x14FFFFFF)))
     }
 }
 
