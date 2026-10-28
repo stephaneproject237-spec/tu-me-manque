@@ -1,7 +1,7 @@
 {
  "version": "web 1.1",
- "notes": "Fichiers .mp3.download convertis automatiquement, import de fichiers, bot @music dans le chat d'aide.",
- "versionCode": 23,
- "versionName": "1.23",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-23/casque.apk"
+ "notes": "Mini-lecteur plus fluide, paroles trouvées depuis le nom du fichier, karaoké mieux synchronisé.",
+ "versionCode": 24,
+ "versionName": "1.24",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-24/casque.apk"
 }
