@@ -346,6 +346,8 @@ class ChatViewModel : ViewModel() {
             if (p.w > 0) meta.put("w", p.w)
             if (p.h > 0) meta.put("h", p.h)
             if (p.dur > 0) meta.put("d", p.dur)
+            // Chanson envoyée par le bot @music : titre, artiste et pochette.
+            p.meta?.optJSONObject("song")?.let { meta.put("song", it) }
             p.reply?.let {
                 meta.put("reply", JSONObject().put("id", it.id).put("by_me", it.fromMe).put("kind", it.kind).put("text", it.text))
             }
@@ -620,6 +622,20 @@ class ChatViewModel : ViewModel() {
                 deliver(p, path)
             } catch (e: Exception) {
                 queueOffline(p, null, src = file, ext = "m4a", mime = "audio/mp4")
+            }
+        }
+    }
+
+    /** Envoie une chanson (téléchargée avec @music) dans le chat : ton partenaire peut l'écouter et la télécharger, même sur iPhone. */
+    fun sendSong(file: File, title: String, artist: String, thumb: String, seconds: Int) {
+        viewModelScope.launch {
+            val song = JSONObject().put("t", title).put("a", artist).put("th", thumb)
+            val p = addPending(blank("voice", dur = seconds).copy(localFile = file.absolutePath, meta = JSONObject().put("song", song)))
+            try {
+                val path = Backend.uploadFile(file, "mp3", "audio/mpeg")
+                deliver(p, path)
+            } catch (e: Exception) {
+                showToast("La chanson n'a pas pu être envoyée. Vérifie ta connexion.")
             }
         }
     }

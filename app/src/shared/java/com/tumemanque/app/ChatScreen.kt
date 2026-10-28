@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
@@ -341,7 +343,13 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         StickerBurst(burstId, burstN)
         if (game.overlay) GameOverlay(game, partner)
         if (remVm.overlay) RemindersOverlay(remVm, partner)
-        musicBot?.let { q -> MusicBotOverlay(q) { musicBot = null } }
+        musicBot?.let { q ->
+            MusicBotOverlay(q, partner, onSendToChat = { f, s ->
+                // On garde une copie : le fichier du bot peut être effacé à la fermeture.
+                val keep = File(context.cacheDir, "cam/send_${System.currentTimeMillis()}.mp3").also { f.copyTo(it, overwrite = true) }
+                vm.sendSong(keep, s.title, s.channel.removeSuffix(" - Topic"), s.thumb, s.durationSec)
+            }) { musicBot = null }
+        }
     }
 
     menuMsg?.let { mm ->
@@ -516,8 +524,74 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
-        "voice" -> VoiceBubble(m, bg, fg, sub, shape)
+        "voice" -> if (m.meta?.optJSONObject("song") != null) SongBubble(m, bg, fg, sub, shape) else VoiceBubble(m, bg, fg, sub, shape)
         else -> Unit
+    }
+}
+
+/** Chanson envoyée avec @music : pochette, écoute et téléchargement. */
+@Composable
+private fun SongBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: RoundedCornerShape) {
+    val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val song = m.meta?.optJSONObject("song")
+    val title = song?.optString("t").orEmpty().ifEmpty { "Chanson" }
+    val artist = song?.optString("a").orEmpty()
+    val thumb = song?.optString("th").orEmpty()
+    val play by VoicePlayer.state.collectAsState()
+    val source = m.localFile ?: Backend.mediaUrl(m.media ?: "")
+    val active = play.key == m.key
+    val playing = active && play.playing
+    var saved by remember(m.key) { mutableStateOf<String?>(null) }
+    Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, m.mine)) {
+        Column(Modifier.width(250.dp).padding(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x22FFFFFF))) {
+                    if (thumb.isNotEmpty()) AsyncImage(model = thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    else Text("🎵", fontSize = 24.sp, modifier = Modifier.align(Alignment.Center))
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("🎵 Chanson", color = sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(title, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    if (artist.isNotEmpty()) Text(artist, color = sub, fontSize = 12.sp, maxLines = 1)
+                }
+            }
+            if (active && play.dur > 0) {
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (play.pos.toFloat() / play.dur).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                    color = if (m.mine) Color.White else Rose, trackColor = Color(0x33FFFFFF),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (m.mine) Color.White else Rose).clickable { VoicePlayer.toggle(m.key, source) }.padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(if (playing) "❚❚ Pause" else "▶ Écouter", color = if (m.mine) Rose else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).clickable {
+                        if (saved == null && !m.pending) {
+                            saved = "…"
+                            scope.launch {
+                                saved = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val f = File(ctx.cacheDir, "cam/dl_${m.key}.mp3")
+                                        if (!f.exists()) java.net.URL(Backend.mediaUrl(m.media ?: "")).openStream().use { i -> f.outputStream().use { i.copyTo(it) } }
+                                        MbEngine.saveToPhone(ctx, File(f.parentFile, MbEngine.safeName(title) + ".mp3").also { f.copyTo(it, overwrite = true) }, title, artist)
+                                        "✓ Enregistrée"
+                                    }.getOrDefault("Échec")
+                                }
+                            }
+                        }
+                    }.padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(saved ?: "⬇ Télécharger", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            }
+            Meta(m, sub, Modifier.align(Alignment.End).padding(top = 4.dp))
+        }
     }
 }
 

@@ -230,7 +230,7 @@ private val BSoft = Color(0xFFC9A9BA)
 private fun mbTime(s: Int) = if (s <= 0) "" else "%d:%02d".format(s / 60, s % 60)
 
 @Composable
-fun MusicBotOverlay(initial: String, onClose: () -> Unit) {
+fun MusicBotOverlay(initial: String, partner: String = "", onSendToChat: ((File, MbSong) -> Unit)? = null, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val msgs = remember {
@@ -343,6 +343,13 @@ fun MusicBotOverlay(initial: String, onClose: () -> Unit) {
                                     }
                                 },
                                 onShare = { files.value[m.song.id]?.let { MbEngine.share(ctx, it) } },
+                                chatLabel = if (onSendToChat != null) (if (partner.isNotEmpty()) "💬 Envoyer à @$partner dans le chat" else "💬 Envoyer dans le chat") else null,
+                                onChat = {
+                                    files.value[m.song.id]?.let { f ->
+                                        onSendToChat?.invoke(f, m.song)
+                                        say(MbMsg.Bot("Envoyée dans le chat 💬 Ton partenaire pourra l'écouter et la télécharger, même sur iPhone."))
+                                    }
+                                },
                             )
                         }
                     }
@@ -427,7 +434,10 @@ private fun ResultCard(s: MbSong, best: Boolean, done: Boolean, loading: Boolean
 }
 
 @Composable
-private fun SongCard(s: MbSong, progress: Float?, file: File?, playing: Boolean, onPlay: () -> Unit, onSave: () -> Unit, onShare: () -> Unit) {
+private fun SongCard(
+    s: MbSong, progress: Float?, file: File?, playing: Boolean, onPlay: () -> Unit, onSave: () -> Unit, onShare: () -> Unit,
+    chatLabel: String? = null, onChat: () -> Unit = {},
+) {
     Column(
         Modifier.fillMaxWidth().padding(start = 40.dp, top = 4.dp, bottom = 6.dp).clip(RoundedCornerShape(20.dp))
             .background(Brush.linearGradient(listOf(Color(0x33FF4886), Color(0x1F8E24AA)))).border(1.dp, Color(0x40FF4F86), RoundedCornerShape(20.dp)).padding(12.dp),
@@ -456,6 +466,10 @@ private fun SongCard(s: MbSong, progress: Float?, file: File?, playing: Boolean,
                 BotBtn(if (playing) "⏸ Pause" else "▶ Écouter", Modifier.weight(1f), main = true, onClick = onPlay)
                 BotBtn("💾 Enregistrer", Modifier.weight(1f), onClick = onSave)
                 BotBtn("📤 Envoyer", Modifier.weight(1f), onClick = onShare)
+            }
+            if (chatLabel != null) {
+                Spacer(Modifier.height(8.dp))
+                BotBtn(chatLabel, Modifier.fillMaxWidth(), main = true, onClick = onChat)
             }
         }
     }

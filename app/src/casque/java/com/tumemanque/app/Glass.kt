@@ -1,6 +1,11 @@
 package com.tumemanque.app
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -194,7 +199,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
                 AnimatedVisibility(
                     current != null && !Shell.miniHidden,
                     enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow)) + fadeIn() + slideInVertically { it },
-                    exit = shrinkVertically(spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessLow)) + fadeOut() + slideOutVertically { it },
+                    exit = shrinkVertically(tween(260)) + fadeOut(tween(160)),
                 ) {
                     val t = current ?: lastMini
                     if (t != null) GlassMini(t, haze) { Shell.tab = "audios"; Shell.openNow++ }
@@ -258,31 +263,43 @@ private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
     }
     val dur = Hub.durationMs.takeIf { it > 0 } ?: t.durationMs
     val scope = rememberCoroutineScope()
-    val drag = remember { Animatable(0f) }
-    val limit = with(LocalDensity.current) { 56.dp.toPx() }
+    // Glissement vers le bas : le mini-lecteur suit le doigt, puis part en douceur (ou revient avec un petit rebond).
+    var drag by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Shell.miniHidden) { if (!Shell.miniHidden) drag = 0f }
+    val limit = with(LocalDensity.current) { 60.dp.toPx() }
+    val away = with(LocalDensity.current) { 140.dp.toPx() }
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp)
             .graphicsLayer {
-                translationY = drag.value
-                alpha = (1f - drag.value / (limit * 2.2f)).coerceIn(0f, 1f)
-                val sc = 1f - (drag.value / (limit * 12f)).coerceIn(0f, 0.06f)
-                scaleX = sc; scaleY = sc
+                translationY = drag
+                alpha = (1f - drag / away).coerceIn(0f, 1f)
             }
-            .draggable(
-                rememberDraggableState { d -> scope.launch { drag.snapTo((drag.value + d).coerceAtLeast(-12f)) } },
-                Orientation.Vertical,
-                onDragStopped = { v ->
-                    if (drag.value > limit || v > 1400f) {
-                        drag.animateTo(limit * 2.4f, tween(180))
-                        Shell.miniHidden = true
-                        drag.snapTo(0f)
-                    } else {
-                        drag.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-            ),
+            .pointerInput(Unit) {
+                val tracker = VelocityTracker()
+                detectVerticalDragGestures(
+                    onDragStart = { tracker.resetTracking() },
+                    onVerticalDrag = { change, d ->
+                        change.consume()
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        // Vers le haut, il résiste (élastique) ; vers le bas, il suit le doigt.
+                        drag = if (drag + d < 0f) (drag + d * 0.25f).coerceAtLeast(-24f) else drag + d
+                    },
+                    onDragEnd = {
+                        val v = tracker.calculateVelocity().y
+                        scope.launch {
+                            if (drag > limit || v > 900f) {
+                                animate(drag, away, initialVelocity = v.coerceAtLeast(0f), animationSpec = tween(220)) { x, _ -> drag = x }
+                                Shell.miniHidden = true
+                            } else {
+                                animate(drag, 0f, initialVelocity = v, animationSpec = spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)) { x, _ -> drag = x }
+                            }
+                        }
+                    },
+                    onDragCancel = { scope.launch { animate(drag, 0f, animationSpec = spring(dampingRatio = 0.7f)) { x, _ -> drag = x } } },
+                )
+            },
     ) {
-        Column(Modifier.fillMaxWidth().liquid(haze, RoundedCornerShape(24.dp)).pressable(onOpen)) {
+        Column(Modifier.fillMaxWidth().liquid(haze, RoundedCornerShape(24.dp)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onOpen)) {
             Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.width(34.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF)))
             }
