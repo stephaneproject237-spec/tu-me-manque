@@ -1,6 +1,6 @@
 {
- "versionCode": 21,
- "versionName": "1.21",
- "notes": "Mini-lecteur glissable, pochettes automatiques, paroles karaoké, sélection et envoi des fichiers hors de Casque.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-21/casque.apk"
+ "versionCode": 23,
+ "versionName": "1.23",
+ "notes": "Fichiers .mp3.download convertis automatiquement, import de fichiers, bot @music dans le chat d'aide.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-23/casque.apk"
 }
