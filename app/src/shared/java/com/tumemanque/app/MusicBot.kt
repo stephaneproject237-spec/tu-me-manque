@@ -607,7 +607,7 @@ object ChatBot {
         for (m in msgs) {
             if (m.id == 0L || m.pending || m.deleted) continue
             val b = bot(m) ?: continue
-            if (now - m.createdAt > 15 * 60_000L) continue
+            if (now - m.createdAt > if (b.optString("t") == "dlreq") 3 * 86_400_000L else 15 * 60_000L) continue
             if (done(ctx, m.id) || m.id in busy) continue
             val dev = b.optString("dev")
             when (b.optString("t")) {
@@ -639,30 +639,48 @@ object ChatBot {
                     if (!mineJob) continue
                     if (msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id }) { markDone(ctx, m.id); continue }
                     val o = rb.optJSONArray("o")?.optJSONObject(b.optInt("k")) ?: continue
-                    busy.add(m.id)
                     val song = MbSong(o.optString("id"), o.optString("ti"), o.optString("ch"), o.optInt("d"), 0)
                     val video = b.optString("f") == "v" && src != "au"
-                    send?.invoke("⏳ Téléchargement ${if (video) "de la vidéo" else "de la chanson"} « ${song.title} »…", JSONObject().put("t", "wait").put("r", m.id))
-                    scope.launch {
-                        try {
-                            if (video) {
-                                val f = MbEngine.downloadVideo(ctx, song) { }
-                                val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp4").also { f.copyTo(it, overwrite = true) }
-                                sendVideo?.invoke(keep, song, m.id)
-                                markDone(ctx, m.id)
-                                return@launch
-                            }
-                            val f = if (src == "au") httpSong(ctx, o.optString("u"), song) else MbEngine.download(ctx, song) { }
-                            val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp3").also { f.copyTo(it, overwrite = true) }
-                            sendSong?.invoke(keep, if (src == "au") song.copy(id = o.optString("art")) else song, m.id)
-                            markDone(ctx, m.id)
-                        } catch (_: Exception) {
-                            send?.invoke("⚠️ Le téléchargement de « ${song.title} » a échoué.", JSONObject().put("t", "fail").put("r", m.id))
-                            markDone(ctx, m.id)
-                        } finally { busy.remove(m.id) }
-                    }
+                    fetchAndSend(ctx, scope, m.id, song, video, if (src == "au") o.optString("u") else null, o.optString("art"))
+                }
+                // Demande venue d'un iPhone (qui ne peut pas télécharger) : le téléphone Android de l'ami s'en charge.
+                "dlreq" -> {
+                    if (m.mine) continue
+                    if (msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id } ||
+                        msgs.any { bot(it)?.let { x -> x.optString("t") == "fail" && x.optLong("r") == m.id } == true }) { markDone(ctx, m.id); continue }
+                    val id = b.optString("id")
+                    val q = b.optString("q")
+                    if (id.isEmpty() && q.isEmpty() && b.optString("u").isEmpty()) { markDone(ctx, m.id); continue }
+                    val song = MbSong(id, b.optString("ti").ifEmpty { q.ifEmpty { "Chanson" } }, b.optString("ch"), b.optInt("d"), 0)
+                    val video = b.optString("f") == "v" && b.optString("u").isEmpty()
+                    fetchAndSend(ctx, scope, m.id, song, video, b.optString("u").ifEmpty { null }, b.optString("art"), if (id.isEmpty()) q.ifEmpty { null } else null)
                 }
             }
+        }
+    }
+
+    private fun fetchAndSend(ctx: Context, scope: CoroutineScope, ref: Long, song0: MbSong, video: Boolean, url: String?, art: String, search: String? = null) {
+        busy.add(ref)
+        send?.invoke("⏳ Téléchargement ${if (video) "de la vidéo" else "de la chanson"} « ${song0.title} »…", JSONObject().put("t", "wait").put("r", ref))
+        scope.launch {
+            var song = song0
+            try {
+                // Demande sans identifiant YouTube (recherche faite sur iPhone ailleurs) : on prend le meilleur résultat.
+                if (search != null) song = MbEngine.search(ctx, search).firstOrNull() ?: throw Exception("rien")
+                if (video) {
+                    val f = MbEngine.downloadVideo(ctx, song) { }
+                    val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp4").also { f.copyTo(it, overwrite = true) }
+                    sendVideo?.invoke(keep, song, ref)
+                } else {
+                    val f = if (url != null) httpSong(ctx, url, song) else MbEngine.download(ctx, song) { }
+                    val keep = File(ctx.cacheDir, "cam/send_${System.currentTimeMillis()}.mp3").also { f.copyTo(it, overwrite = true) }
+                    sendSong?.invoke(keep, if (url != null && art.isNotEmpty()) song.copy(id = art) else song, ref)
+                }
+                markDone(ctx, ref)
+            } catch (_: Exception) {
+                send?.invoke("⚠️ Le téléchargement de « ${song.title} » a échoué.", JSONObject().put("t", "fail").put("r", ref))
+                markDone(ctx, ref)
+            } finally { busy.remove(ref) }
         }
     }
 
@@ -754,6 +772,21 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
                             else -> "⏳ Téléchargement en cours…"
                         },
                         color = if (song != null) Color(0xFF8BE0A4) else BSoft, fontSize = 12.sp,
+                    )
+                }
+                "dlreq" -> {
+                    val got = msgs.any { it.meta?.optJSONObject("song")?.optLong("r") == m.id }
+                    val failed = msgs.any { ChatBot.bot(it)?.let { x -> x.optString("t") == "fail" && x.optLong("r") == m.id } == true }
+                    Text("${who} demande ${if (b.optString("f") == "v") "la vidéo" else "la chanson"} « ${b.optString("ti")} »", color = BTxt, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        when {
+                            got -> "✓ Envoyée dans la conversation, elle est ajoutée au Casque."
+                            failed -> "⚠️ Le téléchargement a échoué."
+                            m.mine -> "En attente d'un ami sur Android pour la télécharger…"
+                            else -> "⏳ Ton téléphone la télécharge et l'envoie…"
+                        },
+                        color = if (got) Color(0xFF8BE0A4) else BSoft, fontSize = 12.sp,
                     )
                 }
                 "pick" -> Text("${who} a choisi : ${m.body?.removePrefix("🎵 Choix : ") ?: ""}", color = BTxt, fontSize = 14.sp)
