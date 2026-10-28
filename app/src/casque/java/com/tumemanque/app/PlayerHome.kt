@@ -349,7 +349,7 @@ fun PlayerHome(onSettings: () -> Unit, hasUpdate: Boolean) {
                 text = {
                     Text(
                         "Ils n'apparaîtront plus dans la bibliothèque, les playlists, les favoris ni la file d'attente. " +
-                            "Les morceaux téléchargés avec Casque sont aussi effacés du téléphone ; les autres fichiers y restent.",
+                            "Les morceaux téléchargés avec Free tune sont aussi effacés du téléphone ; les autres fichiers y restent.",
                         color = P.sub, fontSize = 14.sp,
                     )
                 },
@@ -470,7 +470,7 @@ private fun TrackList(
                 menu = {
                     TrackMenu(
                         t, t.id in favs, { onAddToPlaylist(listOf(t.id)) }, { onInfo(t) },
-                        extraMenu(t) + (if (onDelete != null) listOf("Supprimer de Casque" to { onDelete(listOf(t.id)) }) else emptyList()),
+                        extraMenu(t) + (if (onDelete != null) listOf("Supprimer de Free tune" to { onDelete(listOf(t.id)) }) else emptyList()),
                     )
                 },
             )

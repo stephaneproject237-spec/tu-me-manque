@@ -179,7 +179,7 @@ fun TrackMenu(
             item("Lire ensuite") { Hub.playNext(t) }
             item("Ajouter à la file d'attente") { Hub.enqueue(listOf(t)) }
             item("Ajouter à une playlist…") { onAddToPlaylist() }
-            item("Envoyer hors de Casque…") { Share.tracks(ctx, listOf(t.id)) }
+            item("Envoyer hors de Free tune…") { Share.tracks(ctx, listOf(t.id)) }
             item("Paroles (karaoké)") {
                 if (Hub.currentId != t.id) { Hub.playNext(t); Hub.next(); if (!Hub.playing) Hub.toggle() }
                 Shell.lyrics = true; Shell.tab = "audios"; Shell.openNow++

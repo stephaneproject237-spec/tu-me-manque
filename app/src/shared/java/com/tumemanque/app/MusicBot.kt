@@ -781,7 +781,7 @@ fun BotChatRow(m: ChatMsg, partner: String, msgs: List<ChatMsg>) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         when {
-                            got -> "✓ Envoyée dans la conversation, elle est ajoutée au Casque."
+                            got -> "✓ Envoyée dans la conversation, elle est ajoutée à Free tune."
                             failed -> "⚠️ Le téléchargement a échoué."
                             m.mine -> "En attente d'un ami sur Android pour la télécharger…"
                             else -> "⏳ Ton téléphone la télécharge et l'envoie…"

@@ -186,7 +186,7 @@ fun NowPlaying(t: Track, favs: Set<String>, onClose: () -> Unit, onAddToPlaylist
                     RoundBtn(Ic.More, { menu = true }, fill = Color(0x26FFFFFF))
                     DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
                         DropdownMenuItem(text = { Text("Paroles (karaoké)", color = P.text) }, onClick = { menu = false; Shell.lyrics = true })
-                        DropdownMenuItem(text = { Text("Envoyer hors de Casque…", color = P.text) }, onClick = { menu = false; Share.tracks(ctx, listOf(t.id)) })
+                        DropdownMenuItem(text = { Text("Envoyer hors de Free tune…", color = P.text) }, onClick = { menu = false; Share.tracks(ctx, listOf(t.id)) })
                         DropdownMenuItem(text = { Text("Ajouter à une playlist…", color = P.text) }, onClick = { menu = false; onAddToPlaylist(t) })
                         DropdownMenuItem(text = { Text("Informations", color = P.text) }, onClick = { menu = false; onInfo(t) })
                     }

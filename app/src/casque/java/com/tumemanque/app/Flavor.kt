@@ -123,7 +123,7 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
                 }
                 s.ready && info != null -> {
                     Text(
-                        if (s.needPermission) "Autorise l'installation pour « Casque », puis reviens ici et touche « Installer »."
+                        if (s.needPermission) "Autorise l'installation pour « Free tune », puis reviens ici et touche « Installer »."
                         else "La version ${info.name} est prête à être installée.",
                         color = P.text, fontSize = 14.sp,
                     )
@@ -215,7 +215,7 @@ fun CasqueSettings(upd: UpdateViewModel, onHelp: () -> Unit, onBack: () -> Unit)
             CIcon(Ic.ChevronRight, P.sub, 22.dp)
         }
         Spacer(Modifier.height(24.dp))
-        Text("Casque · version ${BuildConfig.VERSION_NAME}", color = P.sub, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Text("Free tune · version ${BuildConfig.VERSION_NAME}", color = P.sub, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
     }
 }
 
@@ -347,7 +347,7 @@ fun CasqueFriends(
             if (!loaded) item(key = "load") { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = P.blue) } }
             else if (friends.isEmpty()) item(key = "none") {
                 Text(
-                    "Tu n'as pas encore d'ami. Ajoute quelqu'un avec son pseudo ou son numéro, ou invite-le à installer Casque.",
+                    "Tu n'as pas encore d'ami. Ajoute quelqu'un avec son pseudo ou son numéro, ou invite-le à installer Free tune.",
                     color = P.sub, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                 )
             }

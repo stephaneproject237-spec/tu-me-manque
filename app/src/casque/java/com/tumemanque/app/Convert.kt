@@ -90,7 +90,7 @@ object Convert {
             val saved = Store.save(ctx, file, title, artist, video = false)
             val size = file.length()
             file.delete()
-            val track = Track(saved.first, title, artist, "Casque", dur, saved.second, 0L, System.currentTimeMillis(), size)
+            val track = Track(saved.first, title, artist, "Free tune", dur, saved.second, 0L, System.currentTimeMillis(), size)
             Lib.addTrack(track)
             markDone(ctx, key)
             track
