@@ -1,6 +1,6 @@
 {
- "versionCode": 29,
- "versionName": "1.29",
- "notes": "Connexion au démarrage, pseudos communs avec Tu me manques, téléchargements demandés depuis un iPhone, barres de chargement dans le chat.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-29/casque.apk"
+ "versionCode": 30,
+ "versionName": "1.30",
+ "notes": "Création du compte au démarrage puis directement la musique ; téléchargements demandés depuis un iPhone.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-30/casque.apk"
 }
