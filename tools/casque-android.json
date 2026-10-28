@@ -1,6 +1,6 @@
 {
- "versionCode": 40,
- "versionName": "1.40",
- "notes": "Commandes de l'écran verrouillé pour les vidéos (lecture, pause, suivant, précédent) et le son continue en arrière-plan.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-40/casque.apk"
+ "versionCode": 42,
+ "versionName": "1.42",
+ "notes": "Vidéo sans bordures noires, boutons de la bulle (réduire, cacher), commandes de l'écran verrouillé.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-42/casque.apk"
 }
