@@ -903,6 +903,8 @@
   function bindVideoEl() {
     const v = V.el;
     if (!v) return;
+    // iPhone : demande la bulle flottante automatique quand on quitte l'appli pendant la lecture.
+    try { v.autoPictureInPicture = true; v.disablePictureInPicture = false; v.setAttribute("autopictureinpicture", ""); } catch (e) { /* ignoré */ }
     const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
     v.addEventListener("play", () => { lastPlay = Date.now(); audio.pause(); upd(); bgPrime(); videoSession(); });
     v.addEventListener("pause", () => { upd(); if (document.hidden && V.key) toBackground(true); });
