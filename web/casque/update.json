@@ -1,7 +1,7 @@
 {
  "version": "web 1.6",
- "notes": "Bouton Lecture continue visible, la bulle vidéo se cache plus facilement vers la gauche.",
- "versionCode": 45,
- "versionName": "1.45",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-45/casque.apk"
+ "notes": "Bouton Envoyer l'application avec parrain, et aide aux amis iPhone pour les téléchargements.",
+ "versionCode": 51,
+ "versionName": "1.51",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-51/casque.apk"
 }
