@@ -23,8 +23,8 @@ create index if not exists c_relay_open_idx on public.c_relay (status, created_a
 
 -- L&#x27;iPhone demande : combien d&#x27;amis Android peuvent l&#x27;aider ?
 create or replace function public.c_relay_create(p_yid text, p_q text, p_ti text, p_ch text, p_d int, p_art text, p_fmt text)
-returns json language plpgsql security definer set search_path = public as $$
-declare me uuid := auth.uid(); n int; rid bigint; notified boolean;
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare me uuid := auth.uid(); n int; rid bigint; notified boolean; nurl text; nsecret text;
 begin
   if me is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
   select count(*) into n from public.c_friends f join public.c_profiles p on p.id = f.friend_id
@@ -35,17 +35,24 @@ begin
       and ((p_yid is not null and p_yid &lt;&gt; &#x27;&#x27; and yid = p_yid) or (coalesce(p_yid, &#x27;&#x27;) = &#x27;&#x27; and q = left(p_q, 120)))
     order by id desc limit 1;
   if rid is not null then return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n); end if;
-  notified := exists (select 1 from public.c_relay where from_id = me and created_at &gt; now() - interval &#x27;10 minutes&#x27;);
+  notified := exists (select 1 from public.c_relay where from_id = me and status in (&#x27;open&#x27;, &#x27;taken&#x27;) and created_at &gt; now() - interval &#x27;40 seconds&#x27;);
   insert into public.c_relay (from_id, yid, q, ti, ch, d, art, fmt)
     values (me, nullif(left(p_yid, 20), &#x27;&#x27;), left(p_q, 120), left(p_ti, 120), left(p_ch, 60), greatest(coalesce(p_d, 0), 0), left(p_art, 300), coalesce(nullif(left(p_fmt, 3), &#x27;&#x27;), &#x27;a&#x27;))
     returning id into rid;
-  -- Un seul rappel visible toutes les 10 minutes : le téléchargement se fait ensuite tout seul quand Free tune est ouvert.
+  -- Notification silencieuse : le téléphone de chaque ami Android se réveille, même si Free tune est fermé,
+  -- et télécharge pour l&#x27;iPhone. L&#x27;adresse et le mot de passe de la fonction « notify » sont ceux déjà utilisés
+  -- par les notifications de Free tune (on les relit dans la fonction c_push_on_notification).
   if not notified then
-    insert into public.c_notifications (to_id, title, body)
-      select f.friend_id, &#x27;Un ami veut une chanson 🎧&#x27;,
-             &#x27;@&#x27; || (select username from public.c_profiles where id = me) || &#x27; attend un titre. Ouvre Free tune : il sera téléchargé et envoyé automatiquement.&#x27;
-      from public.c_friends f join public.c_profiles p on p.id = f.friend_id
-      where f.user_id = me and p.fcm_token is not null;
+    select (regexp_match(prosrc, $re$url := &#x27;([^&#x27;]+)&#x27;$re$))[1], (regexp_match(prosrc, $re$x-webhook-secret&#x27;, &#x27;([^&#x27;]+)&#x27;$re$))[1]
+      into nurl, nsecret from pg_proc where proname = &#x27;c_push_on_notification&#x27; limit 1;
+    if nurl is not null and nsecret is not null then
+      perform net.http_post(
+        url := nurl,
+        headers := jsonb_build_object(&#x27;Content-Type&#x27;, &#x27;application/json&#x27;, &#x27;x-webhook-secret&#x27;, nsecret),
+        body := jsonb_build_object(&#x27;token&#x27;, p.fcm_token, &#x27;silent&#x27;, true, &#x27;data&#x27;, jsonb_build_object(&#x27;type&#x27;, &#x27;relay&#x27;))
+      ) from public.c_friends f join public.c_profiles p on p.id = f.friend_id
+        where f.user_id = me and p.fcm_token is not null;
+    end if;
   end if;
   return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n);
 end $$;

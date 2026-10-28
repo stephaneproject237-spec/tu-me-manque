@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Relais pour les amis iPhone : un iPhone ne peut pas télécharger depuis YouTube. Quand Free tune est ouvert,
@@ -25,6 +27,16 @@ object Relay {
     var helped by mutableIntStateOf(0)
         private set
 
+    private val lock = Mutex()
+
+    /** Réveillé par une notification silencieuse : traite toutes les demandes en attente puis s'arrête. */
+    suspend fun drain(ctx: Context) {
+        var guard = 0
+        while (guard++ < 20 && enabled(ctx) && Backend.hasSession()) {
+            if (!runCatching { step(ctx) }.getOrDefault(false)) break
+        }
+    }
+
     suspend fun loop(ctx: Context) {
         if (!MbEngine.supported) return
         while (true) {
@@ -33,7 +45,7 @@ object Relay {
         }
     }
 
-    private suspend fun step(ctx: Context) {
+    private suspend fun step(ctx: Context): Boolean = lock.withLock {
         val jobs = Backend.relayOpen()
         for (i in 0 until jobs.length()) {
             val j = jobs.getJSONObject(i)
@@ -48,8 +60,9 @@ object Relay {
             } finally {
                 busy = false
             }
-            return
+            return@withLock true
         }
+        false
     }
 
     private suspend fun handle(ctx: Context, id: Long, j: org.json.JSONObject) {
@@ -69,3 +82,6 @@ object Relay {
         }
     }
 }
+
+/** Appelée par la notification silencieuse (voir MissMessagingService). */
+fun onRelayPush(ctx: Context) = RelayService.start(ctx)

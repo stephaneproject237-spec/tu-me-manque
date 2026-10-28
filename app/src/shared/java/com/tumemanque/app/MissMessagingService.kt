@@ -25,6 +25,8 @@ class MissMessagingService : FirebaseMessagingService() {
 
     /** Appelé quand l'appli est ouverte. En arrière-plan, Android affiche la notification tout seul. */
     override fun onMessageReceived(message: RemoteMessage) {
+        // Notification silencieuse : un ami iPhone attend un titre, ce téléphone peut le télécharger même appli fermée.
+        if (message.data["type"] == "relay") { onRelayPush(applicationContext); return }
         val notification = message.notification ?: return
         if (ChatVisibility.open) return // le chat est ouvert : pas de notification en plus
         createNotificationChannel(this)

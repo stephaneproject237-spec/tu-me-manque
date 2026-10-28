@@ -25,6 +25,10 @@
             </intent-filter>
         </service>
         <service
+            android:name="com.tumemanque.app.RelayService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name="com.tumemanque.app.DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

@@ -82,6 +82,16 @@ async function accessToken(): Promise<string> {
   return cached.token;
 }
 
+/** Notification silencieuse (sans texte) : réveille l'appli Android, qui fait son travail en arrière-plan. */
+async function sendFcmData(token: string, data: Record<string, string>): Promise<number> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${SA.project_id}/messages:send`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ message: { token, data, android: { priority: "HIGH" } } }),
+  });
+  return res.status;
+}
+
 async function sendFcm(token: string, title: string, body: string): Promise<number> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${SA.project_id}/messages:send`, {
     method: "POST",
@@ -190,11 +200,11 @@ async function handler(req: Request): Promise<Response> {
   if (!WEBHOOK_SECRET || req.headers.get("x-webhook-secret") !== WEBHOOK_SECRET) {
     return new Response("forbidden", { status: 403 });
   }
-  const { token, web_push, title, body } = await req.json();
+  const { token, web_push, title, body, silent, data } = await req.json();
   const results: Record<string, unknown> = {};
   if (token) {
     try {
-      results.fcm = await sendFcm(token, title, body);
+      results.fcm = silent ? await sendFcmData(token, data ?? {}) : await sendFcm(token, title, body);
     } catch (err) {
       results.fcm = String(err);
     }
