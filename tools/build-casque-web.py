@@ -8,8 +8,9 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
+APP_NAME = "Free tune"
 VERSION = "web 1.6"
-NOTES = "Nouveau dans le chat : @recherche pour poser une question."
+NOTES = "Casque devient Free tune : nouveau nom et nouveau logo. Nouveau dans le chat : @recherche."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
@@ -69,7 +70,9 @@ def main():
     ix = ix.replace("rgba(110,80,220,.26)", "rgba(47,123,255,.22)")
     ix = re.sub(r"dist/app\.min\.(js|css)\?v=[A-Za-z0-9]*", lambda m: "dist/app.min.%s?v=%s" % (m.group(1), h), ix)
     ix = ix.replace('<div id="chat" hidden></div>', '<div id="chat" hidden></div>\n  <div id="player" hidden></div>')
-    ix = ix.replace('<meta name="apple-mobile-web-app-title" content="Casque">', '<meta name="apple-mobile-web-app-title" content="Casque">')
+    # Nom affiché sous l'icône une fois installée
+    ix = ix.replace('<meta name="apple-mobile-web-app-title" content="Casque">', '<meta name="apple-mobile-web-app-title" content="%s">' % APP_NAME)
+    ix = ix.replace("<title>Casque</title>", "<title>%s</title>" % APP_NAME)
     wr(os.path.join(OUT, "index.html"), ix)
 
     # Service worker (cache à part : le SW de « Tu me manques » efface les caches « tmm-… »)
@@ -81,6 +84,8 @@ def main():
     mf = rd(os.path.join(W, "manifest.webmanifest"))
     mf = skin.words(mf).replace("Un bouton pour dire « Casque » à ton ami(e).", "Lecteur audio et messagerie entre amis.").replace("#160a12", "#0A0D13")
     mf = re.sub(r'"description": "[^"]*"', '"description": "Lecteur audio et messagerie entre amis."', mf)
+    mf = re.sub(r'"name": "[^"]*"', '"name": "%s"' % APP_NAME, mf, count=1)
+    mf = re.sub(r'"short_name": "[^"]*"', '"short_name": "%s"' % APP_NAME, mf, count=1)
     wr(os.path.join(OUT, "manifest.webmanifest"), mf)
     # update.json sert aux deux : « version » = iPhone/web ; versionCode / versionName / apk = Android (voir tools/casque-android.json)
     import json
@@ -90,25 +95,12 @@ def main():
         upd.update(json.loads(rd(ap)))
     wr(os.path.join(OUT, "update.json"), json.dumps(upd, ensure_ascii=False, indent=1) + "\n")
 
-    # Icônes : un casque blanc sur fond bleu nuit
-    from PIL import Image, ImageDraw
-    def icon(n):
-        S = 4 * n
-        im = Image.new("RGB", (S, S))
-        d = ImageDraw.Draw(im)
-        for y in range(S):
-            t = y / S
-            d.line([(0, y), (S, y)], fill=(int(24 + 8 * t), int(70 - 38 * t), int(150 - 85 * t)))
-        w = S * 0.07
-        bx0, by0, bx1, by1 = S * 0.22, S * 0.2, S * 0.78, S * 0.76
-        d.arc([bx0, by0, bx1, by1], 180, 360, fill="white", width=int(w))
-        for x0 in (S * 0.17, S * 0.62):
-            d.rounded_rectangle([x0, S * 0.47, x0 + S * 0.21, S * 0.74], radius=S * 0.07, fill="white")
-            d.rounded_rectangle([x0 + S * 0.035, S * 0.51, x0 + S * 0.175, S * 0.70], radius=S * 0.05, fill=(34, 98, 220))
-        return im.resize((n, n), Image.LANCZOS)
+    # Icônes : le casque blanc centré sur fond bleu (tools/casque-icon.png, même dessin que l'icône Android)
+    from PIL import Image
+    src = Image.open(os.path.join(ROOT, "tools", "casque-icon.png")).convert("RGB")
+    os.makedirs(os.path.join(OUT, "icons"), exist_ok=True)
     for n, name in [(512, "icon-512.png"), (192, "icon-192.png"), (180, "apple-touch-icon.png")]:
-        os.makedirs(os.path.join(OUT, "icons"), exist_ok=True)
-        icon(n).save(os.path.join(OUT, "icons", name))
+        src.resize((n, n), Image.LANCZOS).save(os.path.join(OUT, "icons", name), optimize=True)
     print("casque web ok ->", OUT, h)
 
 
