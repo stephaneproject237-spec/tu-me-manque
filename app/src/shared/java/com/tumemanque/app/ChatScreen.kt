@@ -225,6 +225,8 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     var askVideo by remember { mutableStateOf<Pair<File, String>?>(null) }
     var showSched by remember { mutableStateOf(false) }
     var showHot by remember { mutableStateOf(false) }
+    // Bot @music : « @music » (suivi ou non d'une chanson) ouvre sa boîte de dialogue au lieu d'envoyer le message.
+    var musicBot by remember { mutableStateOf<String?>(null) }
     var menuMsg by remember { mutableStateOf<ChatMsg?>(null) }
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
@@ -292,6 +294,21 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
             editing?.let { em -> ReplyBar(Reply(em.id, true, "text", em.body ?: ""), partner, "✏️  Modifier le message") { editing = null; text = "" } }
             if (editing == null) state.replyTo?.let { ReplyBar(it, partner) { vm.clearReply() } }
 
+            // Suggestion quand on commence à taper « @ ».
+            val tt = text.trim().lowercase()
+            if (tt.startsWith("@") && "@music".startsWith(tt.take(6)) && !recording) {
+                Row(
+                    Modifier.padding(start = 14.dp, bottom = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xE6261820))
+                        .clickable { musicBot = text.trim().drop(6).trim().takeIf { tt.startsWith("@music") } ?: ""; text = "" }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🎵", fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("@music", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("  ·  chercher et télécharger une chanson", color = Color(0xFFC9A9BA), fontSize = 13.sp)
+                }
+            }
             InputBar(
                 flash = sendTick, recording = recording, recSecs = recSecs, panel = panel, text = text,
                 onText = { text = it; vm.onTextChanged(it.isNotBlank()) },
@@ -311,6 +328,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
                 onSend = {
                     val em = editing
                     if (em != null) vm.editMessage(em, text) { editing = null; text = "" }
+                    else if (text.trim().lowercase().startsWith("@music")) { musicBot = text.trim().drop(6).trim(); text = "" }
                     else { vm.sendText(text); text = ""; sendTick++ }
                 },
                 onSendLong = { if (editing == null && text.isNotBlank()) askText = true },
@@ -323,6 +341,7 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
         StickerBurst(burstId, burstN)
         if (game.overlay) GameOverlay(game, partner)
         if (remVm.overlay) RemindersOverlay(remVm, partner)
+        musicBot?.let { q -> MusicBotOverlay(q) { musicBot = null } }
     }
 
     menuMsg?.let { mm ->

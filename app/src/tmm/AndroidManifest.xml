@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Le moteur du bot @music demande Android 7 ; sur les téléphones plus anciens le bot s'excuse simplement. -->
+    <uses-sdk tools:overrideLibrary="com.yausername.youtubedl_android,com.yausername.ffmpeg,com.yausername.youtubedl_common" />
+</manifest>

@@ -32,6 +32,8 @@ android {
             buildConfigField("String", "WEB_URL", "\"https://stephaneproject237-spec.github.io/tu-me-manque/\"")
             buildConfigField("String", "OAUTH_SCHEME", "\"tumemanque\"")
             manifestPlaceholders["scheme"] = "tumemanque"
+            // Le bot @music embarque Python + yt-dlp + FFmpeg : téléphones ARM uniquement.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
         // « Casque » : application parallèle (lecteur audio + messagerie en noir / gris / bleu).
         create("casque") {
@@ -136,8 +138,9 @@ dependencies {
     "casqueImplementation"("androidx.media3:media3-ui:1.4.1")
 
     // Recherche et téléchargements YouTube (yt-dlp + FFmpeg embarqués).
-    "casqueImplementation"("io.github.junkfood02.youtubedl-android:library:0.17.3")
-    "casqueImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3")
+    // (aussi utilisés par le bot @music du chat, dans les deux applis)
+    implementation("io.github.junkfood02.youtubedl-android:library:0.17.3")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3")
 
     // Effet « verre » flou façon iOS 26.
     "casqueImplementation"("dev.chrisbanes.haze:haze:1.0.0")
