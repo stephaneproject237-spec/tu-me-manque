@@ -656,6 +656,21 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    /** Vidéo d'une chanson (bot @music) envoyée dans le chat. */
+    fun sendSongVideo(file: File, title: String, artist: String, thumb: String, w: Int, h: Int, seconds: Int, ref: Long = 0L) {
+        viewModelScope.launch {
+            val song = JSONObject().put("t", title).put("a", artist).put("th", thumb).put("v", true)
+            if (ref != 0L) song.put("r", ref)
+            val p = addPending(blank("video", w = w, h = h, dur = seconds).copy(localFile = file.absolutePath, meta = JSONObject().put("song", song)))
+            try {
+                val path = Backend.uploadFile(file, "mp4", "video/mp4")
+                deliver(p, path)
+            } catch (e: Exception) {
+                showToast("La vidéo n'a pas pu être envoyée (trop lourde ou pas de connexion).")
+            }
+        }
+    }
+
     // ---------- GIF ----------
 
     fun searchGifs(query: String) {

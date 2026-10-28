@@ -233,7 +233,11 @@ fun ChatScreen(partner: String, vm: ChatViewModel, wall: String?, onWall: (Strin
     DisposableEffect(vm) {
         ChatBot.send = { body, bot -> vm.sendBot(body, bot) }
         ChatBot.sendSong = { f, s, ref -> vm.sendSong(f, s.title, s.channel, if (s.id.startsWith("http")) s.id else s.thumb, s.durationSec, ref) }
-        onDispose { ChatBot.send = null; ChatBot.sendSong = null }
+        ChatBot.sendVideo = { f, s, ref ->
+            val (w, h, d) = MbEngine.videoInfo(f)
+            vm.sendSongVideo(f, s.title, s.channel, s.thumb, w, h, if (d > 0) d else s.durationSec, ref)
+        }
+        onDispose { ChatBot.send = null; ChatBot.sendSong = null; ChatBot.sendVideo = null }
     }
     LaunchedEffect(state.messages) { ChatBot.process(context.applicationContext, state.messages, gameScope) }
     LaunchedEffect(ChatBot.prefill) { ChatBot.prefill?.let { text = it; ChatBot.prefill = null } }
@@ -536,12 +540,56 @@ private fun Bubble(m: ChatMsg, onOpenPhoto: () -> Unit) {
         }
         "video" -> Surface(color = bg, shape = shape, shadowElevation = 0.dp, modifier = Modifier.softGlow(shape, mine)) {
             Column(Modifier.padding(3.dp)) {
+                val song = m.meta?.optJSONObject("song")
+                if (song != null) {
+                    Text("🎬 " + song.optString("t"), color = fg, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp).padding(horizontal = 6.dp, vertical = 4.dp))
+                }
                 VideoTile(m, onOpenPhoto)
+                if (song != null) SongActions(m, song.optString("t"), song.optString("a"), video = true, fg = fg)
                 Meta(m, sub, Modifier.align(Alignment.End).padding(horizontal = 6.dp, vertical = 1.dp))
             }
         }
         "voice" -> if (m.meta?.optJSONObject("song") != null) SongBubble(m, bg, fg, sub, shape) else VoiceBubble(m, bg, fg, sub, shape)
         else -> Unit
+    }
+}
+
+/** Boutons sous une chanson ou une vidéo du bot : l'enregistrer dans le téléphone, ou la transférer hors de l'appli. */
+@Composable
+private fun SongActions(m: ChatMsg, title: String, artist: String, video: Boolean, fg: Color) {
+    val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var saved by remember(m.key) { mutableStateOf<String?>(null) }
+    var sharing by remember(m.key) { mutableStateOf(false) }
+    val ext = if (video) "mp4" else "mp3"
+    Row(Modifier.padding(top = 6.dp).widthIn(max = 260.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).clickable(enabled = !m.pending && saved == null) {
+                saved = "…"
+                scope.launch {
+                    saved = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val f = MbEngine.localCopy(ctx, m, title, ext)
+                            if (video) MbEngine.saveVideoToPhone(ctx, f, title) else MbEngine.saveToPhone(ctx, f, title, artist)
+                            "✓ Enregistrée"
+                        }.getOrDefault("Échec")
+                    }
+                }
+            }.padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text(saved ?: "⬇ Télécharger", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).clickable(enabled = !m.pending && !sharing) {
+                sharing = true
+                scope.launch {
+                    val f = withContext(Dispatchers.IO) { runCatching { MbEngine.localCopy(ctx, m, title, ext) }.getOrNull() }
+                    sharing = false
+                    if (f != null) MbEngine.shareFile(ctx, f, if (video) "video/mp4" else "audio/mpeg")
+                }
+            }.padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text(if (sharing) "…" else "📤 Envoyer", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -587,25 +635,9 @@ private fun SongBubble(m: ChatMsg, bg: Color, fg: Color, sub: Color, shape: Roun
                     Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (m.mine) Color.White else Rose).clickable { VoicePlayer.toggle(m.key, source) }.padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text(if (playing) "❚❚ Pause" else "▶ Écouter", color = if (m.mine) Rose else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).clickable {
-                        if (saved == null && !m.pending) {
-                            saved = "…"
-                            scope.launch {
-                                saved = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        val f = File(ctx.cacheDir, "cam/dl_${m.key}.mp3")
-                                        if (!f.exists()) java.net.URL(Backend.mediaUrl(m.media ?: "")).openStream().use { i -> f.outputStream().use { i.copyTo(it) } }
-                                        MbEngine.saveToPhone(ctx, File(f.parentFile, MbEngine.safeName(title) + ".mp3").also { f.copyTo(it, overwrite = true) }, title, artist)
-                                        "✓ Enregistrée"
-                                    }.getOrDefault("Échec")
-                                }
-                            }
-                        }
-                    }.padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text(saved ?: "⬇ Télécharger", color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+
             }
+            SongActions(m, title, artist, video = false, fg = fg)
             Meta(m, sub, Modifier.align(Alignment.End).padding(top = 4.dp))
         }
     }
