@@ -922,6 +922,30 @@
       }
       if (!n) { if (manual) toast("Pas d'autre vidéo trouvée."); return; }
       SR.sel = n.id; saveSr();
+      // On garde le même lecteur : iOS refuse qu'un nouveau lecteur démarre seul, mais laisse celui qui a déjà été lancé par un geste.
+      const fr = vbox.querySelector("iframe"), tag = "yt:" + n.id;
+      if (fr || V.el) {
+        V.key = tag; V.yid = n.id; V.title = n.ti; if (V.played.indexOf(n.id) < 0) V.played.push(n.id);
+        const tl = vbox.querySelector(".vb-bar b"); if (tl) tl.textContent = n.ti;
+        if (fr) {
+          try { fr.contentWindow.postMessage(JSON.stringify({ event: "command", func: "loadVideoById", args: [n.id] }), "*"); } catch (e) { /* ignoré */ }
+        } else {
+          let url = null;
+          try { url = await ytStream(n.id); } catch (e) { url = null; }
+          if (V.key !== tag) return;
+          if (!url) { embedYt(n.id); }
+          else {
+            const v = V.el;
+            v.onerror = () => { if (V.key === tag) embedYt(n.id); };
+            v.src = url;
+            v.play().catch(() => {});
+            if (bgOn) { bgA.src = url; bgA.play().catch(() => {}); }
+          }
+        }
+        videoSession(); placeVideo();
+        if (U.sec === "search") draw();
+        return;
+      }
       const wasFull = V.full;
       await playYt(n);
       V.full = wasFull; placeVideo();
