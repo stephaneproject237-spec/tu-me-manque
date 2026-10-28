@@ -1,6 +1,6 @@
 {
- "versionCode": 38,
- "versionName": "1.38",
- "notes": "Plusieurs tailles de téléchargement, lecture continue des vidéos, bulle vidéo repoussable à gauche. Karaoké retiré.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-38/casque.apk"
+ "versionCode": 40,
+ "versionName": "1.40",
+ "notes": "Commandes de l'écran verrouillé pour les vidéos (lecture, pause, suivant, précédent) et le son continue en arrière-plan.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-40/casque.apk"
 }
