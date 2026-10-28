@@ -50,6 +50,55 @@
   const U = { tab: "titres", q: "", sort: "titre", sel: null, selDirs: null, detail: null, np: false, sheet: null, toast: "", importing: null, view: "player", upd: "",
     sec: lsGet("casque_sec") || "audio", miniHide: false, sr: { q: "", items: [], loading: false, src: "" } };
   try { const o = JSON.parse(lsGet("casque_sr") || "null"); if (o && o.items) U.sr = Object.assign(U.sr, o, { loading: false }); } catch (e) { /* ignoré */ }
+  // ---------- Parrainage : lien d'invitation, parrain ----------
+  try { const pm = /[?&]p=([A-Za-z0-9_]{2,30})/.exec(location.search); if (pm) lsSet("casque_p", pm[1]); } catch (e) { /* ignoré */ }
+  const SP = { name: null, loaded: false, msg: "", busy: false };
+  async function syncSponsor() {
+    const A = API();
+    if (!A || !A.casque.ready() || SP.busy) return;
+    SP.busy = true;
+    try {
+      let r = await A.authed("POST", "/rest/v1/rpc/sponsor_get", {});
+      SP.name = (r && r.name) || null;
+      const want = lsGet("casque_p");
+      if (!SP.name && want) {
+        r = await A.authed("POST", "/rest/v1/rpc/sponsor_set", { p_name: want });
+        if (r && (r.status === "ok" || r.status === "already")) SP.name = r.name || null;
+        if (r && r.status !== "error") lsSet("casque_p", "");
+      }
+      SP.loaded = true;
+    } catch (e) { /* hors ligne : on réessaiera */ }
+    SP.busy = false;
+    if (U.view === "settings") draw();
+  }
+  async function setSponsor() {
+    const el = host.querySelector("#spin");
+    const v = el ? el.value.trim().replace(/^@+/, "") : "";
+    if (!v) return;
+    const A = API();
+    try {
+      const r = await A.authed("POST", "/rest/v1/rpc/sponsor_set", { p_name: v });
+      const st = r && r.status;
+      if (st === "ok") { SP.name = r.name; SP.msg = "Ton parrain est @" + r.name + "."; }
+      else if (st === "already") { SP.name = r.name; SP.msg = "Tu as déjà un parrain : @" + r.name + "."; }
+      else if (st === "unknown") SP.msg = "Ce pseudo n'existe pas.";
+      else if (st === "self") SP.msg = "Tu ne peux pas être ton propre parrain.";
+      else SP.msg = "Impossible pour le moment.";
+    } catch (e) { SP.msg = "Impossible pour le moment. Vérifie ta connexion."; }
+    draw();
+  }
+  async function sendApp() {
+    const A = API();
+    const me = A && A.casque.username && A.casque.username();
+    if (!me) return;
+    const url = CFG.WEB_URL + "telecharger/?p=" + encodeURIComponent(me);
+    const text = "Je t'invite sur Free tune 🎧 Musique, vidéos et messages entre amis. Télécharge l'application ici :\n" + url;
+    try {
+      if (navigator.share) { await navigator.share({ text }); return; }
+      await navigator.clipboard.writeText(text);
+      toast("Lien copié : colle-le dans un message.");
+    } catch (e) { /* partage annulé */ }
+  }
   // Demandes de téléchargement envoyées à un ami Android : {mid, ti, ch, th, f, fr, at, st, p, tid}
   let DL = []; try { DL = JSON.parse(lsGet("casque_dlreqs") || "[]") || []; } catch (e) { DL = []; }
   const saveDl = () => lsSet("casque_dlreqs", JSON.stringify(DL.slice(0, 60)));
@@ -491,6 +540,10 @@
       '<button class="bt out wide" data-a="pick">' + I.plus + " Ajouter des fichiers audio</button>" +
       (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out wide" data-a="pickdir">' + I.folder + " Choisir un dossier source</button>") +
       '<button class="bt out wide" data-a="clear">Vider la bibliothèque</button></div>' +
+      '<p class="sec">PARRAINAGE</p><div class="card l"><p>Envoie à tes amis un lien pour télécharger Free tune (toujours la dernière version), sur Android ou iPhone. Ils sauront que c\'est toi qui les as invités.</p><button class="bt wide" data-a="sendapp">Envoyer l\'application</button>' +
+      '<p class="note" style="margin-top:14px"><b>Parrain</b></p>' +
+      (SP.name ? '<p><b>@' + esc(SP.name) + "</b></p>" : SP.loaded ? '<p class="note">Tu n\'as pas de parrain. Si quelqu\'un t\'a fait découvrir Free tune, écris son pseudo :</p><input id="spin" class="ti2" maxlength="30" placeholder="Pseudo du parrain" autocapitalize="none" autocomplete="off"><button class="bt out wide" data-a="sponsorset">Valider</button>' : '<p class="note">…</p>') +
+      (SP.msg ? '<p class="note">' + esc(SP.msg) + "</p>" : "") + "</div>" +
       '<p class="sec">APPLICATION</p><div class="card l"><button class="bt out wide" data-a="update">Rechercher une mise à jour</button>' + (U.upd ? '<p class="note">' + esc(U.upd) + "</p>" : "") + "</div>" +
       '<p class="sec">À PROPOS</p><div class="card l"><button class="bt wide" data-a="help">' + I.chat + " À propos</button></div>" +
       "</main>";
@@ -705,6 +758,8 @@
       case "help": if (window.TMM_API) window.TMM_API.casque.help(); break;
       case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Casque seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
       case "update": checkUpdate(); break;
+      case "sendapp": sendApp(); break;
+      case "sponsorset": setSponsor(); break;
       default: break;
     }
   });
@@ -1518,6 +1573,7 @@
       document.body.classList.add("cq-on");
       U.view = screen === "settings" ? "settings" : "player";
       if (first || true) draw();
+      syncSponsor();
       pollSoon(800);
     },
     hide() { host.hidden = true; document.body.classList.remove("cq-on"); placeVideo(); },
