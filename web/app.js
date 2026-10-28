@@ -734,7 +734,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
         </div></div>`).join("");
     const outgoing = S.outgoing.map((r) => `<p class="gris" style="text-align:left">En attente de @${esc(r.toName)}…</p>`).join("");
     const list = S.friends === null ? '<div class="spin" style="align-self:center"></div>'
-      : S.friends.length === 0 ? '<p class="gris" style="text-align:left">Tu n\'as pas encore d\'ami. Ajoute quelqu\'un avec son pseudo ou son numéro, ou invite-le à installer Casque.</p>'
+      : S.friends.length === 0 ? '<p class="gris" style="text-align:left">Tu n\'as pas encore d\'ami. Ajoute quelqu\'un avec son pseudo ou son numéro, ou invite-le à installer Free tune.</p>'
       : S.friends.map((f) => `<div class="fr-row" data-action="openFriend" data-id="${esc(f.id)}">
           <span class="fr-av">${esc(String(f.username || "?").charAt(0).toUpperCase())}</span>
           <span class="fr-mid"><span class="fr-top"><b>@${esc(f.username)}</b><small${f.unread ? ' class="new"' : ""}>${esc(casTime(f.last_at))}</small></span>
@@ -752,7 +752,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       ${outgoing}
       <p class="fr-title">MES AMIS</p>
       ${list}
-      <button class="lien" data-action="shareOnly">Inviter quelqu'un à installer Casque</button>
+      <button class="lien" data-action="shareOnly">Inviter quelqu'un à installer Free tune</button>
     </div>`;
   }
 

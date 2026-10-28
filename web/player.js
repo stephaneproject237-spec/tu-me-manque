@@ -455,7 +455,7 @@
     const tot = AUD().reduce((s, t) => s + t.dur, 0);
     return '<header class="top">' + (U.selDirs ? '<button class="ib" data-a="dircancel">' + I.close + "</button><h1>" + U.selDirs.size + " dossier" + (U.selDirs.size > 1 ? "s" : "") + '</h1><button class="ib" data-a="dirdel">' + I.trash + "</button>" : U.sel ? '<button class="ib" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
       '<button class="ib" data-a="selplay">' + I.play + '</button><button class="ib" data-a="seladd">' + I.list + '</button><button class="ib" data-a="seldel">' + I.trash + "</button>"
-      : '<div class="logo">' + I.head + "</div><h1>Casque</h1><button class=\"ib\" data-a=\"pick\" aria-label=\"Ajouter\">" + I.plus + '</button><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>") + "</header>" +
+      : '<div class="logo">' + I.head + "</div><h1>Free tune</h1><button class=\"ib\" data-a=\"pick\" aria-label=\"Ajouter\">" + I.plus + '</button><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>") + "</header>" +
       (U.detail ? "" : '<div class="sr"><span>' + I.search + '</span><input id="q" type="search" placeholder="Rechercher un titre, un artiste…" value="' + esc(U.q) + '" autocomplete="off" autocapitalize="none"></div>' +
         '<nav class="tabs">' + tabs.map((t) => '<button class="' + (U.tab === t ? "on" : "") + '" data-a="tab" data-id="' + t + '">' + names[t] + "</button>").join("") + "</nav>" +
         (AUD().length && U.tab === "titres" ? '<p class="sum">' + AUD().length + " titre" + (AUD().length > 1 ? "s" : "") + " · " + fmtTotal(tot) + "</p>" : "")) +
@@ -486,7 +486,7 @@
   function settingsView() {
     const size = L.tracks.reduce((s, t) => s + t.size, 0);
     return '<header class="top"><button class="ib" data-a="settingsback">' + I.back + "</button><h1>Paramètres</h1></header><main class=\"list set\">" +
-      '<div class="card"><div class="logo big">' + I.head + "</div><h2>Casque</h2><p>Version " + esc((CFG.VERSION || "").replace(/^web /, "")) + " (iPhone / web)</p></div>" +
+      '<div class="card"><div class="logo big">' + I.head + "</div><h2>Free tune</h2><p>Version " + esc((CFG.VERSION || "").replace(/^web /, "")) + " (iPhone / web)</p></div>" +
       '<p class="sec">BIBLIOTHÈQUE</p><div class="card l"><p>' + L.tracks.length + " titre" + (L.tracks.length > 1 ? "s" : "") + " · " + (size / 1048576).toFixed(1) + " Mo</p>" +
       '<button class="bt out wide" data-a="pick">' + I.plus + " Ajouter des fichiers audio</button>" +
       (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out wide" data-a="pickdir">' + I.folder + " Choisir un dossier source</button>") +
@@ -683,7 +683,7 @@
       case "m_fav": if (L.favs.has(id)) L.favs.delete(id); else L.favs.add(id); saveFav(); U.sheet = null; draw(); break;
       case "m_rmpl": { const p = L.playlists.find((x) => x.id === U.sheet.pl); if (p) { p.ids = p.ids.filter((x) => x !== id); savePl(); } U.sheet = null; draw(); break; }
       case "m_info": sheet({ kind: "info", id }); break;
-      case "m_del": pending = () => removeTracks([id]).then(() => { U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer ce titre ?", text: "Il sera retiré de la bibliothèque Casque (le fichier d'origine reste sur ton téléphone).", ok: "Supprimer" }); break;
+      case "m_del": pending = () => removeTracks([id]).then(() => { U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer ce titre ?", text: "Il sera retiré de la bibliothèque Free tune (le fichier d'origine reste sur ton téléphone).", ok: "Supprimer" }); break;
       case "addto": {
         const p = L.playlists.find((x) => x.id === id);
         const ids = (U.sheet.ids || []).filter((x) => p && p.ids.indexOf(x) < 0);
@@ -700,11 +700,11 @@
       case "selcancel": U.sel = null; draw(); break;
       case "selplay": playList([...U.sel], 0); U.sel = null; draw(); break;
       case "seladd": sheet({ kind: "addpl", ids: [...U.sel] }); break;
-      case "seldel": { const ids = [...U.sel]; pending = () => removeTracks(ids).then(() => { U.sel = null; U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer " + ids.length + " titre(s) ?", text: "Ils seront retirés de la bibliothèque Casque.", ok: "Supprimer" }); break; }
+      case "seldel": { const ids = [...U.sel]; pending = () => removeTracks(ids).then(() => { U.sel = null; U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer " + ids.length + " titre(s) ?", text: "Ils seront retirés de la bibliothèque Free tune.", ok: "Supprimer" }); break; }
       case "settings": window.TMM_API ? window.TMM_API.casque.screen("settings") : (U.view = "settings", draw()); break;
       case "settingsback": window.TMM_API ? window.TMM_API.casque.screen("player") : (U.view = "player", draw()); break;
       case "help": if (window.TMM_API) window.TMM_API.casque.help(); break;
-      case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Casque seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
+      case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Free tune seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
       case "update": checkUpdate(); break;
       default: break;
     }
@@ -754,7 +754,7 @@
         const regs = await navigator.serviceWorker.getRegistrations();
         await Promise.all(regs.map((x) => x.unregister()));
         setTimeout(() => location.reload(), 900);
-      } else { U.upd = "Casque est à jour (" + CFG.VERSION.replace(/^web /, "") + ")."; draw(); }
+      } else { U.upd = "Free tune est à jour (" + CFG.VERSION.replace(/^web /, "") + ")."; draw(); }
     } catch (e) { U.upd = "Impossible de vérifier : pas de connexion."; draw(); }
   }
 
@@ -1056,7 +1056,7 @@
     if (!("mediaSession" in navigator) || !V.key) return;
     try {
       const art = V.yid ? [{ src: "https://i.ytimg.com/vi/" + V.yid + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg" }] : [{ src: "icons/icon-512.png", sizes: "512x512", type: "image/png" }];
-      navigator.mediaSession.metadata = new MediaMetadata({ title: V.title || "Vidéo", artist: "Casque", artwork: art });
+      navigator.mediaSession.metadata = new MediaMetadata({ title: V.title || "Vidéo", artist: "Free tune", artwork: art });
       const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* ignoré */ } };
       set("play", () => (bgOn ? bgA : V.el) && (bgOn ? bgA : V.el).play().catch(() => {}));
       set("pause", () => { if (bgOn) bgA.pause(); else if (V.el) V.el.pause(); });
@@ -1213,7 +1213,7 @@
     const old = dlFor(o, f);
     if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
     if (old) DL = DL.filter((d) => d !== old);
-    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Casque ? Ouvre cette conversation sur ton Android.";
+    const body = "📥 @music : peux-tu télécharger " + (f === "v" ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Free tune ? Ouvre cette conversation sur ton Android.";
     const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
     const d = { mid: 0, app: "tmm", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: TP.p.username, at: Date.now(), st: "sending", p: 0 };
     DL.unshift(d); draw();
@@ -1440,7 +1440,7 @@
   function plusSheet(s) {
     if (s.kind === "dlmenu") {
       const t = byId(s.id); if (!t) return "";
-      return "<h3>" + esc(t.title) + "</h3>" + [["dlopen", t.video ? "Regarder" : "Écouter"], ["m_share", "Envoyer hors de Casque…"], ...(t.video ? [] : [["m_addpl", "Ajouter à une playlist…"]]), ["dlrmt", "Retirer de la liste"], ["m_del", "Supprimer le fichier"]]
+      return "<h3>" + esc(t.title) + "</h3>" + [["dlopen", t.video ? "Regarder" : "Écouter"], ["m_share", "Envoyer hors de Free tune…"], ...(t.video ? [] : [["m_addpl", "Ajouter à une playlist…"]]), ["dlrmt", "Retirer de la liste"], ["m_del", "Supprimer le fichier"]]
         .map(([a, l]) => '<button class="sh' + (a === "m_del" ? " red" : "") + '" data-a="' + a + '" data-id="' + t.id + '">' + l + "</button>").join("");
     }
     return null;
