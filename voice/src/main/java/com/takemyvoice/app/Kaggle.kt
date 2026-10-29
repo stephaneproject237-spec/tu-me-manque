@@ -47,6 +47,13 @@ class Kaggle(val user: String, private val key: String) {
 
     // ---------- Compte ----------
 
+    /** Vrai nom d'utilisateur Kaggle lié au jeton « KGAT_… » (celui qu'il faut dans toutes les adresses), ou null. */
+    fun vraiNom(): String? {
+        if (!key.startsWith("KGAT_")) return null
+        val r = call("security.OAuthService", "IntrospectToken", JSONObject().put("token", key))
+        return r.optString("username").trim().takeIf { r.optBoolean("active", true) && it.isNotBlank() }
+    }
+
     /** Heures de GPU utilisées / autorisées cette semaine (sert aussi à tester la connexion). */
     fun quota(): JSONObject {
         val r = call("kernels.KernelsApiService", "GetAcceleratorQuotaStatistics")

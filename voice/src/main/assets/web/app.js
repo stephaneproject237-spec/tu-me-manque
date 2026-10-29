@@ -450,7 +450,7 @@ function vueReglages() {
         <li>Sur la même page, partie <b>API</b>, touchez <b>Create New Token</b> (ou « Generate New Token ») et copiez la clé affichée.</li>
         <li>Collez ci-dessous votre <b>nom d'utilisateur Kaggle</b> (visible dans l'adresse de votre profil) et la clé.</li>
       </ol>
-      <label class="etiquette">Nom d'utilisateur Kaggle</label>
+      <label class="etiquette">Nom d'utilisateur Kaggle <span class="petit">(facultatif avec une clé KGAT_…)</span></label>
       <input class="champ" id="k-user" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="ex. : stephane237">
       <label class="etiquette">Clé API (ou contenu de kaggle.json)</label>
       <input class="champ" id="k-cle" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="KGAT_… ou 32 caractères">
@@ -531,7 +531,7 @@ vue.addEventListener("click", (e) => {
     case "menuVoix": menuVoix(v); break;
     case "connecter": {
       const u = $("#k-user").value.trim(), k = $("#k-cle").value.trim();
-      if (!k || (!u && !k.startsWith("{"))) { toast("Remplissez le nom d'utilisateur et la clé."); break; }
+      if (!k || (!u && !k.startsWith("{") && !k.startsWith("KGAT_"))) { toast("Remplissez le nom d'utilisateur et la clé."); break; }
       $("#test-res").textContent = "Vérification…";
       appel("enregistrerKaggle", u, k);
       break;

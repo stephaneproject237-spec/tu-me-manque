@@ -58,6 +58,15 @@ object Store {
         return if (u.isBlank() || key.isBlank()) null else Kaggle(u, key)
     }
 
+    /** Corrige le nom d'utilisateur enregistré avec celui que Kaggle donne pour ce jeton (s'il est différent). Renvoie le client à jour. */
+    fun kaggleVerifie(): Kaggle? {
+        val k = kaggle() ?: return null
+        val nom = runCatching { k.vraiNom() }.getOrNull() ?: return k
+        if (nom == k.user) return k
+        modifier { it.optJSONObject("kaggle")?.put("user", nom) }
+        return kaggle()
+    }
+
     // ---------- Fichiers ----------
 
     fun dossierVoix(id: String) = File(dir, "voix/$id").apply { mkdirs() }

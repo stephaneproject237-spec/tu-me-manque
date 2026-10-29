@@ -57,7 +57,8 @@ class Bridge(private val a: MainActivity) {
             // On accepte aussi le contenu complet de kaggle.json collé tel quel
             runCatching { JSONObject(s) }.getOrNull()?.optString("key")?.takeIf { it.isNotBlank() } ?: s
         }
-        val uFinal = runCatching { JSONObject(cle.trim()).optString("username") }.getOrNull()?.takeIf { it.isNotBlank() } ?: u
+        val uFinal = runCatching { JSONObject(cle.trim()).optString("username") }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: u.substringAfterLast("kaggle.com/").substringBefore('/').substringBefore('?').substringBefore('@').trim().ifBlank { "?" }
         Store.modifier { it.put("kaggle", JSONObject().put("user", uFinal).put("cle", k)) }
         testerKaggle()
     }
@@ -65,7 +66,7 @@ class Bridge(private val a: MainActivity) {
     @JavascriptInterface
     fun testerKaggle() {
         thread {
-            val k = Store.kaggle()
+            val k = Store.kaggleVerifie()
             if (k == null) { a.evenement("kaggle", JSONObject().put("ok", false).put("erreur", "Identifiants manquants")); return@thread }
             try {
                 val q = k.quota()

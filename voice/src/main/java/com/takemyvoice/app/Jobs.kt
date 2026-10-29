@@ -122,7 +122,7 @@ class TravailWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p)
     override suspend fun doWork(): Result {
         val c = applicationContext
         Store.init(c)
-        val k = Store.kaggle() ?: return Result.success()
+        val k = Store.kaggleVerifie() ?: return Result.success()
         val e = Store.lire()
         val taches = Store.liste(e, "taches")
         val t = taches.firstOrNull { it.optString("etat") == "envoi" }
@@ -168,6 +168,8 @@ class TravailWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p)
             m.contains("phone", true) || m.contains("verif", true) ->
                 "Kaggle demande la vérification de votre numéro de téléphone pour utiliser le GPU (kaggle.com › Settings)."
             m.contains("quota", true) -> Moteur.messageErreur("QUOTA", m)
+            m.contains("Owner", true) && m.contains("Invalid", true) ->
+                "Nom d'utilisateur Kaggle incorrect. Dans Réglages, touchez « Changer de compte » et collez exactement le nom visible dans l'adresse de votre profil (kaggle.com/votre-nom)."
             else -> "Erreur : $m"
         }
     }
