@@ -1819,6 +1819,19 @@
   const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
   const activeDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait" || d.st === "recv" || d.st === "sending");
   function pollSoon(ms) { clearTimeout(pollT); if (pendingDl().length) pollT = setTimeout(pollDl, ms || 4000); }
+  // Réception d'un fichier envoyé par un ami Android : en parallèle, sans bloquer les autres demandes.
+  async function recvRel(d, r, A) {
+    d.st = "recv"; d.p = 0; draw();
+    try {
+      const blob = await fetchProg(mediaUrl(r.media), (p) => { d.p = p; });
+      const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: isV(d.f), d: d.d || 0, yid: d.yid, fk: d.f });
+      d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
+      A.authed("POST", "/rest/v1/rpc/relay_ack", { p_id: r.id }).catch(() => {});
+      toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
+      if (navigator.vibrate) navigator.vibrate(30);
+    } catch (e) { d.st = "wait"; }
+    saveDl(); draw(); pollSoon(1500);
+  }
   async function pollDl() {
     const A = API();
     const list = pendingDl();
@@ -1836,23 +1849,7 @@
           if (r.prog > (d.pr || 0)) d.pr = r.prog;
           if (r.status === "taken" && d.st === "sent") d.st = "wait";
           else if (r.status === "fail") d.st = "fail";
-          else if (r.status === "done" && r.media && d.st !== "recv" && d.st !== "done") {
-            d.st = "recv"; d.p = 0; draw();
-            try {
-              const blob = await fetchProg(mediaUrl(r.media), (p) => {
-                d.p = p;
-                host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
-                  const i = row.querySelector(".dbar i"); if (i) i.style.width = Math.max(0, dlPct(d)) + "%";
-                  const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
-                });
-              });
-              const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: isV(d.f), d: d.d || 0, yid: d.yid, fk: d.f });
-              d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
-              A.authed("POST", "/rest/v1/rpc/relay_ack", { p_id: r.id }).catch(() => {});
-              toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
-              if (navigator.vibrate) navigator.vibrate(30);
-            } catch (e) { d.st = "wait"; }
-          }
+          else if (r.status === "done" && r.media && d.st !== "recv" && d.st !== "done") recvRel(d, r, A);
         }
         saveDl(); draw();
       }
@@ -1875,7 +1872,7 @@
           const sg = m.meta && m.meta.song, d = sg && of(sg.r);
           if (!d || !m.media || d.st === "done" || d.st === "recv") continue;
           d.st = "recv"; d.p = 0; draw();
-          try {
+          (async () => { try {
             const blob = await fetchProg(mediaUrl(m.media), (p) => {
               d.p = p;
               host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
@@ -1888,7 +1885,7 @@
             toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
             if (navigator.vibrate) navigator.vibrate(30);
           } catch (e) { d.st = "wait"; }
-          saveDl(); draw();
+          saveDl(); draw(); pollSoon(1500); })();
         }
       }
     } catch (e) { /* réessai plus tard */ }

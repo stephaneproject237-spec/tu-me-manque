@@ -31,40 +31,62 @@ object Relay {
     private val lock = Mutex()
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
-    /** Réveillé par une notification silencieuse : traite toutes les demandes en attente puis s'arrête. */
+    // Plusieurs demandes en même temps : chaque demande prise démarre tout de suite son propre téléchargement et son propre envoi.
+    private val active = java.util.concurrent.ConcurrentHashMap<Long, String>()
+    private const val MAX_PARALLEL = 8
+
+    private fun keyOf(j: org.json.JSONObject): String =
+        (j.optString("yid").ifEmpty { j.optString("q") }) + "|" + (if (j.optString("fmt", "a").startsWith("v")) "v" else "a")
+
+    /** Réveillé par une notification silencieuse : traite les demandes en attente (en parallèle) jusqu'à ce que tout soit terminé. */
     suspend fun drain(ctx: Context) {
         var guard = 0
-        while (guard++ < 20 && enabled(ctx) && Backend.hasSession()) {
-            if (!runCatching { step(ctx) }.getOrDefault(false)) break
+        while (guard++ < 600 && enabled(ctx) && Backend.hasSession()) {
+            val launched = runCatching { step(ctx) }.getOrDefault(false)
+            if (!launched && active.isEmpty()) break
+            delay(if (launched) 600 else 2_000)
         }
     }
 
     suspend fun loop(ctx: Context) {
         if (!MbEngine.supported) return
         while (true) {
-            if (enabled(ctx) && Backend.hasSession() && !busy) runCatching { step(ctx) }
+            if (enabled(ctx) && Backend.hasSession()) runCatching { step(ctx) }
             delay(4_000)
         }
     }
 
-    private suspend fun step(ctx: Context): Boolean = lock.withLock {
-        val jobs = Backend.relayOpen()
-        for (i in 0 until jobs.length()) {
-            val j = jobs.getJSONObject(i)
-            val id = j.getLong("id")
-            if (!Backend.relayTake(id)) continue
-            busy = true
-            try {
-                handle(ctx, id, j)
-                helped++
-            } catch (_: Exception) {
-                Backend.relayFail(id)
-            } finally {
-                busy = false
+    /** Prend toutes les demandes ouvertes (dans la limite du possible) et lance chacune sans attendre les autres. */
+    private suspend fun step(ctx: Context): Boolean {
+        var launched = false
+        lock.withLock {
+            if (active.size >= MAX_PARALLEL) return false
+            val jobs = Backend.relayOpen()
+            for (i in 0 until jobs.length()) {
+                if (active.size >= MAX_PARALLEL) break
+                val j = jobs.getJSONObject(i)
+                val id = j.getLong("id")
+                val key = keyOf(j)
+                // Déjà en cours chez nous (même demande, ou même titre demandé deux fois) : on ne la prend pas deux fois.
+                if (active.containsKey(id) || active.containsValue(key)) continue
+                if (!Backend.relayTake(id)) continue
+                active[id] = key
+                busy = true
+                launched = true
+                scope.launch {
+                    try {
+                        handle(ctx, id, j)
+                        helped++
+                    } catch (_: Exception) {
+                        Backend.relayFail(id)
+                    } finally {
+                        active.remove(id)
+                        busy = active.isNotEmpty()
+                    }
+                }
             }
-            return@withLock true
         }
-        false
+        return launched
     }
 
     private suspend fun handle(ctx: Context, id: Long, j: org.json.JSONObject) {
