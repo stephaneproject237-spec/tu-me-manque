@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 1.8"
-NOTES = "Le bouton À propos devient Tchat."
+VERSION = "web 1.9"
+NOTES = "Fenêtre vidéo fixe, plus de propositions du même thème."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
