@@ -369,7 +369,7 @@ fun CasqueFriends(
             RoundBtn(Ic.Back, onBack)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("À propos", color = P.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Tchat", color = P.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 if (!state.username.isNullOrEmpty()) Text("Mon pseudo : @${state.username}", color = P.sub, fontSize = 13.sp)
             }
             RoundBtn(Ic.Phone, onInvite, tint = P.blueSoft)
