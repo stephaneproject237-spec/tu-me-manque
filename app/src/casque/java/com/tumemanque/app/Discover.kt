@@ -335,11 +335,13 @@ fun DiscoverCard(
     seasons: List<Yt.YtPlaylist> = emptyList(), selSeason: String? = null, onSeason: (Yt.YtPlaylist) -> Unit = {},
 ) {
     val parts = if (kind is DiscoKind.Artist) listOf("Albums", kind.name) else (kind as DiscoKind.Topic).title.split(" · ", limit = 2)
-    val shape30 = RoundedCornerShape(30.dp)
+    val shape30 = RoundedCornerShape(26.dp)
+    // Écrans étroits : tout est réduit en proportion (pochettes, titres, marges).
+    val sc = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp / 400f).coerceIn(0.8f, 1f) * 0.66f
     val sub = if (parts.size > 1) parts[1] else parts[0]
     val covers = if (kind is DiscoKind.Artist) albums?.take(5) else null
     Box(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clip(shape30).glass(shape30, 0.12f)
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(shape30).glass(shape30, 0.12f)
             .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f)),
     ) {
     // Les pochettes en fond, floutées : un peu de couleur et de texture (verre liquide).
@@ -349,7 +351,7 @@ fun DiscoverCard(
         }
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1A000000), Color(0x59080A0E)))))
     }
-    Column(Modifier.fillMaxWidth().padding(top = if (collapsed) 4.dp else 16.dp, bottom = if (collapsed) 4.dp else 16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = if (collapsed) 2.dp else 10.dp, bottom = if (collapsed) 2.dp else 10.dp)) {
         Row(
             Modifier.fillMaxWidth().then(if (collapsed) Modifier.pressable { onToggle() } else Modifier).padding(start = 20.dp, end = 12.dp, top = if (collapsed) 10.dp else 0.dp, bottom = if (collapsed) 10.dp else 0.dp),
             verticalAlignment = if (collapsed) Alignment.CenterVertically else Alignment.Top,
@@ -358,8 +360,8 @@ fun DiscoverCard(
                 if (collapsed) {
                     Text(if (kind is DiscoKind.Artist) "Voir tous les albums de $sub" else "Voir toutes les rubriques · $sub", color = P.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 } else {
-                    Text(parts[0], color = P.text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (parts.size > 1) Text(parts[1], color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                    Text(parts[0], color = P.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (parts.size > 1) Text(parts[1], color = P.sub, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
                 }
             }
             val rot by androidx.compose.animation.core.animateFloatAsState(if (collapsed) 0f else 180f, androidx.compose.animation.core.tween(280), label = "chev")
@@ -368,7 +370,7 @@ fun DiscoverCard(
             }
         }
         if (collapsed) return@Column
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
         if (seasons.isNotEmpty()) {
             Text("Saisons", color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 20.dp, bottom = 4.dp))
             LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -385,46 +387,47 @@ fun DiscoverCard(
         }
         if (kind is DiscoKind.Artist) {
             when {
-                albums == null -> Box(Modifier.fillMaxWidth().height(124.dp), contentAlignment = Alignment.Center) {
+                albums == null -> Box(Modifier.fillMaxWidth().height((124 * sc).dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = P.blueSoft)
                 }
                 albums.isEmpty() -> Text("Aucun album trouvé pour cet artiste.", color = P.sub, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 else -> LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(albums, key = { it.id }) { a ->
                         val on = selAlbum == a.id
-                        val shape = RoundedCornerShape(26.dp)
-                        Column(Modifier.width(124.dp).pressable { onAlbum(a) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        val shape = RoundedCornerShape((26 * sc + 6).dp)
+                        Column(Modifier.width((124 * sc).dp).pressable { onAlbum(a) }, horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
-                                Modifier.size(124.dp).graphicsLayer { val k = if (on) 1.03f else 1f; scaleX = k; scaleY = k }
+                                Modifier.size((124 * sc).dp).graphicsLayer { val k = if (on) 1.03f else 1f; scaleX = k; scaleY = k }
                                     .shadow(if (on) 14.dp else 10.dp, shape, ambientColor = if (on) P.blue else Color.Black, spotColor = if (on) P.blue else Color.Black)
                                     .clip(shape).background(P.card2)
                                     .border(if (on) 2.5.dp else 0.8.dp, if (on) P.blueSoft else Color(0x2DFFFFFF), shape),
                             ) {
                                 AsyncImage(model = a.art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                             }
-                            Text(a.name, color = if (on) P.blueSoft else P.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 9.dp))
-                            if (a.year.isNotBlank()) Text(a.year, color = P.sub, fontSize = 11.sp)
+                            Text(a.name, color = if (on) P.blueSoft else P.text, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+                            if (a.year.isNotBlank()) Text(a.year, color = P.sub, fontSize = 10.sp)
                         }
                     }
                 }
             }
         } else {
-            RubricRow((kind as DiscoKind.Topic).rubrics, selGenre, onGenre)
+            RubricRow((kind as DiscoKind.Topic).rubrics, selGenre, onGenre, sc)
         }
     }    }
 }
 
 /** Tuiles de verre colorées avec une icône fine, comme les icônes d'iOS 26. */
 @Composable
-private fun RubricRow(list: List<DiscoGenre>, selGenre: String?, onGenre: (DiscoGenre) -> Unit) {
+private fun RubricRow(list: List<DiscoGenre>, selGenre: String?, onGenre: (DiscoGenre) -> Unit, sc: Float = 1f) {
+    val k = (0.72f + sc * 0.42f).coerceAtMost(1f)
     LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         items(list, key = { it.name }) { g ->
             val on = selGenre == g.name
             val ic = RIcons.of(g.emoji)
             val shape = RoundedCornerShape(24.dp)
-            Column(Modifier.width(76.dp).pressable { onGenre(g) }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.width((76 * k).dp).pressable { onGenre(g) }, horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    Modifier.size(68.dp).graphicsLayer { val k = if (on) 1.04f else 1f; scaleX = k; scaleY = k }
+                    Modifier.size((68 * k).dp).graphicsLayer { val z = if (on) 1.04f else 1f; scaleX = z; scaleY = z }
                         .shadow(10.dp, shape, ambientColor = ic.color, spotColor = ic.color)
                         .clip(shape)
                         .background(Brush.linearGradient(if (on) listOf(ic.color, ic.color.copy(alpha = 0.62f)) else listOf(ic.color.copy(alpha = 0.62f), ic.color.copy(alpha = 0.20f))))
@@ -435,7 +438,7 @@ private fun RubricRow(list: List<DiscoGenre>, selGenre: String?, onGenre: (Disco
                     if (ic.text != null) Text(ic.text, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                     else ic.vector?.let { CIcon(it, Color.White, 30.dp) }
                 }
-                Text(g.name, color = if (on) P.blueSoft else P.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                Text(g.name, color = if (on) P.blueSoft else P.text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
             }
         }
     }

@@ -473,9 +473,23 @@ private fun PlayerWindow(v: YtVideo, onTop: (Float) -> Unit = {}) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
-    val soft = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+    val soft = RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { Vp.slot = null } }
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+    // Retour dans l'appli depuis la fenêtre flottante : le lecteur « absorbe » la bulle et la vidéo continue au même endroit.
+    val absorb = remember { androidx.compose.animation.core.Animatable(1f) }
+    var wasPip by remember { mutableStateOf(Vp.inPip) }
+    LaunchedEffect(Vp.inPip) {
+        if (wasPip && !Vp.inPip) {
+            absorb.snapTo(0f)
+            absorb.animateTo(1f, androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+        wasPip = Vp.inPip
+    }
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).graphicsLayer {
+        val k = 0.55f + 0.45f * absorb.value
+        scaleX = k; scaleY = k; alpha = 0.35f + 0.65f * absorb.value
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.9f, 0.1f)
+    }) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).onGloballyPositioned { onTop(it.positionInRoot().y); Vp.slot = it.boundsInRoot() }.shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
             contentAlignment = Alignment.Center,

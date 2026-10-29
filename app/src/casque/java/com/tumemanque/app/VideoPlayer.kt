@@ -533,9 +533,6 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 }
                 RoundBtn(Ic.Forward10, { Vp.seekBy(10_000); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 44.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
             }
-            if (!big) {
-                RoundBtn(Ic.ChevronDown, { Vp.mini = true }, Modifier.align(Alignment.TopStart).padding(10.dp), size = 36.dp, iconSize = 24.dp, tint = Color.White)
-            }
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = if (big) 14.dp else 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -593,8 +590,6 @@ fun VideoFullscreen() {
         ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         ctl?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
-            // Hors de la recherche, la vidéo continue dans la petite fenêtre flottante.
-            if (Shell.tab != "search" && Vp.key != null && Vp.playing) Vp.mini = true
             act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             ctl?.show(WindowInsetsCompat.Type.systemBars())
         }
@@ -603,7 +598,7 @@ fun VideoFullscreen() {
         if (!Vp.inPip) VideoSurface(Modifier.fillMaxSize().align(Alignment.Center))
         VideoControls(big = true) { Vp.fullscreen = false }
         Row(Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundBtn(Ic.ChevronDown, { Vp.mini = true; Vp.fullscreen = false }, size = 40.dp, iconSize = 26.dp, tint = Color.White)
+            RoundBtn(Ic.ChevronDown, { Vp.fullscreen = false }, size = 40.dp, iconSize = 26.dp, tint = Color.White)
             Spacer(Modifier.width(8.dp))
             RoundBtn(Ic.Close, { Vp.fullscreen = false }, size = 40.dp, iconSize = 20.dp, tint = Color.White)
             Spacer(Modifier.width(12.dp))
