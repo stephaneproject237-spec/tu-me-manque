@@ -366,7 +366,7 @@ fun DiscoverCard(
                     }
                 }
             }
-            Text("Et aussi", color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 10.dp))
+            Spacer(Modifier.height(10.dp))
             RubricRow(Disco.artistRubrics(kind.name), selGenre, onGenre)
         } else {
             RubricRow((kind as DiscoKind.Topic).rubrics, selGenre, onGenre)

@@ -1372,7 +1372,7 @@
       if (!d.albums) row = '<div class="dsl"><i class="spin s"></i></div>';
       else if (!d.albums.length) row = '<p class="dsn">Aucun album trouvé pour cet artiste.</p>';
       else row = '<div class="dsr">' + d.albums.map((a) => '<div class="dsa' + (d.sa === a.id ? " on" : "") + '" data-a="dcalb" data-id="' + a.id + '"><img src="' + esc(a.art) + '" loading="lazy" alt=""><b>' + esc(a.name) + "</b><small>" + esc(a.year) + "</small></div>").join("") + "</div>";
-      row += '<p class="dsn">Et aussi</p>' + rub;
+      row += '<div style="height:10px"></div>' + rub;
     } else row = rub;
     const ttl = art ? ["Albums", d.name] : String(d.title).split(" · ");
     return '<div class="dsc"><div class="dsh"><b>' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
