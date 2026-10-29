@@ -169,7 +169,7 @@ body.cq-on{overflow:hidden}
 #player .hh button{color:var(--bls);font-size:14px;padding:8px}
 #player .chips{display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px}#player .chips .chip{color:var(--tx)}
 #player .pc{padding:8px 16px}
-#player .pslot{position:relative;width:100%;aspect-ratio:16/9;border-radius:24px;background:#000 center/cover;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#player .pslot{position:relative;width:100%;aspect-ratio:16/9;border-radius:0;background:#000 center/cover;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #player .pslot::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent,rgba(0,0,0,.4));pointer-events:none}
 #player .gplay{position:relative;z-index:1;width:72px;height:72px;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,.18));border:.7px solid rgba(255,255,255,.35);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;color:#fff}
 #player .gplay svg{width:40px;height:40px}
@@ -236,7 +236,7 @@ body.cq-on{overflow:hidden}
 @keyframes cqv{to{transform:rotate(360deg)}}
 #cq-video button{border:0;padding:0;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 #cq-video .vb-ctl,#cq-video .vb-bar{display:none}
-#cq-video.inline{border-radius:24px}
+#cq-video.inline{border-radius:0}
 #cq-video.mini{right:12px;width:210px;aspect-ratio:16/9;border-radius:18px;box-shadow:0 14px 34px rgba(0,0,0,.6);border:.7px solid rgba(255,255,255,.25);z-index:8}
 #cq-video.mini video{pointer-events:none}
 #cq-video.mini.ifr iframe{pointer-events:auto}
@@ -301,7 +301,7 @@ body.cq-on{overflow:hidden}
 #cq-video.mini.ifr .vb-ctl .tl,#cq-video.mini.ifr .vb-ctl .tr{z-index:3}
 
 /* Écran Rechercher : la fenêtre de lecture reste en haut, le reste défile dessous. */
-#player .pst{padding:6px 16px 2px}
+#player .pst{padding:0}
 #player .pc{padding-top:2px}
 
 /* Découverte : albums d'un artiste, genres de films (verre liquide) */

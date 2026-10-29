@@ -1,5 +1,5 @@
 {
- "version": "web 2.2",
+ "version": "web 2.3",
  "notes": "Albums lus automatiquement avec lecture continue, suggestions de recherche (artiste le plus proche puis titres), barre audio plus facile à ranger.",
  "versionCode": 69,
  "versionName": "1.69",

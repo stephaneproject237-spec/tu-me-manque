@@ -1223,11 +1223,52 @@
     if (U.sec === "search" && !host.hidden) draw();
   }
   // ---------- Découverte : un artiste → ses albums ; un film → des genres ----------
-  const GENRES = [["💥", "Action", "film action complet en français"], ["🧭", "Aventure", "film aventure complet en français"], ["🎨", "Animé", "film animation complet en français"],
-    ["😂", "Comédie", "film comédie complet en français"], ["🎭", "Drame", "film drame complet en français"], ["👻", "Horreur", "film horreur complet en français"],
-    ["🚀", "Science-fiction", "film science fiction complet en français"], ["🕵️", "Thriller", "film thriller complet en français"], ["💕", "Romance", "film romance complet en français"],
-    ["🔍", "Policier", "film policier complet en français"], ["🧙", "Fantastique", "film fantastique complet en français"], ["🎥", "Documentaire", "documentaire complet en français"],
-    ["🌍", "Africain", "film africain nollywood complet"]];
+  const cl = (x) => x.replace(/\s+/g, " ").trim();
+  const RB = (s, l) => l.map((x) => [x[0], x[1], cl(s + " " + x[2])]);
+  const pairs = (l, f) => l.map((x) => [x[0], x[1], cl(f(x[1]))]);
+  const FILMS = pairs([["💥", "Action"], ["🧭", "Aventure"], ["🎨", "Animation"], ["😂", "Comédie"], ["🎭", "Drame"], ["👻", "Horreur"], ["🚀", "Science-fiction"], ["🕵️", "Thriller"], ["💕", "Romance"], ["🔍", "Policier"], ["🧙", "Fantastique"], ["⚔️", "Guerre"], ["🤠", "Western"], ["🎥", "Documentaire"], ["🌍", "Africain"]], (n) => (n === "Africain" ? "film africain nollywood complet" : "film " + n.toLowerCase() + " complet en français"));
+  const SERIES = pairs([["💥", "Action"], ["🔍", "Policière"], ["🎭", "Drame"], ["😂", "Comédie"], ["🚀", "Science-fiction"], ["👻", "Horreur / Fantastique"], ["💕", "Romance"], ["🏥", "Médicale"], ["⚖️", "Judiciaire"], ["🌍", "Africaine"], ["📺", "Télénovela"], ["🕰️", "Historique"]], (n) => "série " + n.toLowerCase() + " épisodes complets en français");
+  const animeR = (s) => RB(s, [["1️⃣", "Saison 1", "saison 1 VF"], ["2️⃣", "Saison 2", "saison 2 VF"], ["3️⃣", "Saison 3", "saison 3 VF"], ["📺", "Épisodes complets", "épisodes complets VF"], ["🎵", "Openings", "opening"], ["🎶", "Endings", "ending"], ["🔥", "Meilleurs moments", "meilleurs moments"], ["🎬", "Films", "film complet"], ["🎼", "Musiques (OST)", "OST soundtrack"], ["📝", "Résumé", "résumé histoire"], ["⚔️", "Meilleurs combats", "meilleurs combats"]]);
+  const animeGen = () => pairs([["⚔️", "Shonen"], ["💕", "Romance"], ["🧙", "Fantastique"], ["🚀", "Science-fiction"], ["😂", "Comédie"], ["👻", "Horreur"], ["🏀", "Sport"], ["🎵", "Openings"], ["🎶", "Endings"], ["🧒", "Pour enfants"]], (n) => "anime " + n.toLowerCase() + " VF épisodes");
+  const seriesR = (s) => RB(s, [["1️⃣", "Saison 1", "saison 1 épisodes"], ["2️⃣", "Saison 2", "saison 2 épisodes"], ["3️⃣", "Saison 3", "saison 3 épisodes"], ["🎞️", "Bande-annonce", "bande annonce"], ["📺", "Épisodes complets", "épisodes complets VF"], ["🔥", "Scènes cultes", "scènes cultes"], ["🎵", "Générique & musiques", "générique OST"], ["🎤", "Interviews du casting", "interview casting"], ["📝", "Résumé", "résumé"]]);
+  const movieR = (s) => RB(s, [["🎞️", "Bande-annonce", "bande annonce"], ["🍿", "Film complet", "film complet VF"], ["🔥", "Scènes cultes", "scènes cultes"], ["🎬", "Making of", "making of coulisses"], ["🎼", "Bande originale", "bande originale OST"], ["🎤", "Interviews", "interview acteurs"], ["📝", "Critique", "critique avis"], ["🎥", "Suites & films similaires", "suite films similaires"]]);
+  const artistR = (a) => RB(a, [["🎬", "Clips officiels", "clip officiel"], ["🔥", "Meilleurs titres", "meilleures chansons hits"], ["🎤", "Concerts live", "concert live"], ["🎙️", "Interviews", "interview"], ["🔁", "Remixes", "remix"], ["🎧", "Playlist / Mix", "mix playlist"], ["🤝", "Duos & featurings", "feat duo"]]);
+  const docR = (s) => pairs([["🏛️", "Histoire"], ["🌿", "Nature"], ["🐾", "Animaux"], ["🔬", "Science"], ["🚀", "Espace"], ["🕵️", "Crime & enquêtes"], ["🌍", "Société"], ["⚔️", "Guerre"], ["✈️", "Voyage"], ["💰", "Économie"], ["🏥", "Santé"], ["🎨", "Culture & art"], ["🧠", "Mystères"]], (n) => "documentaire " + n + " " + s + " complet");
+  const sportR = (s) => RB(s, [["⚽", "Buts", "meilleurs buts"], ["📺", "Résumés de matchs", "résumé match"], ["🔥", "Meilleurs moments", "meilleurs moments"], ["🎯", "Dribbles & gestes", "dribbles skills"], ["🎤", "Interviews", "interview"], ["🎬", "Documentaires", "documentaire"], ["🏆", "Finales & grands matchs", "finale match complet"], ["📰", "Actualités", "actualité aujourd'hui"]]);
+  const foodR = (s) => RB(s, [["🥗", "Entrées", "recette entrée"], ["🍲", "Plats", "recette plat"], ["🍰", "Desserts", "recette dessert"], ["⚡", "Rapide (15 min)", "recette rapide facile"], ["🥐", "Pâtisserie", "recette pâtisserie"], ["🌍", "Cuisine africaine", "recette cuisine africaine"], ["🥬", "Végétarien", "recette végétarienne"], ["👨‍🍳", "Astuces de chef", "astuces de chef"]]);
+  const gameR = (s) => RB(s, [["🎮", "Gameplay", "gameplay"], ["💡", "Astuces & conseils", "astuces conseils"], ["📘", "Tutoriels", "tuto débutant"], ["🔥", "Meilleurs moments", "meilleurs moments"], ["🏁", "Speedrun", "speedrun"], ["🆕", "Nouveautés", "nouveautés mise à jour"], ["🏆", "Compétition / e-sport", "tournoi esport"], ["🧩", "Le jeu en entier", "walkthrough complet"]]);
+  const humourR = (s) => RB(s, [["🎭", "Sketchs", "sketch"], ["🎤", "One-man-show", "one man show complet"], ["😂", "Meilleurs moments", "meilleurs moments drôles"], ["🎙️", "Interviews", "interview"], ["🎬", "Spectacles complets", "spectacle complet"], ["🌍", "Humour africain", "humour africain"]]);
+  const courseR = (s) => RB(s, [["🌱", "Pour débutants", "pour débutants"], ["🚀", "Niveau avancé", "niveau avancé"], ["📚", "Cours complet", "cours complet"], ["✍️", "Exercices", "exercices corrigés"], ["💡", "Astuces", "astuces"], ["🎓", "Formation gratuite", "formation gratuite"]]);
+  const talkR = (s) => RB(s, [["🔥", "Épisodes populaires", "épisode populaire"], ["🆕", "Les plus récents", "dernier épisode"], ["🎙️", "Entretiens", "entretien complet"], ["💡", "Moments forts", "moments forts"], ["🌍", "Afrique", "afrique"]]);
+  const newsR = (s) => RB(s, [["📰", "À la une", "à la une aujourd'hui"], ["🌍", "Afrique", "afrique actualité"], ["🏛️", "Politique", "politique"], ["💰", "Économie", "économie"], ["⚽", "Sport", "sport actualité"], ["🎭", "Culture", "culture"], ["🔬", "Science & tech", "science technologie"]]);
+  const musicR = (s) => pairs([["🎤", "Afrobeat"], ["🎶", "Rumba congolaise"], ["🕺", "Coupé-décalé"], ["🥁", "Makossa"], ["🎸", "Rock"], ["🎧", "Rap / Hip-hop"], ["💖", "R&B"], ["🙏", "Gospel & louange"], ["🌴", "Zouk"], ["🎷", "Jazz"], ["🌿", "Reggae"], ["🎹", "Pop"], ["🔥", "Amapiano"], ["🌍", "Musique camerounaise"]], (n) => n + " " + s + " meilleures chansons");
+  const kidsR = (s) => RB(s, [["🎵", "Comptines", "comptines"], ["📺", "Épisodes complets", "épisodes complets"], ["📖", "Histoires", "histoires pour enfants"], ["🎨", "Apprendre en s'amusant", "apprendre enfants"], ["🔤", "Alphabet & chiffres", "alphabet chiffres"], ["🎬", "Films", "film complet"]]);
+  const genericR = (s) => RB(s, [["🔥", "Les plus populaires", "les plus vus"], ["🆕", "Les plus récents", "nouveau 2026"], ["🎞️", "Version complète", "complet"], ["⭐", "Meilleurs moments", "meilleurs moments"], ["🎧", "Mix / Compilation", "compilation mix"], ["🎤", "Live", "live"], ["🎙️", "Interviews", "interview"], ["📺", "Documentaires", "documentaire"]]);
+  const ANIME_NAMES = /\b(naruto|one piece|dragon ball|bleach|death note|attack on titan|l'attaque des titans|my hero academia|demon slayer|jujutsu kaisen|hunter x hunter|fairy tail|tokyo ghoul|fullmetal alchemist|sword art online|one punch man|black clover|boruto|pokemon|pokémon|digimon|yu-?gi-?oh|saint seiya|les chevaliers du zodiaque|detective conan|conan|doraemon|shin chan|tom et jerry|tom and jerry|scooby-?doo|bob l'éponge|spongebob|gintama|haikyuu|blue lock|chainsaw man|spy x family|dr\.? stone|fire force|seven deadly sins|nanatsu|vinland saga|cowboy bebop|evangelion|code geass|mob psycho|ben ?10|totally spies|miraculous|ladybug|dora|peppa pig|pat patrouille|mickey|simpsons?|south park|family guy|rick and morty)\b/i;
+  const hasW = (t, p) => new RegExp("\\b(" + p + ")\\b", "i").test(t);
+  const stripW = (t, p) => cl(t.replace(new RegExp("\\b(" + p + ")\\b", "ig"), " "));
+  function byKeywords(t) {
+    if (hasW(t, "films?|movies?|cin[eé]ma") && stripW(t, "films?|movies?|cin[eé]ma|complets?|en fran[cç]ais|vf|streaming").length < 3) return { kind: "topic", title: "Films · choisis un genre", rub: FILMS };
+    if (hasW(t, "s[eé]ries?") && stripW(t, "s[eé]ries?|complet(e)?s?|en fran[cç]ais|vf|streaming").length < 3) return { kind: "topic", title: "Séries · choisis un genre", rub: SERIES };
+    let s;
+    if (hasW(t, "documentaires?|docu|reportages?")) { s = stripW(t, "documentaires?|docu|reportages?|complets?"); return { kind: "topic", title: s ? "Documentaires · " + s : "Documentaires · choisis un thème", rub: docR(s) }; }
+    const AN = "animes?|anim[eé]s?|mangas?|dessins? anim[eé]s?|cartoons?";
+    if (hasW(t, AN) || ANIME_NAMES.test(t)) { s = stripW(t, AN); return { kind: "topic", title: "Dessin animé · " + (s || "rubriques"), rub: s ? animeR(s) : animeGen() }; }
+    const FD = "recettes?|cuisine|cuisiner|cooking";
+    if (hasW(t, FD + "|p[aâ]tisserie|g[aâ]teaux?|plats?")) { s = stripW(t, FD); return { kind: "topic", title: "Cuisine · " + (s || "idées"), rub: foodR(s) }; }
+    if (hasW(t, "foot|football|basket|nba|ligue des champions|champions league|tennis|mma|ufc|boxe|rugby|cyclisme|athl[eé]tisme|premier league|liga|ligue 1|serie a|mondial|coupe du monde|lions indomptables|sport")) return { kind: "topic", title: "Sport · " + t, rub: sportR(t) };
+    if (hasW(t, "gameplay|jeux? vid[eé]o|fortnite|minecraft|fifa|ea fc|efootball|gta|pubg|free fire|call of duty|cod|roblox|warzone|valorant|league of legends|clash of clans|among us|gaming|let'?s play")) return { kind: "topic", title: "Jeu vidéo · " + t, rub: gameR(t) };
+    const HU = "humour|sketchs?|stand-?up|blagues?";
+    if (hasW(t, HU + "|one[- ]?man[- ]?show|com[eé]dien(ne)?|dr[oô]le|rire")) { s = stripW(t, HU); return { kind: "topic", title: "Humour · " + (s || "rubriques"), rub: humourR(s) }; }
+    if (hasW(t, "tutos?|tutoriels?|cours|apprendre|formation|leçons?|lecons?|exercices?")) return { kind: "topic", title: "Apprendre · " + t, rub: courseR(t) };
+    const TK = "podcasts?|interviews?|d[eé]bats?|conf[eé]rences?";
+    if (hasW(t, TK + "|talk")) { s = stripW(t, TK); return { kind: "topic", title: "Podcasts & entretiens · " + (s || "rubriques"), rub: talkR(s) }; }
+    if (hasW(t, "actualit[eé]s?|news|infos?|journal|jt")) return { kind: "topic", title: "Actualité · " + t, rub: newsR(stripW(t, "actualit[eé]s?|news|infos?|journal|jt")) };
+    if (hasW(t, "comptines?|b[eé]b[eé]|enfants?|kids")) return { kind: "topic", title: "Enfants · " + t, rub: kidsR(stripW(t, "comptines?|enfants?|kids")) };
+    const MU = "musiques?|chansons?|playlist|mix|clips?|hits?";
+    if (hasW(t, MU)) return { kind: "topic", title: "Musique · choisis un style", rub: musicR(stripW(t, MU)) };
+    return null;
+  }
   const dnorm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   function lev(a, b) {
     if (a === b) return 0;
@@ -1242,20 +1283,31 @@
   const itj = (u) => withTimeout(fetch(u).then((r) => r.json()), 9000);
   async function detectKind(q) {
     const t = String(q || "").trim(), nq = dnorm(t);
-    if (nq.length < 3) return null;
-    if (/\b(films?|movies?|cin[eé]ma|s[eé]ries?)\b/i.test(t)) return { kind: "film" };
-    try {
-      const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=musicArtist&limit=5");
-      for (const o of (j && j.results) || []) {
-        const nn = dnorm(o.artistName);
-        if (o.artistId && (nn === nq || (nq.length >= 5 && lev(nn, nq) <= 1) || (nq.length >= 4 && nn.indexOf(nq) === 0 && nn.length - nq.length <= 3))) return { kind: "artist", id: o.artistId, name: o.artistName };
-      }
-    } catch (e) { /* ignoré */ }
-    try {
-      const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=movie&limit=3");
-      for (const o of (j && j.results) || []) if (dnorm(o.trackName) === nq) return { kind: "film" };
-    } catch (e) { /* ignoré */ }
-    return null;
+    const kw = byKeywords(t);
+    if (kw) return kw;
+    if (nq.length >= 3) {
+      try {
+        const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=musicArtist&limit=5");
+        for (const o of (j && j.results) || []) {
+          const nn = dnorm(o.artistName);
+          if (o.artistId && (nn === nq || (nq.length >= 5 && lev(nn, nq) <= 1) || (nq.length >= 4 && nn.indexOf(nq) === 0 && nn.length - nq.length <= 3))) return { kind: "artist", id: o.artistId, name: o.artistName, rub: artistR(o.artistName) };
+        }
+      } catch (e) { /* ignoré */ }
+      try {
+        const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=tvShow&limit=4");
+        for (const o of (j && j.results) || []) {
+          const nm = dnorm(o.artistName || o.collectionName);
+          if (nm === nq || (nq.length >= 4 && nm.indexOf(nq) === 0)) {
+            return /anim|kids|enfant|famil/i.test(o.primaryGenreName || "") ? { kind: "topic", title: "Dessin animé · " + t, rub: animeR(t) } : { kind: "topic", title: "Série · " + t, rub: seriesR(t) };
+          }
+        }
+      } catch (e) { /* ignoré */ }
+      try {
+        const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=movie&limit=3");
+        for (const o of (j && j.results) || []) if (dnorm(o.trackName) === nq) return { kind: "topic", title: "Film · " + t, rub: movieR(t) };
+      } catch (e) { /* ignoré */ }
+    }
+    return { kind: "topic", title: "Plus d'idées · " + t, rub: genericR(t) };
   }
   async function dcAlbums(d) {
     try {
@@ -1303,19 +1355,15 @@
     const d = SR.dc;
     if (!d || d.stage === 2) return "";
     const art = d.kind === "artist";
-    if (d.stage === 0) {
-      return '<div class="dsc"><b>' + (art ? "🎵 " + esc(d.name) : "🎬 Tu cherches un film ?") + "</b><p>" + (art ? "Veux-tu écouter ses albums ?" : "Veux-tu voir des films par genre ?") + '</p>' +
-        '<div class="dsb"><button class="cpill on" data-a="dcyes">Oui</button><button class="cpill" data-a="dcno">Non merci</button></div></div>';
-    }
+    const rub = '<div class="dsr">' + d.rub.map((g, i) => '<div class="dsg' + (d.sg === i ? " on" : "") + '" data-a="dcgen" data-id="' + i + '"><span>' + g[0] + "</span><b>" + esc(g[1]) + "</b></div>").join("") + "</div>";
     let row = "";
     if (art) {
       if (!d.albums) row = '<div class="dsl"><i class="spin s"></i></div>';
       else if (!d.albums.length) row = '<p class="dsn">Aucun album trouvé pour cet artiste.</p>';
       else row = '<div class="dsr">' + d.albums.map((a) => '<div class="dsa' + (d.sa === a.id ? " on" : "") + '" data-a="dcalb" data-id="' + a.id + '"><img src="' + esc(a.art) + '" loading="lazy" alt=""><b>' + esc(a.name) + "</b><small>" + esc(a.year) + "</small></div>").join("") + "</div>";
-    } else {
-      row = '<div class="dsr">' + GENRES.map((g, i) => '<div class="dsg' + (d.sg === i ? " on" : "") + '" data-a="dcgen" data-id="' + i + '"><span>' + g[0] + "</span><b>" + esc(g[1]) + "</b></div>").join("") + "</div>";
-    }
-    return '<div class="dsc"><div class="dsh"><b>' + (art ? "Albums · " + esc(d.name) : "Films · choisis un genre") + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
+      row += '<p class="dsn">Et aussi</p>' + rub;
+    } else row = rub;
+    return '<div class="dsc"><div class="dsh"><b>' + (art ? "🎵 Albums · " + esc(d.name) : esc(d.title)) + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
   }
   function vidRow(o, act) {
     return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
@@ -1331,8 +1379,8 @@
       if (!d.tracks) h += '<div class="dsl"><i class="spin s"></i></div>';
       else h += d.tracks.map((t, i) => '<div class="tkr" data-a="dctrack" data-id="' + i + '"><span>' + t.n + "</span><b>" + esc(t.ti) + "</b>" + (t.ms ? "<small>" + fmt(Math.round(t.ms / 1000)) + "</small>" : "") + I.play + "</div>").join("");
     }
-    if (d.kind === "film" && d.sg != null) {
-      h += '<p class="sec2">FILMS · ' + esc(GENRES[d.sg][1].toUpperCase()) + "</p>";
+    if (d.sg != null && d.rub[d.sg]) {
+      h += '<p class="sec2">' + d.rub[d.sg][0] + " " + esc(d.rub[d.sg][1].toUpperCase()) + "</p>";
       if (!d.gv) h += '<div class="dsl"><i class="spin s"></i></div>';
       else h += d.gv.map((o) => vidRow(o, "dcvid")).join("");
     }
@@ -1360,7 +1408,7 @@
     draw();
     SR.relFor = null; if (items[0]) loadRelated(items[0]);
     SR.dc = null;
-    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 0 }, k); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
+    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 1 }, k); if (k.kind === "artist") dcAlbums(SR.dc); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
@@ -1753,12 +1801,12 @@
       case "yauto": toggleAuto(); return true;
       case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
       case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
-      case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.tracks = null; draw(); dcTracks(d, a); return true; }
+      case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.sg = null; d.gv = null; d.tracks = null; draw(); dcTracks(d, a); return true; }
       case "dcgen": {
         const d = SR.dc; if (!d) return true;
-        d.sg = Number(id); d.gv = null; draw();
+        d.sg = Number(id); d.gv = null; d.sa = null; d.tracks = null; draw();
         const mine = d.sg;
-        ytSearch(GENRES[mine][2]).catch(() => []).then((l) => { if (SR.dc === d && d.sg === mine) { d.gv = l.slice(0, 25); draw(); } });
+        ytSearch(d.rub[mine][2]).catch(() => []).then((l) => { if (SR.dc === d && d.sg === mine) { d.gv = l.slice(0, 25); draw(); } });
         return true;
       }
       case "dctrack": {

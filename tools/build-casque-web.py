@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.2"
-NOTES = "Albums : le premier titre démarre seul, la lecture continue suit l'album."
+VERSION = "web 2.3"
+NOTES = "Écran vidéo pleine largeur sans bordures ; rubriques proposées automatiquement à chaque recherche (albums, saisons, openings, genres, thèmes...)."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

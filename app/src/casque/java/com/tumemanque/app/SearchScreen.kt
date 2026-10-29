@@ -116,7 +116,11 @@ fun SearchScreen() {
     var genreVids by remember { mutableStateOf<List<YtVideo>?>(null) }
     LaunchedEffect(submitted) {
         kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null
-        if (submitted.isNotBlank()) kind = Disco.detect(submitted)
+        if (submitted.isNotBlank()) {
+            val k = Disco.detect(submitted)
+            kind = k; stage = 1
+            if (k is DiscoKind.Artist) albums = Disco.albums(k.id)
+        }
     }
     var related by remember { mutableStateOf(listOf<YtVideo>()) }
     var extraSel by remember { mutableStateOf<YtVideo?>(null) }
@@ -317,14 +321,10 @@ fun SearchScreen() {
                 val dk = kind
                 if (dk != null && stage != 2) item(key = "disco") {
                     DiscoverCard(
-                        dk, stage, albums, selAlbum?.id, genre?.name,
-                        onYes = {
-                            stage = 1
-                            if (dk is DiscoKind.Artist && albums == null) scope.launch { albums = Disco.albums(dk.id) }
-                        },
-                        onNo = { stage = 2; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null },
+                        dk, albums, selAlbum?.id, genre?.name,
+                        onClose = { stage = 2; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null },
                         onAlbum = { a ->
-                            selAlbum = a; albumTracks = null; albumQueue = null
+                            selAlbum = a; albumTracks = null; albumQueue = null; genre = null; genreVids = null
                             scope.launch {
                                 val tr = Disco.tracks(a.id)
                                 if (selAlbum?.id != a.id) return@launch
@@ -342,7 +342,7 @@ fun SearchScreen() {
                             }
                         },
                         onGenre = { g ->
-                            genre = g; genreVids = null
+                            genre = g; genreVids = null; selAlbum = null; albumTracks = null; albumQueue = null
                             scope.launch { genreVids = runCatching { Yt.search(g.query, 25) }.getOrDefault(emptyList()) }
                         },
                     )
@@ -372,7 +372,7 @@ fun SearchScreen() {
                 }
                 val gn = genre
                 if (gn != null && stage == 1) {
-                    item(key = "gnt") { SectionTitle("FILMS · ${gn.name.uppercase()}", Modifier.padding(top = 4.dp)) }
+                    item(key = "gnt") { SectionTitle("${gn.emoji} ${gn.name.uppercase()}", Modifier.padding(top = 4.dp)) }
                     val gv = genreVids
                     if (gv == null) item(key = "gnw") {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -423,9 +423,9 @@ private fun PlayerWindow(v: YtVideo) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth()) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(if (loaded && !Vp.mini) Vp.aspect.coerceIn(0.75f, 1.9f) else 16f / 9f).clip(RoundedCornerShape(24.dp)).background(Color.Black),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {
