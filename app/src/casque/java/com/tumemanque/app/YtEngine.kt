@@ -29,15 +29,16 @@ data class YtVideo(
     val channel: String,
     val durationSec: Int,
     val views: Long = 0,
+    val published: Long = 0,
 ) {
     val url: String get() = "https://www.youtube.com/watch?v=$id"
     val thumb: String get() = "https://i.ytimg.com/vi/$id/hqdefault.jpg"
     val thumbHd: String get() = "https://i.ytimg.com/vi/$id/maxresdefault.jpg"
 
-    fun toJson(): JSONObject = JSONObject().put("id", id).put("t", title).put("c", channel).put("d", durationSec).put("v", views)
+    fun toJson(): JSONObject = JSONObject().put("id", id).put("t", title).put("c", channel).put("d", durationSec).put("v", views).put("p", published)
 
     companion object {
-        fun fromJson(o: JSONObject) = YtVideo(o.getString("id"), o.optString("t"), o.optString("c"), o.optInt("d"), o.optLong("v"))
+        fun fromJson(o: JSONObject) = YtVideo(o.getString("id"), o.optString("t"), o.optString("c"), o.optInt("d"), o.optLong("v"), o.optLong("p"))
     }
 }
 
@@ -160,6 +161,7 @@ object Yt {
                 channel = o.optString("channel").ifBlank { o.optString("uploader") }.removeSuffix(" - Topic"),
                 durationSec = o.optDouble("duration", 0.0).toInt(),
                 views = o.optLong("view_count", 0L),
+                published = pubOf(o),
             )
         }
     }
@@ -177,6 +179,7 @@ object Yt {
                 channel = o.optString("channel").ifBlank { o.optString("uploader") }.removeSuffix(" - Topic"),
                 durationSec = o.optDouble("duration", 0.0).toInt(),
                 views = o.optLong("view_count", 0L),
+                published = pubOf(o),
             )
         }
     }
@@ -370,4 +373,29 @@ fun fmtViews(v: Long): String = when {
     v >= 1_000 -> "${v / 1000} k vues"
     v > 0 -> "$v vues"
     else -> ""
+}
+
+/** Date de publication (secondes) si YouTube la donne dans les résultats. */
+fun pubOf(o: JSONObject): Long {
+    val t = o.optLong("timestamp", 0L).takeIf { it > 0 } ?: o.optLong("release_timestamp", 0L)
+    if (t > 0) return t
+    val d = o.optString("upload_date")
+    if (d.length == 8) runCatching {
+        return java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(d)!!.time / 1000
+    }
+    return 0L
+}
+
+fun fmtAgo(sec: Long): String {
+    if (sec <= 0) return ""
+    val d = (System.currentTimeMillis() / 1000 - sec).coerceAtLeast(0) / 86400
+    return when {
+        d < 1 -> "aujourd'hui"
+        d < 2 -> "hier"
+        d < 30 -> "il y a $d jours"
+        d < 60 -> "il y a 1 mois"
+        d < 365 -> "il y a ${d / 30} mois"
+        d < 730 -> "il y a 1 an"
+        else -> "il y a ${d / 365} ans"
+    }
 }

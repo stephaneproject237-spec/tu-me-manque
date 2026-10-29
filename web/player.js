@@ -1270,6 +1270,8 @@
   // ---------- Séries : saisons (playlists YouTube) ----------
   const seasonNum = (t) => { const m = /(saison|season)\s*0?(\d{1,2})/i.exec(t || ""); return m ? +m[2] : 999; };
   const seasonLabel = (t) => { const m = /(saison|season|s)\s*0?(\d{1,2})/i.exec(t || ""); return m ? "Saison " + m[2] : String(t || "").slice(0, 24); };
+  const fmtAgo = (s) => { if (!(s > 0)) return ""; const d = Math.max(0, Math.floor((Date.now() / 1000 - s) / 86400)); return d < 1 ? "aujourd'hui" : d < 2 ? "hier" : d < 30 ? "il y a " + d + " jours" : d < 60 ? "il y a 1 mois" : d < 365 ? "il y a " + Math.floor(d / 30) + " mois" : d < 730 ? "il y a 1 an" : "il y a " + Math.floor(d / 365) + " ans"; };
+  const metaOf = (o) => [fmtViews(o.v), fmtAgo(o.pu)].filter(Boolean).join(" · ");
   async function ytPlaylists(q) {
     const tries = [];
     PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=playlists&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
@@ -1287,7 +1289,7 @@
   async function ytPlVideos(id) {
     const tries = [];
     PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/playlists/" + encodeURIComponent(id)).then((r) => r.json()), 8000).then((j) => {
-      const l = ((j && j.relatedStreams) || []).filter((x) => x.url && /watch\?v=/.test(x.url)).map((x) => ({ id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "" }));
+      const l = ((j && j.relatedStreams) || []).filter((x) => x.url && /watch\?v=/.test(x.url)).map((x) => ({ id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "", pu: x.uploaded > 0 ? Math.round(x.uploaded / 1000) : 0 }));
       if (!l.length) throw new Error("vide");
       return l;
     })));
@@ -1319,7 +1321,7 @@
     if (recent) {
       try {
         const l = await anyOf(INV.map((b) => withTimeout(fetch(b + "/api/v1/search?type=video&sort_by=upload_date&q=" + encodeURIComponent(q)).then((r) => r.json()), 6000).then((j) => {
-          const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "" }));
+          const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "", pu: x.published || 0 }));
           if (l.length < 4) throw new Error("vide");
           return l;
         })));
@@ -1329,13 +1331,13 @@
     const tries = [];
     PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=videos&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
       const l = ((j && j.items) || []).filter((x) => x.url && /watch\?v=/.test(x.url) && !x.isShort).map((x) => ({
-        id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "",
+        id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "", pu: x.uploaded > 0 ? Math.round(x.uploaded / 1000) : 0,
       }));
       if (!l.length) throw new Error("vide");
       return l;
     })));
     INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/search?type=video&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
-      const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "" }));
+      const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "", pu: x.published || 0 }));
       if (!l.length) throw new Error("vide");
       return l;
     })));
@@ -1528,7 +1530,7 @@
   }
   function vidRow(o, act) {
     return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
-      '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small></div></div>";
+      '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (metaOf(o) ? "<small>" + esc(metaOf(o)) + "</small>" : "") + "</div></div>";
   }
   function dcLists() {
     const d = SR.dc;
@@ -1936,7 +1938,7 @@
         const playing = V.yid === sel.id;
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
-          '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
+          '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v), fmtAgo(sel.pu)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
           (sel.src === "yt" ? '<button class="aps' + (V.auto ? " on" : "") + '" data-a="yauto" aria-label="Lecture automatique"><i>' + I.play + "</i></button>" : "") + "</div></div>";
         body += dcBanner();
         body += dcLists();
@@ -1948,7 +1950,7 @@
         const rowOf = (o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
           return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
-            '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (got ? '<small class="done">Téléchargé</small>' : "") + "</div></div>";
+            '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (metaOf(o) ? "<small>" + esc(metaOf(o)) + "</small>" : "") + (got ? '<small class="done">Téléchargé</small>' : "") + "</div></div>";
         };
         const others = SR.items.filter((x) => x !== sel && !x.rel), rels = SR.items.filter((x) => x !== sel && x.rel);
         if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map(rowOf).join("");

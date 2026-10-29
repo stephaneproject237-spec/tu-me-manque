@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.9"
-NOTES = "Infos fixes sous la vidéo, interrupteur de lecture automatique, barre d'albums en verre liquide avec les pochettes."
+VERSION = "web 2.10"
+NOTES = "Résultats : nombre de vues et date de publication, infos fixes, interrupteur de lecture automatique, albums en verre liquide."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

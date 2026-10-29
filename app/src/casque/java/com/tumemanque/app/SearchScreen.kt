@@ -508,7 +508,7 @@ private fun PlayerInfo(v: YtVideo) {
         Column(Modifier.weight(1f)) {
             Text(v.title, color = P.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                listOf(v.channel, fmtViews(v.views)).filter { it.isNotBlank() }.joinToString(" · "),
+                listOf(v.channel, fmtViews(v.views), fmtAgo(v.published)).filter { it.isNotBlank() }.joinToString(" · "),
                 color = P.sub, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -664,6 +664,8 @@ private fun ResultRow(v: YtVideo, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(v.title, color = P.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(v.channel, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            val meta = listOf(fmtViews(v.views), fmtAgo(v.published)).filter { it.isNotBlank() }.joinToString(" · ")
+            if (meta.isNotEmpty()) Text(meta, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
             if (got) Text("Téléchargé", color = P.ok, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
         }
     }
