@@ -314,7 +314,7 @@ fun SearchScreen() {
                 item(key = "lt") { SectionTitle("DÉJÀ DANS TES AUDIOS") }
                 items(local, key = { "l${it.id}" }) { t ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { Hub.play(local, local.indexOf(t)) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().tapGlow { Hub.play(local, local.indexOf(t)) }.padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Cover(t, 44.dp, 10.dp)
@@ -623,7 +623,7 @@ private fun FormatRow(k: DlKind, size: String, task: DlTask?, onClick: () -> Uni
             Text(
                 when {
                     task == null || task.status == DlStatus.CANCELED -> k.sub
-                    task.active -> if (task.status == DlStatus.RUNNING && task.progress > 0) "Téléchargement · ${(task.progress * 100).toInt()} %" else task.phase
+                    task.active -> if (task.status == DlStatus.RUNNING && task.progress > 0) "${(task.progress * 100).toInt()} %" else ""
                     done -> if (k.video) "Téléchargé · dans Vidéos" else "Téléchargé · dans Audios"
                     task.status == DlStatus.FAILED -> task.error ?: "Échec"
                     else -> k.sub
@@ -666,7 +666,7 @@ fun ProgressRing(p: Float, indeterminate: Boolean, size: androidx.compose.ui.uni
 private fun ResultRow(v: YtVideo, onClick: () -> Unit) {
     val tasks by Dl.tasks.collectAsState()
     val got = tasks.any { it.video.id == v.id && it.status == DlStatus.DONE }
-    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().tapGlow { onClick() }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(132.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(P.card2)) {
             AsyncImage(model = v.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             if (v.durationSec > 0) Text(

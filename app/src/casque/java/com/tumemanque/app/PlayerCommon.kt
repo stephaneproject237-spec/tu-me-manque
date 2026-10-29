@@ -127,7 +127,7 @@ fun TrackRow(
     Row(
         Modifier.fillMaxWidth()
             .background(if (selected) Color(0x262F7BFF) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLong)
+            .tapGlow(onLong = onLong, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

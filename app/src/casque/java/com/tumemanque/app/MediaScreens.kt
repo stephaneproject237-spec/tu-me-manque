@@ -119,8 +119,8 @@ private fun DownloadRow(t: DlTask) {
                     when (t.status) {
                         DlStatus.DONE -> "${t.kind.label} · ${fmtBytes(t.size)}" + if (!ok) " · supprimé" else ""
                         DlStatus.FAILED -> t.error ?: "Échec"
-                        DlStatus.RUNNING -> "${t.kind.label} · ${(t.progress * 100).toInt()} %" + if (t.eta > 0) " · ${fmt(t.eta * 1000)} restant" else ""
-                        else -> "${t.kind.label} · ${t.phase}"
+                        DlStatus.RUNNING -> "${t.kind.label} · ${(t.progress * 100).toInt()} %"
+                        else -> t.kind.label
                     },
                     color = when (t.status) { DlStatus.FAILED -> P.danger; DlStatus.DONE -> P.sub; else -> P.blueSoft },
                     fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
@@ -155,7 +155,6 @@ private fun DownloadRow(t: DlTask) {
         if (t.active) {
             Spacer(Modifier.height(10.dp))
             GlassProgress(t.progress, !(t.status == DlStatus.RUNNING && t.progress > 0f))
-            if (t.status == DlStatus.PROCESSING) Text(t.phase, color = P.sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
     if (pick) t.resultId?.let { id -> PlaylistPicker(listOf(id)) { pick = false } }

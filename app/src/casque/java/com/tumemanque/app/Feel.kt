@@ -11,6 +11,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 
 /** Petits « clics » d'engrenage pendant qu'on fait défiler une liste (activable dans les paramètres). */
 object Feel {
@@ -34,6 +40,12 @@ object Feel {
         }
     }
 
+    /** Petite vibration quand on touche une chanson pour la lire. */
+    fun tap(v: View) {
+        val k = if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.CONTEXT_CLICK
+        v.performHapticFeedback(k)
+    }
+
     fun tick(v: View) {
         if (!enabled(v.context)) return
         val k = if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CLOCK_TICK else HapticFeedbackConstants.KEYBOARD_TAP
@@ -50,4 +62,18 @@ fun ScrollTicks(state: LazyListState, stepPx: Int = 140) {
             .map { it }.distinctUntilChanged().drop(1)
             .collect { if (state.isScrollInProgress) Feel.tick(view) }
     }
+}
+
+/** Toucher une chanson : petite vibration + légère surbrillance qui s'estompe. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun androidx.compose.ui.Modifier.tapGlow(onLong: (() -> Unit)? = null, onClick: () -> Unit): androidx.compose.ui.Modifier = composed {
+    val view = LocalView.current
+    val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    var flash by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(flash) { if (flash) { kotlinx.coroutines.delay(160); flash = false } }
+    val glow by androidx.compose.animation.core.animateFloatAsState(if (pressed || flash) 1f else 0f, androidx.compose.animation.core.tween(if (pressed || flash) 70 else 420), label = "glow")
+    this
+        .drawBehind { drawRect(Color(0xFF7FB0FF).copy(alpha = 0.20f * glow)) }
+        .combinedClickable(interactionSource = src, indication = null, onLongClick = onLong, onClick = { Feel.tap(view); flash = true; onClick() })
 }

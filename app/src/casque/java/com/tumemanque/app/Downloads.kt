@@ -606,7 +606,7 @@ class DownloadService : Service() {
         } else {
             val pct = (t.progress * 100).toInt()
             b.setContentTitle(t.video.title)
-                .setContentText("${t.kind.label} · ${if (t.status == DlStatus.PROCESSING) t.phase else "$pct %"}" + if (left > 1) " · ${left - 1} en attente" else "")
+                .setContentText("${t.kind.label} · $pct %" + if (left > 1) " · ${left - 1} en attente" else "")
                 .setProgress(100, pct, t.status == DlStatus.PROCESSING)
         }
         return b.build()

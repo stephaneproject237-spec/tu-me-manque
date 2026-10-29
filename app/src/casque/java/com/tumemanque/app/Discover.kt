@@ -448,7 +448,7 @@ private fun RubricRow(list: List<DiscoGenre>, selGenre: String?, onGenre: (Disco
 @Composable
 fun TrackRow(t: DiscoTrack, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 20.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().tapGlow { onClick() }.padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("${t.n}", color = P.sub, fontSize = 14.sp, modifier = Modifier.width(30.dp))
