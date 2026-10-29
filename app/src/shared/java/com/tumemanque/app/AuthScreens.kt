@@ -106,6 +106,7 @@ fun ContactScreen(s: AuthState, vm: AuthViewModel, onSkip: () -> Unit, onDone: (
 private fun MethodButtons(s: AuthState, vm: AuthViewModel, needOk: Boolean, sms: Boolean = true) {
     val context = LocalContext.current
     val enabled = !s.busy && (!needOk || s.canContinue)
+    androidx.compose.runtime.LaunchedEffect(Unit) { vm.warmUpBrowser(context) }
     Button(
         onClick = { vm.startOAuth(context, "google") },
         enabled = enabled,

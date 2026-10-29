@@ -113,7 +113,22 @@ class AuthViewModel : ViewModel() {
         val s = _state.value
         val uri = if (s.mode == "create") Backend.oauthUri(provider, s.pseudo, s.age, s.birthIso, s.phone)
         else Backend.oauthUri(provider, null, null, null, null)
-        context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Onglet Chrome léger (déjà préchauffé par l'écran de connexion) : bien plus rapide qu'un navigateur complet qui démarre à froid.
+        runCatching {
+            val tab = androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(false).setShareState(androidx.browser.customtabs.CustomTabsIntent.SHARE_STATE_OFF).build()
+            tab.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            tab.launchUrl(context, uri)
+        }.onFailure {
+            context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    /** À appeler quand l'écran de connexion s'affiche : Chrome démarre en avance, la page Google s'ouvre presque tout de suite. */
+    fun warmUpBrowser(context: Context) {
+        runCatching {
+            val pkg = androidx.browser.customtabs.CustomTabsClient.getPackageName(context.applicationContext, null) ?: return
+            androidx.browser.customtabs.CustomTabsClient.connectAndInitialize(context.applicationContext, pkg)
+        }
     }
 
     /** Reprend l'e-mail et le numéro du compte connecté : on ne redemande pas ce qu'on connaît déjà. */

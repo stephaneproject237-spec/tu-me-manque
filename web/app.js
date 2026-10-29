@@ -354,6 +354,10 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       render();
       return;
     }
+    // Retour visuel immédiat : la page de Google met un instant à s'ouvrir.
+    S.auth.busy = true; S.auth.msg = "Ouverture de Google…";
+    render();
+    window.addEventListener("pageshow", (e) => { if (e.persisted && S.auth.busy) { S.auth.busy = false; S.auth.msg = ""; render(); } }, { once: true });
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
     lsSet(PKCE, verifier);
