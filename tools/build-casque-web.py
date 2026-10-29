@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.6"
-NOTES = "Albums : seuls les albums sont affichés (plus de « Et aussi » ni de rubriques en dessous)."
+VERSION = "web 2.7"
+NOTES = "Propositions de recherche : le texte démarre à la hauteur de la vidéo, sans la flouter."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
