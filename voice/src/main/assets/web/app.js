@@ -20,6 +20,7 @@ const ICONES = {
   dossier: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   refaire: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>',
   suivant: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  yt: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor"/></svg>',
   points: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>',
 };
 
@@ -145,6 +146,7 @@ const Rec = {
 // ---------------------------------------------------------------- rendu
 function occupe() {
   if (Rec.actif || enAttenteConv) return true;
+  if (pile[pile.length - 1].v === "youtube") return true;
   if ([...document.querySelectorAll("audio")].some((a) => !a.paused && !a.ended)) return true;
   const f = document.activeElement;
   return f && (f.tagName === "TEXTAREA" || f.tagName === "INPUT") && f.type !== "checkbox" && f.type !== "range";
@@ -167,7 +169,7 @@ function rendu() {
   const courant = pile[pile.length - 1];
   $("#retour").hidden = pile.length < 2;
   $("#reglages").hidden = courant.v !== "accueil";
-  const vues = { accueil: vueAccueil, voix: vueVoix, reglages: vueReglages };
+  const vues = { accueil: vueAccueil, voix: vueVoix, reglages: vueReglages, youtube: vueYoutube };
   vue.innerHTML = (vues[courant.v] || vueAccueil)(courant);
   if (courant.anime) { vue.classList.remove("vue-entree"); void vue.offsetWidth; vue.classList.add("vue-entree"); courant.anime = false; }
   window.scrollTo(0, courant.v === pile[pile.length - 1].v ? haut : 0);
@@ -178,6 +180,8 @@ function aller(v, extra = {}) { pile.push({ v, anime: true, ...extra }); window.
 window.tmvRetour = function () {
   if (!$("#feuille").hidden) { fermerFeuille(); return true; }
   if (Rec.actif) { Rec.arreter(); return true; }
+  if (pile[pile.length - 1].v === "youtube" && YTV.extraction) { toast("Extraction en cours, patientez ou annulez."); return true; }
+  if (pile[pile.length - 1].v === "youtube" && YTV.choisie) { YTV.fermerChoix(); return true; }
   if (pile.length > 1) { pile.pop(); pile[pile.length - 1].anime = true; rendu(); return true; }
   return false;
 };
@@ -322,13 +326,14 @@ function studio(v) {
     <div class="ligne" style="margin:14px 0 6px"><span class="etiquette">Total : ${minutes(total)}</span><span class="espace"></span><span class="petit">objectif 10 min</span></div>
     <div class="jauge ${pct >= 100 ? "verte" : ""}"><div style="width:${Math.max(2, pct)}%"></div></div>
     <p class="petit" style="margin:8px 0 12px">${conseil}</p>
+    <button class="btn plein" data-act="youtube" style="margin-bottom:8px">${ICONES.yt} Prendre sa voix sur YouTube</button>
     <button class="btn plein" data-act="importer">${ICONES.dossier} Importer des fichiers audio</button>
   </div>`;
   if (prises.length) {
     h += `<div class="carte"><h2>Enregistrements (${prises.length})</h2>`;
     h += prises.map((p, i) => `<div class="prise"><span class="num">${i + 1}</span>
         <button class="lire" data-act="lirePrise" data-url="${esc(p.url)}">${ICONES.play}</button>
-        <span class="espace">${p.ms ? minutes(p.ms) : "Durée inconnue"}</span>
+        <span class="espace">${p.ms ? minutes(p.ms) : "Durée inconnue"}${p.nom.includes("_yt") ? ' <span class="pastille">YouTube</span>' : ""}</span>
         <button class="suppr" data-act="supprPrise" data-nom="${esc(p.nom)}">${ICONES.poubelle}</button></div>`).join("");
     h += `</div>`;
   }
@@ -489,6 +494,7 @@ vue.addEventListener("click", (e) => {
       ui.phraseIdx++;
       $("#phrase").textContent = PHRASES[ui.phraseIdx % PHRASES.length];
       break;
+    case "youtube": aller("youtube", { id: v.id }); break;
     case "importer": importer((f) => ajouterFichiers(v, f)); break;
     case "importerConv": importer((f) => f[0] && transformerFichier(v, f[0]), false); break;
     case "lirePrise": lirePrise(b, d.url); break;
@@ -660,6 +666,8 @@ window.tmvEvenement = function (nom, d) {
       ? `<span class="ok">✓ Connexion réussie.</span>` + (d.quota && d.quota.total_h ? ` ${Math.round(d.quota.total_h - d.quota.utilise_h)} h de GPU gratuites disponibles cette semaine.` : "")
       : `<span class="ko">✗ ${esc(d.erreur)}</span>`;
     if (d.ok) setTimeout(() => { charger(); if (!occupe()) rendu(); }, 1800);
+  } else if (nom.startsWith("yt")) {
+    YTV.evenement(nom, d);
   } else if (nom === "maj") {
     const z = $("#maj-res"); if (!z) return;
     if (!d.ok) z.innerHTML = `<span class="ko">Impossible de vérifier : ${esc(d.erreur)}</span>`;

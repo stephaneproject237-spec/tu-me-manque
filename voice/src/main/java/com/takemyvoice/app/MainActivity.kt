@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
                 loader.shouldInterceptRequest(r.url)
 
             override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
-                if (r.url.host == "appassets.androidplatform.net") return false
+                if (!r.isForMainFrame || r.url.host == "appassets.androidplatform.net") return false
                 runCatching { startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, r.url)) }
                 return true
             }

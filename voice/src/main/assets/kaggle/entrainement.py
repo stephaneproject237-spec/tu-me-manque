@@ -11,8 +11,48 @@ dossier = TMP + "/dataset"
 os.makedirs(dossier, exist_ok=True)
 sources = [p for p in glob.glob("/kaggle/input/**/*", recursive=True)
            if os.path.isfile(p) and p.lower().endswith(AUDIO_EXT)]
+
+def isoler_voix(fichiers):
+    """Passages YouTube : on retire musique et bruits avec Demucs (sur le GPU). En cas d'échec, on garde l'original."""
+    if not fichiers:
+        return {}
+    etape("Séparation de la voix et de la musique (YouTube)")
+    dm = TMP + "/demucs"
+    try:
+        sh("pip install -q uv")
+        sh(f"uv venv {dm} --python 3.11 --seed -q")
+        sh(f"uv pip install -q --python {dm}/bin/python demucs==4.0.1 torch==2.0.1 torchaudio==2.0.2 "
+           f"numpy==1.26.4 soundfile --extra-index-url https://download.pytorch.org/whl/cu118 "
+           f"--index-strategy unsafe-best-match")
+        sortie = TMP + "/separe"
+        listes = " ".join(f"'{f}'" for f in fichiers)
+        sh(f"{dm}/bin/python -m demucs --two-stems vocals -n htdemucs -d cuda -o {sortie} {listes}")
+        res = {}
+        for f in fichiers:
+            nom = os.path.splitext(os.path.basename(f))[0]
+            v = glob.glob(f"{sortie}/htdemucs/{nom}/vocals.*")
+            if v:
+                res[f] = v[0]
+        return res
+    except SystemExit:
+        if os.path.exists(TRAVAIL + "/erreur.json"):
+            os.remove(TRAVAIL + "/erreur.json")
+        print("[TMV] Séparation impossible, on garde l'audio d'origine.", flush=True)
+        return {}
+
+
+# Les extraits YouTube sont d'abord convertis en WAV, puis nettoyés
+yt = []
+for p in sources:
+    if "_yt" in os.path.basename(p):
+        w = f"{TMP}/yt_{len(yt):03d}.wav"
+        if vers_wav(p, w, 44100):
+            yt.append(w)
+nettoyes = isoler_voix(yt)
+
 total = 0.0
-for i, p in enumerate(sorted(sources)):
+entrees = [p for p in sources if "_yt" not in os.path.basename(p)] + [nettoyes.get(w, w) for w in yt]
+for i, p in enumerate(sorted(entrees)):
     dst = f"{dossier}/{i:03d}.wav"
     if vers_wav(p, dst, SR):
         total += duree(dst)

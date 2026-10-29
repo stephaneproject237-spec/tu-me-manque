@@ -146,6 +146,31 @@ class Bridge(private val a: MainActivity) {
         Store.modifier { }
     }
 
+    // ---------- YouTube ----------
+
+    @JavascriptInterface
+    fun ytPreparer() { YtVoice.init(c); YtVoice.chauffer { err -> a.evenement("ytPret", JSONObject().put("ok", err == null).put("erreur", err ?: "")) } }
+
+    @JavascriptInterface
+    fun ytChercher(q: String) {
+        YtVoice.init(c)
+        YtVoice.chercher(q.trim()) { res, err ->
+            a.evenement("ytResultats", JSONObject().put("ok", res != null).put("videos", res ?: JSONArray()).put("erreur", err ?: ""))
+        }
+    }
+
+    @JavascriptInterface
+    fun ytExtraire(voixId: String, videoId: String, debut: Int, fin: Int) {
+        YtVoice.init(c)
+        YtVoice.extraire(voixId, videoId, debut, fin,
+            { p -> a.evenement("ytProgression", JSONObject().put("p", p)) }) { nom, err ->
+            a.evenement("ytFini", JSONObject().put("ok", nom != null).put("nom", nom ?: "").put("erreur", err ?: ""))
+        }
+    }
+
+    @JavascriptInterface
+    fun ytAnnuler() = YtVoice.annuler()
+
     // ---------- Tâches ----------
 
     private fun ajouterTache(voixId: String, type: String, params: JSONObject, entree: File? = null): String {
