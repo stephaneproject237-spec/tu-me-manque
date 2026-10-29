@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /** Onglet « Rechercher » : on tape un titre, on lit la vidéo, on la télécharge dans le format voulu. */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SearchScreen() {
     val ctx = LocalContext.current
@@ -103,7 +103,11 @@ fun SearchScreen() {
             (0 until a.length()).map { YtVideo.fromJson(a.getJSONObject(it)) }
         }.getOrDefault(emptyList())
     }
-    val selected = results.firstOrNull { it.id == selectedId } ?: results.firstOrNull()
+    // Propositions du même thème que la vidéo choisie, ajoutées sous les résultats.
+    var related by remember { mutableStateOf(listOf<YtVideo>()) }
+    var extraSel by remember { mutableStateOf<YtVideo?>(null) }
+    val selected = results.firstOrNull { it.id == selectedId } ?: related.firstOrNull { it.id == selectedId }
+        ?: extraSel?.takeIf { it.id == selectedId } ?: results.firstOrNull()
 
     fun run(q: String) {
         val t = q.trim()
@@ -140,8 +144,27 @@ fun SearchScreen() {
         suggestions = Yt.suggest(query)
     }
     // Lecture continue : la vidéo suivante est la suivante des résultats ; l'écran suit quand elle change.
-    LaunchedEffect(resultsJson) { if (results.isNotEmpty()) Vp.queue = results }
-    LaunchedEffect(Vp.key) { Vp.key?.let { k -> if (results.any { it.id == k }) selectedId = k } }
+    LaunchedEffect(resultsJson, related) { if (results.isNotEmpty()) Vp.queue = (results + related).distinctBy { it.id } }
+    LaunchedEffect(Vp.key) {
+        Vp.key?.let { k ->
+            val v = (results + related).firstOrNull { it.id == k }
+            if (v != null) { selectedId = k; if (results.none { it.id == k }) extraSel = v }
+        }
+    }
+    LaunchedEffect(selected?.id) {
+        val cur = selected ?: return@LaunchedEffect
+        val base = cur.title.replace(Regex("[(\\[].*?[)\\]]"), " ")
+            .replace(Regex("official|video|music|lyrics?|audio|clip|officiel|\\bhd\\b|\\b4k\\b|\\|.*$", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s+"), " ").trim().ifBlank { cur.title }
+        val qs = listOf(base, cur.channel, "${cur.channel.ifBlank { base }} mix", "$base similaire").filter { it.isNotBlank() }.distinct()
+        val seen = HashSet<String>().apply { addAll(results.map { it.id }); add(cur.id) }
+        val acc = ArrayList<YtVideo>()
+        for (q in qs) {
+            val found = runCatching { Yt.search(q, 25) }.getOrDefault(emptyList())
+            for (f in found) if (seen.add(f.id)) acc.add(f)
+            related = acc.take(70).toList()
+        }
+    }
     // On prépare le lecteur et les tailles des formats dès qu'une vidéo est choisie.
     LaunchedEffect(selected?.id) { selected?.let { v -> runCatching { Yt.info(v.id) } } }
 
@@ -271,9 +294,10 @@ fun SearchScreen() {
             }
 
             if (selected != null) {
-                item(key = "player") {
-                    PlayerCard(selected)
+                stickyHeader(key = "player") {
+                    Box(Modifier.fillMaxWidth().background(P.bg)) { PlayerWindow(selected) }
                 }
+                item(key = "info") { PlayerInfo(selected) }
                 item(key = "formats") {
                     FormatsPanel(selected) { kind ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -286,6 +310,17 @@ fun SearchScreen() {
                     ResultRow(v) {
                         Vp.stop()
                         selectedId = v.id
+                        extraSel = null
+                        scope.launch { listState.animateScrollToItem(0) }
+                    }
+                }
+                val rel = related.filter { r -> r.id != selected.id && results.none { it.id == r.id } }
+                if (rel.isNotEmpty()) item(key = "rt") { SectionTitle("DANS LA MÊME THÉMATIQUE", Modifier.padding(top = 8.dp)) }
+                items(rel, key = { "t${it.id}" }) { v ->
+                    ResultRow(v) {
+                        Vp.stop()
+                        selectedId = v.id
+                        extraSel = v
                         scope.launch { listState.animateScrollToItem(0) }
                     }
                 }
@@ -294,9 +329,9 @@ fun SearchScreen() {
     }
 }
 
-/** La vidéo choisie : miniature avec un bouton lecture, puis le lecteur. */
+/** La fenêtre de lecture : elle reste en haut de l'écran pendant qu'on fait défiler le reste. */
 @Composable
-private fun PlayerCard(v: YtVideo) {
+private fun PlayerWindow(v: YtVideo) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
@@ -323,7 +358,15 @@ private fun PlayerCard(v: YtVideo) {
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
+    }
+}
+
+/** Titre de la vidéo choisie et réglage « lecture continue ». */
+@Composable
+private fun PlayerInfo(v: YtVideo) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp)) {
+        Spacer(Modifier.height(6.dp))
         Text(v.title, color = P.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
         Text(
             listOf(v.channel, fmtViews(v.views)).filter { it.isNotBlank() }.joinToString(" · "),
