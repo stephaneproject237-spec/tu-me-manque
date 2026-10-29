@@ -1,7 +1,7 @@
 {
- "version": "web 2.27",
- "notes": "Connexion Google plus rapide. Fonctionne avec le réveil automatique pour les téléchargements des amis iPhone.",
- "versionCode": 119,
- "versionName": "1.119",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-119/casque.apk"
+ "version": "web 2.28",
+ "notes": "Plusieurs téléchargements pour les amis iPhone en même temps.",
+ "versionCode": 121,
+ "versionName": "1.121",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-121/casque.apk"
 }
