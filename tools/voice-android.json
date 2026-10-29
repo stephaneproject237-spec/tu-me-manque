@@ -1,6 +1,6 @@
 {
- "versionCode": 2,
- "versionName": "1.2",
- "notes": "Fenêtre YouTube : prendre la voix dans une vidéo pour l'entraînement.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-2/take-my-voice.apk"
+ "versionCode": 3,
+ "versionName": "1.3",
+ "notes": "Recherche YouTube réparée ; l'appli ne passe plus sous la barre d'état.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-3/take-my-voice.apk"
 }
