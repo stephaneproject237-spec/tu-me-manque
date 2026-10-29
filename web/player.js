@@ -1955,9 +1955,6 @@
       body = '<div class="skp"><i class="sk16"></i><i class="skl"></i><i class="sks"></i></div>' + '<div class="skr"><i></i><span><b></b><b></b></span></div>'.repeat(5);
     } else {
       if (SR.err) body += '<div class="err"><p>' + esc(SR.err) + '</p><button class="chip" data-a="ysug" data-id="' + esc(SR.done || q) + '">' + I2.refresh + " Réessayer</button></div>";
-      const lq = (SR.done || "").toLowerCase();
-      const local = lq.length >= 2 ? AUD().filter((t) => (t.title + " " + t.artist).toLowerCase().indexOf(lq) >= 0).slice(0, 3) : [];
-      if (local.length) body += '<p class="sec2">DÉJÀ DANS TES AUDIOS</p>' + local.map((t) => '<div class="lr" data-a="lplay" data-id="' + t.id + '">' + cover(t, "sm") + '<div class="tm"><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + "</small></div>" + I.play + "</div>").join("");
       const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
       if (sel) {
         const playing = V.yid === sel.id;

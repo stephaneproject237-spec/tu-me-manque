@@ -96,7 +96,6 @@ fun SearchScreen() {
     val focus = LocalFocusManager.current
     val haptic = LocalHapticFeedback.current
     val bottom = LocalBottomInset.current
-    val tracks by Lib.tracks.collectAsState()
 
     // On retrouve la dernière recherche (même après avoir fermé l'appli).
     val last = remember { Yt.lastSearch() }
@@ -304,27 +303,6 @@ fun SearchScreen() {
             if (loading) item(key = "lb") {
                 Box(Modifier.fillMaxWidth().padding(4.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = P.blueSoft)
-                }
-            }
-
-            // Ce qu'on a déjà dans la bibliothèque.
-            val q = submitted.lowercase()
-            val local = if (q.length >= 2) tracks.filter { q in it.title.lowercase() || q in it.artist.lowercase() }.take(3) else emptyList()
-            if (local.isNotEmpty()) {
-                item(key = "lt") { SectionTitle("DÉJÀ DANS TES AUDIOS") }
-                items(local, key = { "l${it.id}" }) { t ->
-                    Row(
-                        Modifier.fillMaxWidth().tapGlow { Hub.play(local, local.indexOf(t)) }.padding(horizontal = 16.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Cover(t, 44.dp, 10.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(t.title, color = P.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(t.artist, color = P.sub, fontSize = 12.sp, maxLines = 1)
-                        }
-                        CIcon(Ic.Play, P.blueSoft, 22.dp)
-                    }
                 }
             }
 
