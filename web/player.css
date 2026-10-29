@@ -388,3 +388,18 @@ body.cq-on{overflow:hidden}
 #player .dsr.dpl{gap:10px;margin-bottom:8px}
 #player .dsh .t2{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #player .dsc.col .dsh{padding-left:20px}
+
+/* v2.9 : infos fixes sous la vidéo, interrupteur de lecture automatique, fond de pochettes en verre liquide */
+#player .pcf{display:flex;align-items:center;gap:12px;padding:2px 20px 10px}
+#player .pcf .pct{flex:1;min-width:0}
+#player .pcf h2{margin:0;font-size:17px;-webkit-line-clamp:2}
+#player .pcf small{margin:2px 0 0}
+#player .aps{flex:0 0 auto;width:42px;height:24px;border-radius:24px;border:0;padding:0;background:rgba(255,255,255,.28);position:relative;transition:background .22s;cursor:pointer}
+#player .aps i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;transition:transform .22s;pointer-events:none}
+#player .aps i svg{width:11px;height:11px;fill:#202225}
+#player .aps.on{background:var(--acc,#0a84ff)}#player .aps.on i{transform:translateX(18px)}
+#player .dsc{position:relative;overflow:hidden}
+#player .dsc>*{position:relative;z-index:1}
+#player .dsc .dbg{position:absolute;inset:0;z-index:0;display:flex;filter:blur(32px) saturate(1.9);transform:scale(1.35);opacity:.85}
+#player .dsc .dbg img{flex:1;min-width:0;height:100%;object-fit:cover}
+#player .dsc.hasbg::before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(0,0,0,.12))}

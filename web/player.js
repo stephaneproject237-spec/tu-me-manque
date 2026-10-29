@@ -1523,7 +1523,8 @@
     const seas = d.seasons && d.seasons.length ? '<p class="dss">Saisons</p><div class="dsr dpl">' + d.seasons.map((x) => '<div class="dsp' + (d.ss === x.id ? " on" : "") + '" data-a="dcseason" data-id="' + esc(x.id) + '">' + esc(seasonLabel(x.ti)) + "</div>").join("") + "</div>" : "";
     const ttl = art ? ["Albums", d.name] : String(d.title).split(" · ");
     const lab = art ? "Voir tous les albums de " + d.name : "Voir toutes les rubriques · " + (ttl[1] || ttl[0]);
-    return '<div class="dsc' + (d.col ? " col" : "") + '"><div class="dsh" data-a="dctog"><b class="t1">' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><b class="t2">' + esc(lab) + '</b><button class="ib chv" data-a="dctog" aria-label="Réduire ou agrandir">' + I.down + '</button></div><div class="dsw"><div class="dsi">' + seas + row + "</div></div></div>";
+    const bg = art && d.albums && d.albums.length ? '<div class="dbg">' + d.albums.slice(0, 5).map((a) => '<img src="' + esc(a.art) + '" alt="">').join("") + "</div>" : "";
+    return '<div class="dsc' + (d.col ? " col" : "") + (bg ? " hasbg" : "") + '">' + bg + '<div class="dsh" data-a="dctog"><b class="t1">' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><b class="t2">' + esc(lab) + '</b><button class="ib chv" data-a="dctog" aria-label="Réduire ou agrandir">' + I.down + '</button></div><div class="dsw"><div class="dsi">' + seas + row + "</div></div></div>";
   }
   function vidRow(o, act) {
     return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
@@ -1934,10 +1935,9 @@
       if (sel) {
         const playing = V.yid === sel.id;
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
-          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>";
-        body += '<div class="pc">' +
-          "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
-          (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
+          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
+          '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
+          (sel.src === "yt" ? '<button class="aps' + (V.auto ? " on" : "") + '" data-a="yauto" aria-label="Lecture automatique"><i>' + I.play + "</i></button>" : "") + "</div></div>";
         body += dcBanner();
         body += dcLists();
         const fpo = U.fpo === sel.id, mineD = DL.filter((d) => (sel.src === "yt" ? d.yid === sel.id : d.ti === sel.ti));
