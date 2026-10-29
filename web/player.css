@@ -301,7 +301,7 @@ body.cq-on{overflow:hidden}
 #cq-video.mini.ifr .vb-ctl .tl,#cq-video.mini.ifr .vb-ctl .tr{z-index:3}
 
 /* Écran Rechercher : la fenêtre de lecture reste en haut, le reste défile dessous. */
-#player .pst{position:sticky;top:-6px;z-index:4;padding:8px 16px 6px;background:var(--bg)}
+#player .pst{padding:6px 16px 2px}
 #player .pc{padding-top:2px}
 
 /* Découverte : albums d'un artiste, genres de films (verre liquide) */

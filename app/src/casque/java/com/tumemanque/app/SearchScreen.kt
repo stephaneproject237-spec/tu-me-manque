@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /** Onglet « Rechercher » : on tape un titre, on lit la vidéo, on la télécharge dans le format voulu. */
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen() {
     val ctx = LocalContext.current
@@ -212,6 +212,9 @@ fun SearchScreen() {
             }
         }
 
+        // La fenêtre de lecture reste sous la barre de recherche, au même endroit qu'avant :
+        // le reste (infos, téléchargements, résultats) défile dessous, en verre flou.
+        if (selected != null && !showSuggest && !(loading && results.isEmpty())) PlayerWindow(selected)
     }) {
         // ------------------------------------------------------------------ contenu
         LazyColumn(
@@ -324,9 +327,6 @@ fun SearchScreen() {
                             scope.launch { genreVids = runCatching { Yt.search(g.query, 25) }.getOrDefault(emptyList()) }
                         },
                     )
-                }
-                stickyHeader(key = "player") {
-                    Box(Modifier.fillMaxWidth().background(P.bg)) { PlayerWindow(selected) }
                 }
                 item(key = "info") { PlayerInfo(selected) }
                 val al = selAlbum

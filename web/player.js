@@ -1037,7 +1037,8 @@
       const lr = { top: chr ? chr.getBoundingClientRect().bottom : 0 };
       const dock = host.querySelector(".dock");
       const bottomLimit = dock ? dock.getBoundingClientRect().top - 6 : window.innerHeight;
-      const ct = Math.max(0, lr.top - r.top), cb = Math.max(0, r.bottom - bottomLimit);
+      const inChrome = !!slot.closest(".chrome");
+      const ct = inChrome ? 0 : Math.max(0, lr.top - r.top), cb = Math.max(0, r.bottom - bottomLimit);
       vbox.classList.add("inline");
       vbox.style.cssText = "top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px;" +
         (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 24px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
@@ -1642,7 +1643,7 @@
     const q = SR.q || "";
     const bar = '<form class="gsr" id="ysf">' + I.search + '<input id="ysq" type="search" enterkeyhint="search" placeholder="Titre, artiste, clip…" value="' + esc(q) + '" autocomplete="off" autocorrect="off">' +
       (q ? '<button type="button" class="clr" data-a="yclear" aria-label="Effacer">' + I.close + "</button>" : "") + "</form>";
-    let body = "";
+    let body = "", pin = "";
     if (SR.focus && q.trim() && q.trim() !== SR.done) body = sugHtml();
     else if (!SR.done && !SR.items.length) {
       if (hist.length) body += '<div class="hh"><h2>Recherches récentes</h2><button data-a="yhclear">Effacer</button></div><div class="chips">' + hist.map((h) => '<button class="chip" data-a="ysug" data-id="' + esc(h) + '">' + I2.hist + " " + esc(h) + "</button>").join("") + "</div>";
@@ -1658,9 +1659,9 @@
       if (sel) {
         const playing = V.yid === sel.id;
         body += dcBanner();
-        body += '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
-          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>" +
-          '<div class="pc">' +
+        pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
+          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>";
+        body += '<div class="pc">' +
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
           (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
         body += dcLists();
@@ -1677,7 +1678,7 @@
         if (rels.length) body += '<p class="sec2">DANS LA MÊME THÉMATIQUE</p>' + rels.map(rowOf).join("");
       }
     }
-    return big("Rechercher") + bar + '<main class="list">' + body + "</main>";
+    return big("Rechercher") + bar + pin + '<main class="list">' + body + "</main>";
   }
   function plusSheet(s) {
     if (s.kind === "dlmenu") {
