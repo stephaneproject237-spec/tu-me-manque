@@ -19,7 +19,10 @@ object Relay {
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("casque_relay", Context.MODE_PRIVATE)
 
     fun enabled(ctx: Context): Boolean = prefs(ctx).getBoolean("help", true)
-    fun setEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("help", on).apply(); scope.launch { Backend.heartbeat(on) } }
+    fun setEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("help", on).apply(); scope.launch { Backend.heartbeat(on, Presence.foreground) } }
+
+    /** Le serveur demande un signe de vie (notification silencieuse) : on répond « je suis en ligne ». */
+    fun ping(ctx: Context) { if (Backend.hasSession()) scope.launch { Backend.heartbeat(enabled(ctx), Presence.foreground) } }
 
     /** Un téléchargement pour un ami est en cours. */
     var busy by mutableStateOf(false)
@@ -40,6 +43,7 @@ object Relay {
 
     /** Réveillé par une notification silencieuse : traite les demandes en attente (en parallèle) jusqu'à ce que tout soit terminé. */
     suspend fun drain(ctx: Context) {
+        if (Backend.hasSession()) Backend.heartbeat(enabled(ctx), Presence.foreground)
         var guard = 0
         while (guard++ < 600 && enabled(ctx) && Backend.hasSession()) {
             val launched = runCatching { step(ctx) }.getOrDefault(false)
@@ -55,7 +59,7 @@ object Relay {
             if (Backend.hasSession()) {
                 // Présence en ligne (vue dans l'appli Admin) : toutes les 40 secondes, avec l'état du partage.
                 val now = System.currentTimeMillis()
-                if (now - lastBeat > 40_000) { lastBeat = now; scope.launch { Backend.heartbeat(enabled(ctx)) } }
+                if (now - lastBeat > 40_000) { lastBeat = now; scope.launch { Backend.heartbeat(enabled(ctx), Presence.foreground) } }
                 if (enabled(ctx)) runCatching { step(ctx) }
             }
             delay(4_000)
@@ -104,6 +108,9 @@ object Relay {
             song = MbEngine.search(ctx, q).firstOrNull() ?: throw Exception("introuvable")
         }
         // La barre de l'iPhone est coupée en trois tiers égaux : 1) ce téléchargement, 2) l'envoi du fichier, 3) la réception sur l'iPhone.
+        // Signe de vie toutes les 1,5 s : si ce téléphone perd internet plus de ~6 s, la demande passe à un autre téléphone.
+        val beat = scope.launch { while (true) { Backend.relayBeat(id); delay(1_500) } }
+        try {
         var lastPct = -10
         var lastAt = 0L
         fun push(pct: Int) {
@@ -120,8 +127,15 @@ object Relay {
         } finally {
             runCatching { f.delete() }
         }
+        } finally { beat.cancel() }
     }
 }
 
 /** Appelée par la notification silencieuse (voir MissMessagingService). */
 fun onRelayPush(ctx: Context) = RelayService.start(ctx)
+
+/** Notification silencieuse « signale-toi ». */
+fun onPingPush(ctx: Context) = Relay.ping(ctx)
+
+/** Free tune est-il au premier plan ? (« dans Free tune » ou « sur internet » dans l'appli Admin) */
+object Presence { @Volatile var foreground = false }

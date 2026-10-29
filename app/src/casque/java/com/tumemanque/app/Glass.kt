@@ -53,6 +53,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
@@ -211,6 +212,17 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); Yt.warmUp(ctx); MediaSync.backfill(ctx) }
     // Amis iPhone : ce téléphone télécharge pour eux quand personne d'autre ne l'a fait.
     LaunchedEffect(Unit) { Relay.loop(ctx.applicationContext) }
+    // « Dans Free tune » ou « sur internet » : l'appli est-elle au premier plan ?
+    DisposableEffect(Unit) {
+        var c: android.content.Context = ctx
+        var act: androidx.activity.ComponentActivity? = null
+        while (c is android.content.ContextWrapper) { if (c is androidx.activity.ComponentActivity) { act = c; break }; c = c.baseContext }
+        val lc = act?.lifecycle
+        val upd = { Presence.foreground = lc?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true }
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, _ -> upd() }
+        upd(); lc?.addObserver(obs)
+        onDispose { lc?.removeObserver(obs); Presence.foreground = false }
+    }
     val allTracks by Lib.tracks.collectAsState()
     val haze = remember { HazeState() }
     val byId by Lib.byId.collectAsState()

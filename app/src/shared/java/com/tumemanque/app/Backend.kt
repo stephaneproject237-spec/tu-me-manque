@@ -255,8 +255,13 @@ object Backend {
     }.getOrDefault(false)
 
     /** Free tune : « je suis en ligne » (Android), avec l'état du partage de chansons aux iPhone. */
-    suspend fun heartbeat(share: Boolean) {
-        runCatching { authed("POST", "/rest/v1/rpc/heartbeat", JSONObject().put("p_platform", "android").put("p_share", share).toString()) }
+    suspend fun heartbeat(share: Boolean, inApp: Boolean) {
+        runCatching { authed("POST", "/rest/v1/rpc/heartbeat", JSONObject().put("p_platform", "android").put("p_share", share).put("p_in_app", inApp).toString()) }
+    }
+
+    /** Le téléphone qui télécharge pour un ami iPhone se signale (si on se tait plus de 6 secondes, la demande passe à un autre téléphone). */
+    suspend fun relayBeat(id: Long) {
+        runCatching { authed("POST", "/rest/v1/rpc/relay_beat", JSONObject().put("p_id", id).toString()) }
     }
 
     suspend fun relayProgress(id: Long, pct: Int) {

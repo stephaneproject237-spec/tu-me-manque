@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 
 /** Notification silencieuse « un ami attend un titre » : seul Free tune s'en occupe. */
 fun onRelayPush(ctx: Context) {}
+fun onPingPush(ctx: Context) {}
 
 /** « Tu me manques » n'a pas de lecteur audio : ces écrans n'existent que dans « Casque ». */
 @Composable
