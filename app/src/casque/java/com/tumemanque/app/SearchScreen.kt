@@ -7,6 +7,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -224,34 +230,9 @@ fun SearchScreen() {
     }) {
         // ------------------------------------------------------------------ contenu
         LazyColumn(
-            Modifier.fillMaxSize().imePadding(), state = listState,
+            Modifier.fillMaxSize().imePadding().then(if (showSuggest) Modifier.blur(22.dp) else Modifier), state = listState,
             contentPadding = PaddingValues(top = 6.dp + LocalTopInset.current, bottom = bottom + 12.dp),
         ) {
-            if (showSuggest) {
-                items(suggestions, key = { "s${it.text}" }) { s ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { run(s.text) }.padding(horizontal = 22.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CIcon(Ic.Search, if (s.artist) P.blueSoft else P.sub, 18.dp)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(s.label, color = if (s.artist) P.blueSoft else P.text, fontSize = 16.sp, fontWeight = if (s.artist) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (s.sub.isNotBlank()) Text(s.sub, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Box(Modifier.size(32.dp).clip(CircleShape).clickable { query = "${s.text} " }, contentAlignment = Alignment.Center) {
-                            CIcon(Ic.ArrowNW, P.sub, 18.dp)
-                        }
-                    }
-                }
-                if (suggestions.isEmpty()) item(key = "go") {
-                    Row(Modifier.fillMaxWidth().clickable { run(query) }.padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CIcon(Ic.Search, P.blueSoft, 18.dp); Spacer(Modifier.width(14.dp))
-                        Text("Rechercher « $query »", color = P.blueSoft, fontSize = 16.sp)
-                    }
-                }
-                return@LazyColumn
-            }
 
             if (submitted.isEmpty() && results.isEmpty()) {
                 if (history.isNotEmpty()) {
@@ -372,7 +353,7 @@ fun SearchScreen() {
                 }
                 val gn = genre
                 if (gn != null && stage == 1) {
-                    item(key = "gnt") { SectionTitle("${gn.emoji} ${gn.name.uppercase()}", Modifier.padding(top = 4.dp)) }
+                    item(key = "gnt") { SectionTitle(gn.name.uppercase(), Modifier.padding(top = 4.dp)) }
                     val gv = genreVids
                     if (gv == null) item(key = "gnw") {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -411,6 +392,42 @@ fun SearchScreen() {
                         extraSel = v
                         scope.launch { listState.animateScrollToItem(0) }
                     }
+                }
+            }
+        }
+        // Propositions : le texte seul, flottant sur l'écran flouté.
+        if (showSuggest) {
+            Column(
+                Modifier.fillMaxSize().background(Color(0x5A07090D))
+                    .clickable(remember { MutableInteractionSource() }, indication = null) { }
+                    .verticalScroll(rememberScrollState()).imePadding()
+                    .padding(top = 8.dp + LocalTopInset.current, bottom = 24.dp),
+            ) {
+                suggestions.forEach { s ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) { run(s.text) }.padding(start = 24.dp, end = 12.dp, top = 13.dp, bottom = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CIcon(if (s.artist) Ic.Mic else Ic.Search, if (s.artist) P.blueSoft else Color(0x99FFFFFF), if (s.artist) 22.dp else 20.dp)
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                s.label, color = Color.White, fontSize = if (s.artist) 22.sp else 19.sp, fontWeight = if (s.artist) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 14f)),
+                            )
+                            if (s.sub.isNotBlank()) Text(s.sub, color = Color(0xA0FFFFFF), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Box(Modifier.size(34.dp).clip(CircleShape).clickable { query = "${s.text} " }, contentAlignment = Alignment.Center) {
+                            CIcon(Ic.ArrowNW, Color(0x88FFFFFF), 18.dp)
+                        }
+                    }
+                }
+                if (suggestions.isEmpty()) Row(
+                    Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) { run(query) }.padding(horizontal = 24.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CIcon(Ic.Search, P.blueSoft, 20.dp); Spacer(Modifier.width(16.dp))
+                    Text("Rechercher « $query »", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }

@@ -610,6 +610,7 @@
         top.forEach((e) => ch.appendChild(e));
         l.parentNode.insertBefore(ch, l);
         l.style.paddingTop = ch.offsetHeight + 6 + "px";
+        const so = host.querySelector(".sgo"); if (so) so.style.paddingTop = ch.offsetHeight + 10 + "px";
       }
       l.scrollTop = sc;
       chromeShade(l);
@@ -1223,6 +1224,16 @@
     if (U.sec === "search" && !host.hidden) draw();
   }
   // ---------- Découverte : un artiste → ses albums ; un film → des genres ----------
+  // @rubric-icons:begin
+  const RIC = {"bolt": {"d": "M13 3L5 13.5h6L10 21l8-10.5h-6z", "c": "#FF9F0A"}, "compass": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M15.5 8.5l-2 5-5 2 2-5z", "c": "#40C8E0"}, "palette": {"d": "M12 3a9 9 0 0 0 0 18c1.2 0 2-.8 2-1.800 0-1.200-1-1.500-1-2.500 0-1 .8-1.700 1.800-1.700H17a4 4 0 0 0 4-4C21 6.500 17 3 12 3z M7.500 11h.01 M10 7.500h.01 M14.500 7.500h.01", "c": "#FF375F"}, "smile": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M8.500 14a4 4 0 0 0 7 0 M9 9.500h.01 M15 9.500h.01", "c": "#FFD60A"}, "drama": {"d": "M5 4h14v7a7 7 0 0 1-14 0z M9 9.500h.01 M15 9.500h.01 M9.500 14c1.500 1 3.500 1 5 0", "c": "#BF5AF2"}, "ghost": {"d": "M5 20V11a7 7 0 0 1 14 0v9l-2.500-2-2 2-2.500-2-2.500 2-2-2z M9.500 11h.01 M14.500 11h.01", "c": "#5E5CE6"}, "rocket": {"d": "M12 3c4 2 6 6 5 11l-3 3h-4l-3-3C6 9 8 5 12 3z M9 17l-3 3 M15 17l3 3 M12 9.500h.01", "c": "#0A84FF"}, "eye": {"d": "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z", "c": "#5E5CE6"}, "heart": {"d": "M12 20s-7-4.500-7-10a4 4 0 0 1 7-2.500A4 4 0 0 1 19 10c0 5.500-7 10-7 10z", "c": "#FF375F"}, "search": {"d": "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4", "c": "#40C8E0"}, "wand": {"d": "M5 19L15 9 M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z M19 14l.6 1.400L21 16l-1.400.6L19 18l-.6-1.400L17 16l1.400-.6z", "c": "#BF5AF2"}, "shield": {"d": "M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z", "c": "#FF453A"}, "star": {"d": "M12 3.500l2.600 5.400 5.900.8-4.300 4.100 1 5.900L12 16.900l-5.200 2.800 1-5.900L3.500 9.700l5.900-.8z", "c": "#FFD60A"}, "film": {"d": "M4 5h16v14H4z M8 5v14 M16 5v14 M4 9.500h4 M4 14.500h4 M16 9.500h4 M16 14.500h4", "c": "#FF9F0A"}, "globe": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c3 3 3 15 0 18 M12 3c-3 3-3 15 0 18", "c": "#30D158"}, "cross": {"d": "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M12 8v8 M8 12h8", "c": "#FF453A"}, "scale": {"d": "M12 3v18 M6 21h12 M5 7h14 M5 7l-3 7a3 3 0 0 0 6 0z M19 7l-3 7a3 3 0 0 0 6 0z", "c": "#5E5CE6"}, "tv": {"d": "M4 7h16v11H4z M9 3l3 4 3-4", "c": "#0A84FF"}, "clock": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3 2", "c": "#40C8E0"}, "note": {"d": "M9 18V5l11-2v13 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z", "c": "#FF375F"}, "flame": {"d": "M12 3c1 3.500 5 5.500 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.500 1 2 2 2 0-2-.5-5 1-8z", "c": "#FF9F0A"}, "doc": {"d": "M7 3h7l5 5v13H7z M14 3v5h5 M9.500 13h6 M9.500 17h6", "c": "#0A84FF"}, "ball": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8l3.500 2.500-1.300 4h-4.400l-1.300-4z M12 3v5 M15.500 10.500L20 9 M14.200 14.500l2.800 3.500 M9.800 14.500L7 18 M8.500 10.500L4 9", "c": "#30D158"}, "mic": {"d": "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5 11a7 7 0 0 0 14 0 M12 18v3", "c": "#FF375F"}, "shuffle": {"d": "M16 3h5v5 M4 20L21 3 M21 16v5h-5 M15 15l6 6 M4 4l5 5", "c": "#BF5AF2"}, "headphones": {"d": "M4 14v-2a8 8 0 0 1 16 0v2 M4 14h3v6H5a1 1 0 0 1-1-1z M20 14h-3v6h2a1 1 0 0 0 1-1z", "c": "#5E5CE6"}, "users": {"d": "M9 11a3.500 3.500 0 1 0 0-7 3.500 3.500 0 0 0 0 7z M2.500 20a6.500 6.500 0 0 1 13 0 M16 4.300a3.500 3.500 0 0 1 0 6.400 M18 14a6 6 0 0 1 3.500 6", "c": "#40C8E0"}, "landmark": {"d": "M3 10l9-6 9 6 M5 10v8 M9.500 10v8 M14.500 10v8 M19 10v8 M3 20h18", "c": "#FF9F0A"}, "leaf": {"d": "M5 19c0-9 5-14 15-14 0 10-5 15-14 14 M5 19c3-5 6-8 10-10", "c": "#30D158"}, "flask": {"d": "M9 3h6 M10 3v6l-5 10a1.500 1.500 0 0 0 1.400 2h11.200a1.500 1.500 0 0 0 1.400-2L14 9V3 M7.500 15h9", "c": "#40C8E0"}, "plane": {"d": "M21 3L3 11l7 3 3 7z M10 14L21 3", "c": "#0A84FF"}, "coin": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v10 M15 9.500c-.5-1-1.600-1.500-3-1.500-1.700 0-3 .8-3 2s1.300 1.700 3 2 3 .8 3 2-1.300 2-3 2c-1.400 0-2.500-.5-3-1.500", "c": "#FFD60A"}, "help": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M9.500 9.500a2.500 2.500 0 1 1 3.500 2.300c-.7.400-1 1-1 1.700 M12 16.500h.01", "c": "#BF5AF2"}, "target": {"d": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 12h.01", "c": "#FF453A"}, "trophy": {"d": "M8 4h8v5a4 4 0 0 1-8 0z M8 6H5v2a3 3 0 0 0 3 3 M16 6h3v2a3 3 0 0 1-3 3 M12 13v4 M8.500 20h7 M10 17h4", "c": "#FFD60A"}, "news": {"d": "M4 5h13v14H6a2 2 0 0 1-2-2z M17 9h3v8a2 2 0 0 1-2 2 M7.500 9h6 M7.500 13h6", "c": "#0A84FF"}, "cook": {"d": "M6 11a4 4 0 0 1 2-7 4 4 0 0 1 8 0 4 4 0 0 1 2 7z M7 11v9h10v-9", "c": "#FF9F0A"}, "gamepad": {"d": "M7 8h10a4 4 0 0 1 4 4v3a3 3 0 0 1-5 2l-1-2H9l-1 2a3 3 0 0 1-5-2v-3a4 4 0 0 1 4-4z M8 11v3 M6.500 12.500h3 M16 11.500h.01 M18 13.500h.01", "c": "#5E5CE6"}, "bulb": {"d": "M9 18h6 M10 21h4 M12 3a6 6 0 0 0-4 10.500c.7.600 1 1.300 1 2h6c0-.7.300-1.400 1-2A6 6 0 0 0 12 3z", "c": "#FFD60A"}, "book": {"d": "M4 5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z M20 5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z", "c": "#FF9F0A"}, "sparkles": {"d": "M12 3l1.800 5.200L19 10l-5.200 1.800L12 17l-1.800-5.200L5 10l5.200-1.800z M19 16l.7 1.800L21.500 18.500l-1.800.7L19 21l-.7-1.800-1.800-.7 1.800-.7z", "c": "#FFD60A"}, "cap": {"d": "M2 9l10-5 10 5-10 5z M6 11v5c0 1.500 2.700 3 6 3s6-1.500 6-3v-5", "c": "#0A84FF"}, "pencil": {"d": "M4 20l1-4L16 5l3 3L8 19z M14 7l3 3", "c": "#FF9F0A"}, "wave": {"d": "M3 12h2 M7 8v8 M11 4v16 M15 8v8 M19 10v4", "c": "#FF375F"}, "n1": {"d": "#1", "c": "#0A84FF"}, "n2": {"d": "#2", "c": "#BF5AF2"}, "n3": {"d": "#3", "c": "#FF375F"}};
+  const REMO = {"💥": "bolt", "🧭": "compass", "🎨": "palette", "😂": "smile", "🎭": "drama", "👻": "ghost", "🚀": "rocket", "🕵️": "eye", "💕": "heart", "🔍": "search", "🧙": "wand", "⚔️": "shield", "🤠": "star", "🎥": "film", "🌍": "globe", "🏥": "cross", "⚖️": "scale", "📺": "tv", "🕰️": "clock", "1️⃣": "n1", "2️⃣": "n2", "3️⃣": "n3", "🎵": "note", "🎶": "note", "🔥": "flame", "🎬": "film", "🎼": "note", "📝": "doc", "🏀": "ball", "🧒": "smile", "🎞️": "film", "🎤": "mic", "🍿": "film", "🎙️": "mic", "🔁": "shuffle", "🎧": "headphones", "🤝": "users", "🏛️": "landmark", "🌿": "leaf", "🐾": "leaf", "🔬": "flask", "✈️": "plane", "💰": "coin", "🧠": "help", "⚽": "ball", "🎯": "target", "🏆": "trophy", "📰": "news", "🥗": "leaf", "🍲": "cook", "🍰": "cook", "⚡": "bolt", "🥐": "cook", "🥬": "leaf", "👨‍🍳": "cook", "🎮": "gamepad", "💡": "bulb", "📘": "book", "🏁": "bolt", "🆕": "sparkles", "🧩": "help", "🌱": "leaf", "📚": "book", "✍️": "pencil", "🎓": "cap", "🕺": "wave", "🥁": "wave", "🎸": "note", "💖": "heart", "🙏": "heart", "🌴": "leaf", "🎷": "note", "🎹": "note", "📖": "book", "🔤": "book", "⭐": "star"};
+  // @rubric-icons:end
+  function rbi(e, bare) {
+    const k = RIC[REMO[e] || "star"] || RIC.star, h = k.c.replace("#", ""), n = [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16)).join(",");
+    const sv = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="' + k.d + '"/></svg>';
+    if (bare) return sv;
+    return '<span class="ti' + (k.d.charAt(0) === "#" ? " n" : "") + '" style="--c:' + k.c + ";--c1:rgba(" + n + ",.62);--c2:rgba(" + n + ",.20);--c3:rgba(" + n + ',.32)">' + (k.d.charAt(0) === "#" ? k.d.slice(1) : sv) + "</span>";
+  }
   const cl = (x) => x.replace(/\s+/g, " ").trim();
   const RB = (s, l) => l.map((x) => [x[0], x[1], cl(s + " " + x[2])]);
   const pairs = (l, f) => l.map((x) => [x[0], x[1], cl(f(x[1]))]);
@@ -1355,7 +1366,7 @@
     const d = SR.dc;
     if (!d || d.stage === 2) return "";
     const art = d.kind === "artist";
-    const rub = '<div class="dsr">' + d.rub.map((g, i) => '<div class="dsg' + (d.sg === i ? " on" : "") + '" data-a="dcgen" data-id="' + i + '"><span>' + g[0] + "</span><b>" + esc(g[1]) + "</b></div>").join("") + "</div>";
+    const rub = '<div class="dsr">' + d.rub.map((g, i) => '<div class="dsg' + (d.sg === i ? " on" : "") + '" data-a="dcgen" data-id="' + i + '">' + rbi(g[0]) + "<b>" + esc(g[1]) + "</b></div>").join("") + "</div>";
     let row = "";
     if (art) {
       if (!d.albums) row = '<div class="dsl"><i class="spin s"></i></div>';
@@ -1363,7 +1374,8 @@
       else row = '<div class="dsr">' + d.albums.map((a) => '<div class="dsa' + (d.sa === a.id ? " on" : "") + '" data-a="dcalb" data-id="' + a.id + '"><img src="' + esc(a.art) + '" loading="lazy" alt=""><b>' + esc(a.name) + "</b><small>" + esc(a.year) + "</small></div>").join("") + "</div>";
       row += '<p class="dsn">Et aussi</p>' + rub;
     } else row = rub;
-    return '<div class="dsc"><div class="dsh"><b>' + (art ? "🎵 Albums · " + esc(d.name) : esc(d.title)) + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
+    const ttl = art ? ["Albums", d.name] : String(d.title).split(" · ");
+    return '<div class="dsc"><div class="dsh"><b>' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
   }
   function vidRow(o, act) {
     return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
@@ -1380,7 +1392,7 @@
       else h += d.tracks.map((t, i) => '<div class="tkr" data-a="dctrack" data-id="' + i + '"><span>' + t.n + "</span><b>" + esc(t.ti) + "</b>" + (t.ms ? "<small>" + fmt(Math.round(t.ms / 1000)) + "</small>" : "") + I.play + "</div>").join("");
     }
     if (d.sg != null && d.rub[d.sg]) {
-      h += '<p class="sec2">' + d.rub[d.sg][0] + " " + esc(d.rub[d.sg][1].toUpperCase()) + "</p>";
+      h += '<p class="sec2">' + esc(d.rub[d.sg][1].toUpperCase()) + "</p>";
       if (!d.gv) h += '<div class="dsl"><i class="spin s"></i></div>';
       else h += d.gv.map((o) => vidRow(o, "dcvid")).join("");
     }
@@ -1421,7 +1433,7 @@
       const merge = () => {
         if (SR.q !== q) return;
         const out = [], seen = new Set();
-        if (P.art && seen.add(dnorm(P.art))) out.push({ t: P.art, l: "🎤 " + P.art, s: "Artiste", a: 1 });
+        if (P.art && seen.add(dnorm(P.art))) out.push({ t: P.art, l: P.art, s: "Artiste", a: 1 });
         P.songs.forEach((x) => { if (out.length < 8 && seen.add(dnorm(x.a + " " + x.ti))) out.push({ t: x.a + " " + x.ti, l: x.ti, s: x.a }); });
         P.yt.forEach((y) => { if (out.length < 10 && seen.add(dnorm(y))) out.push({ t: y, l: y }); });
         SR.sug = out;
@@ -1451,14 +1463,21 @@
     const q = SR.q.trim();
     return (SR.sug || []).map((x) => {
       const o = typeof x === "string" ? { t: x, l: x } : x;
-      return '<div class="sg' + (o.a ? " art" : "") + '" data-a="ysug" data-id="' + esc(o.t) + '">' + I.search + "<span>" + esc(o.l) + (o.s ? "<small>" + esc(o.s) + "</small>" : "") + '</span><button data-a="yfill" data-id="' + esc(o.t) + '">' + I2.nw + "</button></div>";
+      return '<div class="sg' + (o.a ? " art" : "") + '" data-a="ysug" data-id="' + esc(o.t) + '">' + (o.a ? rbi("🎤", true) : I.search) + "<span>" + esc(o.l) + (o.s ? "<small>" + esc(o.s) + "</small>" : "") + '</span><button data-a="yfill" data-id="' + esc(o.t) + '">' + I2.nw + "</button></div>";
     }).join("") +
       (!(SR.sug || []).length && q ? '<div class="sg go" data-a="ysug" data-id="' + esc(q) + '">' + I.search + "<span>Rechercher « " + esc(q) + " »</span></div>" : "");
   }
+  // Les propositions flottent par-dessus l'écran (flouté) : seul leur texte apparaît.
   function drawSug() {
-    const box = host.querySelector(".list");
-    if (!box || U.sec !== "search" || !SR.focus) return;
-    box.innerHTML = sugHtml();
+    const l = host.querySelector(".list");
+    if (!l || U.sec !== "search" || !SR.focus) return;
+    let o = host.querySelector(".sgo");
+    if (!(SR.q.trim() && SR.q.trim() !== SR.done)) { if (o) o.remove(); return; }
+    if (!o) {
+      o = document.createElement("div"); o.className = "sgo"; l.parentNode.appendChild(o);
+      const ch = host.querySelector(".chrome"); o.style.paddingTop = (ch ? ch.offsetHeight + 10 : 140) + "px";
+    }
+    o.innerHTML = sugHtml();
   }
   let pvAudio = null;
   function preview(o) {
@@ -1736,8 +1755,8 @@
     const bar = '<form class="gsr" id="ysf">' + I.search + '<input id="ysq" type="search" enterkeyhint="search" placeholder="Titre, artiste, clip…" value="' + esc(q) + '" autocomplete="off" autocorrect="off">' +
       (q ? '<button type="button" class="clr" data-a="yclear" aria-label="Effacer">' + I.close + "</button>" : "") + "</form>";
     let body = "", pin = "";
-    if (SR.focus && q.trim() && q.trim() !== SR.done) body = sugHtml();
-    else if (!SR.done && !SR.items.length) {
+    const showSg = !!(SR.focus && q.trim() && q.trim() !== SR.done);
+    if (!SR.done && !SR.items.length) {
       if (hist.length) body += '<div class="hh"><h2>Recherches récentes</h2><button data-a="yhclear">Effacer</button></div><div class="chips">' + hist.map((h) => '<button class="chip" data-a="ysug" data-id="' + esc(h) + '">' + I2.hist + " " + esc(h) + "</button>").join("") + "</div>";
       body += emptyState(I.search, "Trouve une chanson", "Tape le titre d'une chanson ou le nom d'un artiste. Tu pourras regarder la vidéo, puis la télécharger en MP3 ou en vidéo.", "");
     } else if (SR.loading) {
@@ -1770,7 +1789,7 @@
         if (rels.length) body += '<p class="sec2">DANS LA MÊME THÉMATIQUE</p>' + rels.map(rowOf).join("");
       }
     }
-    return big("Rechercher") + bar + pin + '<main class="list">' + body + "</main>";
+    return big("Rechercher") + bar + pin + '<main class="list">' + body + "</main>" + (showSg ? '<div class="sgo">' + sugHtml() + "</div>" : "");
   }
   function plusSheet(s) {
     if (s.kind === "dlmenu") {

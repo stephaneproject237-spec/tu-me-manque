@@ -325,3 +325,32 @@ body.cq-on{overflow:hidden}
 
 #player .sg.art span{color:var(--bls);font-weight:700}
 #player .sg span small{display:block;margin-top:1px;color:var(--sub);font-size:12px;font-weight:400}
+
+/* ===== Rubriques & propositions : style iOS 26 (verre liquide, icônes fines) ===== */
+#player .dsc{margin:10px 12px;padding:16px 0 16px;border-radius:30px;background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border:.8px solid rgba(255,255,255,.22);-webkit-backdrop-filter:blur(30px) saturate(1.8);backdrop-filter:blur(30px) saturate(1.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 12px 32px rgba(0,0,0,.28)}
+#player .dsh{padding:0 12px 0 20px;margin-bottom:14px}#player .dsh b{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+#player .dsh b small{display:block;margin-top:3px;font-size:13px;font-weight:500;letter-spacing:0;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
+#player .dsh .ib{width:32px;height:32px;background:rgba(255,255,255,.12);border:.8px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#player .dsr{gap:14px;padding:2px 20px 4px}
+#player .dsa{flex:0 0 124px}#player .dsa img{width:124px;height:124px;border-radius:26px;box-shadow:0 10px 24px rgba(0,0,0,.38),0 0 0 .8px rgba(255,255,255,.18);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}
+#player .dsa:active img{transform:scale(.95)}#player .dsa.on img{outline:none;box-shadow:0 10px 26px rgba(47,123,255,.45),0 0 0 2.5px var(--bls);transform:scale(1.03)}
+#player .dsa b{font-size:13px;margin-top:9px}
+#player .dsg{flex:0 0 76px}
+#player .dsg .ti{display:flex;width:68px;height:68px;margin:0 auto;border-radius:24px;align-items:center;justify-content:center;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(150deg,var(--c1),var(--c2));border:.8px solid rgba(255,255,255,.3);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -10px 16px rgba(0,0,0,.10),0 8px 18px var(--c3);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}
+#player .dsg .ti::before{content:"";position:absolute;left:0;right:0;top:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0));border-radius:24px 24px 60% 60%;pointer-events:none}
+#player .dsg .ti svg{width:30px;height:30px;position:relative;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+#player .dsg .ti.n{font-size:28px;font-weight:700;font-style:normal;letter-spacing:-.03em;text-shadow:0 1px 3px rgba(0,0,0,.25)}
+#player .dsg:active .ti{transform:scale(.92)}
+#player .dsg.on .ti{background:linear-gradient(150deg,var(--c),var(--c1));box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 0 2.5px #fff,0 10px 22px var(--c3);transform:scale(1.04)}
+#player .dsg b{font-size:12px;margin-top:8px}
+#player .sec2{letter-spacing:.06em}
+/* propositions : le texte seul, flottant sur l'écran flouté */
+#player .sgo{position:fixed;left:0;right:0;top:0;bottom:0;z-index:4;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:140px;background:rgba(7,9,13,.38);-webkit-backdrop-filter:blur(28px) saturate(1.5);backdrop-filter:blur(28px) saturate(1.5)}
+#player .sgo .sg{padding:13px 18px 13px 24px;font-size:19px;font-weight:500;letter-spacing:-.01em;text-shadow:0 1px 10px rgba(0,0,0,.55)}
+#player .sgo .sg>svg{width:20px;height:20px;color:rgba(255,255,255,.55);filter:drop-shadow(0 1px 4px rgba(0,0,0,.5))}
+#player .sgo .sg.art{font-size:22px;font-weight:700}#player .sgo .sg.art>svg{color:var(--bls);width:22px;height:22px}
+#player .sgo .sg.art span{color:#fff}
+#player .sgo .sg span small{font-size:13px;color:rgba(255,255,255,.62);text-shadow:none}
+#player .sgo .sg button{background:none;color:rgba(255,255,255,.5)}
