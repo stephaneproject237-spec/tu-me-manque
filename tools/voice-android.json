@@ -1,6 +1,6 @@
 {
- "versionCode": 5,
- "versionName": "1.5",
- "notes": "Extraction YouTube corrigée : moteur mis à jour automatiquement, messages d'erreur précis.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-5/take-my-voice.apk"
+ "versionCode": 6,
+ "versionName": "1.6",
+ "notes": "Nom d'utilisateur Kaggle récupéré automatiquement (corrige « Invalid Owner Id »).",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-6/take-my-voice.apk"
 }
