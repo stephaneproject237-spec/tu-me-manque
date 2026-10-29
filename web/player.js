@@ -1280,6 +1280,24 @@
         .map((x) => ({ n: x.trackNumber || 0, ti: x.trackName, ms: x.trackTimeMillis || 0 }));
     } catch (e) { d.tracks = []; }
     if (SR.dc === d && d.sa === a.id) draw();
+    dcAlbumPlay(d, a);
+  }
+  // Touche un album : le premier titre démarre seul et la lecture continue suit l'ordre de l'album.
+  async function dcAlbumPlay(d, a) {
+    const tr = d.tracks || [];
+    if (!tr.length) return;
+    const found = tr.map((t) => ytSearch(d.name + " " + t.ti).then((l) => l[0] || null).catch(() => null));
+    const first = await found[0];
+    if (!first || SR.dc !== d || d.sa !== a.id) return;
+    const mark = (o) => Object.assign(o, { rel: true });
+    if (!SR.items.some((x) => x.id === first.id)) SR.items.push(mark(first));
+    plusClick("ysel", first.id); playYt(first); draw();
+    const list = (await Promise.all(found)).filter(Boolean);
+    if (SR.dc !== d || d.sa !== a.id) return;
+    const ids = {}; const album = [];
+    list.forEach((o) => { if (!ids[o.id]) { ids[o.id] = 1; const ex = SR.items.find((x) => x.id === o.id); album.push(ex || mark(o)); } });
+    SR.items = album.concat(SR.items.filter((x) => !ids[x.id]));
+    saveSr(); draw();
   }
   function dcBanner() {
     const d = SR.dc;

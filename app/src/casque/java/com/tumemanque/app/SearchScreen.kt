@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -110,10 +111,11 @@ fun SearchScreen() {
     var albums by remember { mutableStateOf<List<DiscoAlbum>?>(null) }
     var selAlbum by remember { mutableStateOf<DiscoAlbum?>(null) }
     var albumTracks by remember { mutableStateOf<List<DiscoTrack>?>(null) }
+    var albumQueue by remember { mutableStateOf<List<YtVideo>?>(null) }
     var genre by remember { mutableStateOf<DiscoGenre?>(null) }
     var genreVids by remember { mutableStateOf<List<YtVideo>?>(null) }
     LaunchedEffect(submitted) {
-        kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; genre = null; genreVids = null
+        kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null
         if (submitted.isNotBlank()) kind = Disco.detect(submitted)
     }
     var related by remember { mutableStateOf(listOf<YtVideo>()) }
@@ -156,7 +158,7 @@ fun SearchScreen() {
         suggestions = Disco.suggest(query)
     }
     // Lecture continue : la vidéo suivante est la suivante des résultats ; l'écran suit quand elle change.
-    LaunchedEffect(resultsJson, related) { if (results.isNotEmpty()) Vp.queue = (results + related).distinctBy { it.id } }
+    LaunchedEffect(resultsJson, related, albumQueue) { if (results.isNotEmpty()) Vp.queue = ((albumQueue ?: emptyList()) + results + related).distinctBy { it.id } }
     LaunchedEffect(Vp.key) {
         Vp.key?.let { k ->
             val v = (results + related).firstOrNull { it.id == k }
@@ -320,10 +322,24 @@ fun SearchScreen() {
                             stage = 1
                             if (dk is DiscoKind.Artist && albums == null) scope.launch { albums = Disco.albums(dk.id) }
                         },
-                        onNo = { stage = 2; selAlbum = null; albumTracks = null; genre = null; genreVids = null },
+                        onNo = { stage = 2; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null },
                         onAlbum = { a ->
-                            selAlbum = a; albumTracks = null
-                            scope.launch { albumTracks = Disco.tracks(a.id) }
+                            selAlbum = a; albumTracks = null; albumQueue = null
+                            scope.launch {
+                                val tr = Disco.tracks(a.id)
+                                if (selAlbum?.id != a.id) return@launch
+                                albumTracks = tr
+                                val artist = (dk as? DiscoKind.Artist)?.name ?: ""
+                                // Chaque titre de l'album est cherché (dans l'ordre) ; le premier démarre tout de suite.
+                                val found = tr.map { t -> scope.async { runCatching { Yt.search("$artist ${t.title}", 3) }.getOrNull()?.firstOrNull() } }
+                                val first = found.firstOrNull()?.await() ?: return@launch
+                                if (selAlbum?.id != a.id) return@launch
+                                Vp.stop()
+                                extraSel = first; selectedId = first.id
+                                listState.animateScrollToItem(0)
+                                Vp.playYt(ctx, first)
+                                albumQueue = found.mapNotNull { it.await() }.distinctBy { it.id }
+                            }
                         },
                         onGenre = { g ->
                             genre = g; genreVids = null
@@ -344,7 +360,8 @@ fun SearchScreen() {
                         TrackRow(t) {
                             val artist = (kind as? DiscoKind.Artist)?.name ?: ""
                             scope.launch {
-                                val v = runCatching { Yt.search("$artist ${t.title}", 3) }.getOrNull()?.firstOrNull() ?: return@launch
+                                val v = albumQueue?.getOrNull(tr.indexOf(t)) ?.takeIf { albumQueue?.size == tr.size }
+                                    ?: runCatching { Yt.search("$artist ${t.title}", 3) }.getOrNull()?.firstOrNull() ?: return@launch
                                 Vp.stop()
                                 extraSel = v; selectedId = v.id
                                 listState.animateScrollToItem(0)

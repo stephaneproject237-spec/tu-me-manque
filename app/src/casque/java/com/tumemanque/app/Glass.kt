@@ -310,7 +310,7 @@ private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
     // Glissement vers le bas : le mini-lecteur suit le doigt, puis part en douceur (ou revient avec un petit rebond).
     var drag by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Shell.miniHidden) { if (!Shell.miniHidden) drag = 0f }
-    val limit = with(LocalDensity.current) { 60.dp.toPx() }
+    val limit = with(LocalDensity.current) { 24.dp.toPx() }
     val away = with(LocalDensity.current) { 140.dp.toPx() }
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp)
@@ -331,7 +331,7 @@ private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
                     onDragEnd = {
                         val v = tracker.calculateVelocity().y
                         scope.launch {
-                            if (drag > limit || v > 900f) {
+                            if (drag > limit || v > 350f) {
                                 animate(drag, away, initialVelocity = v.coerceAtLeast(0f), animationSpec = tween(220)) { x, _ -> drag = x }
                                 Shell.miniHidden = true
                             } else {
