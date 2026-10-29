@@ -287,6 +287,7 @@
     return true;
   }
   async function playList(ids, start, opts) {
+    feelTick(true);
     if (!ids.length) return;
     const first = ids[start || 0];
     if (Q.shuffle || (opts && opts.shuffle)) {
@@ -762,7 +763,7 @@
       case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Casque seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
       case "update": checkUpdate(); break;
       case "sendapp": sendApp(); break;
-      case "tickstog": lsSet("casque_ticks", ticksOn() ? "0" : "1"); if (ticksOn()) tick(); draw(); break;
+      case "tickstog": lsSet("casque_ticks", ticksOn() ? "0" : "1"); if (ticksOn()) feelTick(true); draw(); break;
       case "restore": if (!RS.busy) mediaSummary(); break;
       case "sponsorset": setSponsor(); break;
       default: break;
@@ -909,6 +910,7 @@
     vbox.hidden = false;
   }
   async function playYt(o) {
+    feelTick(true);
     if (V.key === "yt:" + o.id) { V.full = false; V.bub = false; placeVideo(); return; }
     stopVideo();
     audio.pause();
@@ -1267,10 +1269,10 @@
   // ---------- Petits clics au défilement (iPhone : interrupteur tactile ; Android : vibration) ----------
   const ticksOn = () => lsGet("casque_ticks") !== "0";
   let tickEl = null, lastTick = 0, lastTop = 0;
-  function tick() {
+  function feelTick(force) {
     if (!ticksOn()) return;
     const now = Date.now();
-    if (now - lastTick < 45) return;
+    if (!force && now - lastTick < 45) return;
     lastTick = now;
     try {
       if (navigator.vibrate && !/iPhone|iPad/.test(navigator.userAgent)) { navigator.vibrate(8); return; }
@@ -1287,7 +1289,7 @@
     const el = ev.target;
     if (!el || !el.classList || !el.classList.contains("list") || U.sec !== "search") return;
     const top = el.scrollTop;
-    if (Math.abs(top - lastTop) >= 70) { lastTop = top; tick(); }
+    if (Math.abs(top - lastTop) >= 70) { lastTop = top; feelTick(); }
   }, true);
 
   // ---------- Séries : saisons (playlists YouTube) ----------
@@ -1515,7 +1517,6 @@
         .map((x) => ({ n: x.trackNumber || 0, ti: x.trackName, ms: x.trackTimeMillis || 0 }));
     } catch (e) { d.tracks = []; }
     if (SR.dc === d && d.sa === a.id) draw();
-    dcAlbumPlay(d, a);
   }
   // Touche un album : le premier titre démarre seul et la lecture continue suit l'ordre de l'album.
   async function dcAlbumPlay(d, a) {
@@ -1600,7 +1601,7 @@
     draw();
     SR.relFor = null; if (items[0]) loadRelated(items[0]);
     SR.dc = null;
-    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 1 }, k); if (k.kind === "artist") dcAlbums(SR.dc); else if (/^(Série|Dessin animé)/.test(String(k.title))) loadSeasons(SR.dc, q); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
+    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 1, col: true }, k); if (k.kind === "artist") dcAlbums(SR.dc); else if (/^(Série|Dessin animé)/.test(String(k.title))) loadSeasons(SR.dc, q); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
@@ -1891,16 +1892,16 @@
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Aucun ami Android n'a pu la télécharger";
-      if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
-      if (d.st === "wait") return kind + " · @" + d.fr + " la télécharge…";
-      if (d.st === "sending") return kind + " · envoi de la demande…";
-      return kind + " · " + (Date.now() - d.at > 180000 ? "en attente : un ami doit ouvrir Free tune sur son Android" : "demande envoyée à tes amis Android" + (d.n ? " (" + d.n + ")" : ""));
+      if (d.st === "recv") return "Téléchargement · " + Math.round((d.p || 0) * 100) + " %";
+      if (d.st === "wait") return "Connexion au serveur…";
+      if (d.st === "sending") return "Connexion au serveur…";
+      return Date.now() - d.at > 180000 ? "En attente : un ami doit ouvrir Free tune sur son Android" : "Connexion au serveur…";
     }
     if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
     if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;
-    if (d.st === "recv") return kind + " · " + Math.round((d.p || 0) * 100) + " %";
-    if (d.st === "wait") return kind + " · téléchargement sur le téléphone de @" + d.fr + "…";
-    if (d.st === "sending") return kind + " · envoi de la demande…";
+    if (d.st === "recv") return "Téléchargement · " + Math.round((d.p || 0) * 100) + " %";
+    if (d.st === "wait") return "Connexion au serveur…";
+    if (d.st === "sending") return "Connexion au serveur…";
     return kind + " · " + (Date.now() - d.at > 180000 ? "en attente : @" + d.fr + " doit ouvrir votre conversation dans Tu me manques" : "demande envoyée à @" + d.fr);
   }
   function dlRow(d) {
