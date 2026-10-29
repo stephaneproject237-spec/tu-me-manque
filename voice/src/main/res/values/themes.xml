@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tmv_fond">#0B0B10</color>
+    <color name="tmv_icone_fond">#14101F</color>
+    <style name="Theme.Voice" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tmv_fond</item>
+        <item name="android:statusBarColor">@color/tmv_fond</item>
+        <item name="android:navigationBarColor">@color/tmv_fond</item>
+    </style>
+</resources>
