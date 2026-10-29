@@ -269,10 +269,10 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
             Box(
                 Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(P.blue, P.blueDeep))),
                 contentAlignment = Alignment.Center,
-            ) { CIcon(Ic.Help, Color.White, 22.dp) }
+            ) { CIcon(Ic.Chat, Color.White, 22.dp) }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("À propos", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Tchat", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             CIcon(Ic.ChevronRight, P.sub, 22.dp)
         }

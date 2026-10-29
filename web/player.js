@@ -545,7 +545,7 @@
       (SP.name ? '<p><b>@' + esc(SP.name) + "</b></p>" : SP.loaded ? '<p class="note">Tu n\'as pas de parrain. Si quelqu\'un t\'a fait découvrir Free tune, écris son pseudo :</p><input id="spin" class="ti2" maxlength="30" placeholder="Pseudo du parrain" autocapitalize="none" autocomplete="off"><button class="bt out wide" data-a="sponsorset">Valider</button>' : '<p class="note">…</p>') +
       (SP.msg ? '<p class="note">' + esc(SP.msg) + "</p>" : "") + "</div>" +
       '<p class="sec">APPLICATION</p><div class="card l"><button class="bt out wide" data-a="update">Rechercher une mise à jour</button>' + (U.upd ? '<p class="note">' + esc(U.upd) + "</p>" : "") + "</div>" +
-      '<p class="sec">À PROPOS</p><div class="card l"><button class="bt wide" data-a="help">' + I.chat + " À propos</button></div>" +
+      '<p class="sec">TCHAT</p><div class="card l"><button class="bt wide" data-a="help">' + I.chat + " Tchat</button></div>" +
       "</main>";
   }
   function sheetView() {
