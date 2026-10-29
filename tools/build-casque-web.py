@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
 VERSION = "web 2.17"
-NOTES = "Recherche : défilement uniquement vertical, voile d'en-tête plus doux."
+NOTES = "Recherche : défilement vertical seulement, voile d'en-tête plus doux, clics et vibrations, bouton des albums symétrique."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
