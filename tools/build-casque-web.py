@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.28"
-NOTES = "Répartition des téléchargements entre amis Android en ligne ; présence en ligne."
+VERSION = "web 2.29"
+NOTES = "Téléchargement via un ami : reprise automatique avec un autre serveur si le premier perd internet."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

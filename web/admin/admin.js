@@ -196,6 +196,8 @@
 
   // ---------- Clients Free tune ----------
   async function loadFt() {
+    // Demande aux Android silencieux de se signaler (au plus une fois par minute) : ils apparaissent « sur internet » s'ils sont joignables.
+    if (Date.now() - (S.pingAt || 0) > 60000) { S.pingAt = Date.now(); call("admin_ft_ping").catch(() => {}); }
     try {
       S.ft = await call("admin_ft_clients"); S.err = null;
     } catch (e) {
@@ -212,12 +214,21 @@
   function ftCard(u, byId) {
     const sel = !!S.sel[u.id];
     const nf = (u.friends || []).length;
-    const share = u.platform === "android"
+    const st = u.state || (u.online ? "app" : "off");
+    const android = u.platform === "android";
+    const lights = android
+      ? `<div class="row" style="gap:6px;margin-top:6px">
+          <span class="lt ${st === "app" ? "a" : ""}">🟢 Dans Free tune</span><span class="lt ${st === "net" ? "n" : ""}">🔵 Sur internet</span><span class="lt ${st === "off" ? "o" : ""}">⚪ Hors ligne</span></div>`
+      : "";
+    const share = android
       ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
+    const jobs = Number(u.jobs) ? `<span class="chip">⏳ ${u.jobs} en cours</span>` : "";
+    const where = st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
-      <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${u.online ? "on" : ""}" title="${u.online ? "En ligne" : "Hors ligne"}"></span>
-        <span class="name grow">@${esc(u.username)}</span>${share}</div>
-      <div class="row" style="margin-top:4px"><span class="k grow">${esc(u.email || "—")} · ${u.online ? "en ligne" : esc(ago(u.last_seen))}</span>
+      <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
+        <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
+      ${lights}
+      <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
         <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div></div>`;
   }
   function ftHtml() {
@@ -233,7 +244,7 @@
       <button class="swt ${on ? "on" : ""}" data-a="ftset" data-k="${k}" data-v="${on ? 0 : 1}" aria-label="${t}"><i></i></button></div>`;
     const online = all.filter((u) => u.online);
     return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") +
-      `<div class="card glass"><div class="k">${all.length} comptes · <span class="ond on"></span> ${online.length} en ligne (${online.filter((u) => u.platform === "android").length} Android, ${online.filter((u) => u.platform !== "android").length} iPhone)</div>
+      `<div class="card glass"><div class="k">${all.length} comptes · <span class="ond on"></span> ${all.filter((u) => u.state === "app").length} dans Free tune · <span class="ond net"></span> ${all.filter((u) => u.state === "net").length} sur internet · ${all.filter((u) => u.state === "off").length} hors ligne</div>
         ${sw("auto_friends", !!st.auto_friends, "🤝 Amis automatiques", "Tous les comptes Android en ligne deviennent amis avec tous les iPhone en ligne.")}
         ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}</div>
       <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les.</p>
@@ -470,7 +481,7 @@
       if (!me) { el.innerHTML = ""; return; }
       const fr = (me.friends || []).map((id) => S.ft.users.find((x) => x.id === id)).filter(Boolean);
       el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amis de @${esc(me.username)}</h2>
-        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.online ? "on" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : "🍎"} @${esc(f.username)}</b><div class="k">${f.online ? "en ligne" : esc(ago(f.last_seen))}</div></span>
+        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.state === "app" ? "on" : f.state === "net" ? "net" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : "🍎"} @${esc(f.username)}</b><div class="k">${f.state === "app" ? "dans Free tune" : f.state === "net" ? "sur internet" : esc(ago(f.last_seen))}</div></span>
           <button class="d" data-a="ftrm" data-id="${esc(f.id)}" style="padding:6px 12px">Retirer</button></div>`).join("") || '<p class="muted">Aucun ami.</p>'}
         <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Fermer</button></div></div></div>`;
       return;

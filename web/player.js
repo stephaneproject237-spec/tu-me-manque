@@ -1854,6 +1854,11 @@
           const d = rel.find((x) => Number(x.mid) === r.id);
           if (!d) continue;
           if (r.by) d.fr = r.by;
+          // Le téléphone qui télécharge a perdu internet : la demande repart chez un autre téléphone, la barre recommence.
+          d.lost = !!r.lost; d.quiet = Number(r.quiet) || 0;
+          if (r.lost || (r.tries > (d.tries || 0) && (d.tries || 0) > 0)) { d.pr = 0; d.vp = 0; d.p = 0; }
+          if (r.tries != null) d.tries = r.tries;
+          if (r.status === "open" && d.st === "wait") d.st = "sent";
           if (r.prog > (d.pr || 0)) d.pr = r.prog;
           if (r.status === "taken" && d.st === "sent") d.st = "wait";
           else if (r.status === "fail") d.st = "fail";
@@ -2003,7 +2008,8 @@
     DL.forEach((d) => {
       if (d.app !== "rel" || (d.st !== "wait" && d.st !== "recv")) return;
       const v = d.vp || 0; let n = v;
-      if (d.st === "wait") {
+      if (d.st === "wait" && (d.lost || d.quiet >= 3)) { n = v; }
+      else if (d.st === "wait") {
         const pr = Math.min(67, d.pr || 0), cap = pr >= 67 ? 67 : Math.min(66, pr + 24);
         if (v < pr) n = Math.min(pr, v + (pr - v) * 0.45 + 0.3);
         else n = Math.min(cap, v + (cap - v) * 0.08 + 0.05);
@@ -2026,6 +2032,8 @@
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Téléchargement impossible";
+      if (d.lost && (d.st === "sent" || d.st === "wait")) return "Le serveur n'est plus en ligne, recherche d'un autre serveur…";
+      if (d.quiet >= 3 && d.st === "wait") return "Connexion avec le serveur perdue, reconnexion…";
       if (d.st === "recv") return kind + " · " + dlPct(d) + " %";
       if (d.st === "wait") return dlPct(d) > 0 ? kind + " · " + dlPct(d) + " %" : kind + " · en préparation…";
       if (d.st === "sending") return "";
