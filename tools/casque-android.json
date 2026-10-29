@@ -1,6 +1,6 @@
 {
- "versionCode": 87,
- "versionName": "1.87",
- "notes": "Infos fixes sous la vidéo, interrupteur de lecture automatique, barre d'albums en verre liquide avec les pochettes.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-87/casque.apk"
+ "versionCode": 88,
+ "versionName": "1.88",
+ "notes": "Résultats : nombre de vues et date de publication.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-88/casque.apk"
 }
