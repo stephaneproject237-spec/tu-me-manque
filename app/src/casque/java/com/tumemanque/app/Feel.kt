@@ -18,6 +18,22 @@ object Feel {
     fun enabled(c: Context) = prefs(c).getBoolean("ticks", true)
     fun setEnabled(c: Context, on: Boolean) { prefs(c).edit().putBoolean("ticks", on).apply() }
 
+    private var appCtx: Context? = null
+    fun init(c: Context) { if (appCtx == null) appCtx = c.applicationContext }
+
+    /** Petite vibration quand on lance une lecture. */
+    fun tap() {
+        val c = appCtx ?: return
+        if (!enabled(c)) return
+        runCatching {
+            @Suppress("DEPRECATION")
+            val v = if (android.os.Build.VERSION.SDK_INT >= 31) (c.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+            else c.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (android.os.Build.VERSION.SDK_INT >= 29) v.vibrate(android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK))
+            else if (android.os.Build.VERSION.SDK_INT >= 26) v.vibrate(android.os.VibrationEffect.createOneShot(14, 90))
+        }
+    }
+
     fun tick(v: View) {
         if (!enabled(v.context)) return
         val k = if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CLOCK_TICK else HapticFeedbackConstants.KEYBOARD_TAP

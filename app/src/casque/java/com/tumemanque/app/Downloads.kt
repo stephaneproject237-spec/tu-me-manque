@@ -61,7 +61,7 @@ data class DlTask(
     val status: DlStatus = DlStatus.QUEUED,
     val progress: Float = 0f,
     val eta: Long = -1,
-    val phase: String = "En attente…",
+    val phase: String = "Connexion au serveur…",
     val resultId: String? = null,
     val error: String? = null,
     val size: Long = 0,
@@ -146,7 +146,7 @@ object Dl {
     fun retry(ctx: Context, id: String) {
         val t = find(id) ?: return
         synchronized(canceled) { canceled.remove(id) }
-        edit(id) { it.copy(status = DlStatus.QUEUED, progress = 0f, error = null, phase = "En attente…") }
+        edit(id) { it.copy(status = DlStatus.QUEUED, progress = 0f, error = null, phase = "Connexion au serveur…") }
         save()
         kick(ctx)
     }
@@ -239,7 +239,7 @@ object Dl {
 
     private suspend fun process(t0: DlTask) {
         val id = t0.id
-        edit(id) { it.copy(status = DlStatus.RUNNING, progress = 0f, phase = "Connexion à YouTube…", error = null) }
+        edit(id) { it.copy(status = DlStatus.RUNNING, progress = 0f, phase = "Connexion au serveur…", error = null) }
         listener?.invoke(find(id))
         val dir = File(app.cacheDir, "dl/$id")
         try {
@@ -338,9 +338,9 @@ object Dl {
         val m = e.message.orEmpty()
         return when {
             m.contains("Sign in to confirm", true) || m.contains("bot", true) ->
-                "YouTube demande une vérification. Réessaie dans quelques minutes, ou mets à jour le moteur dans Paramètres."
+                "Le serveur demande une vérification. Réessaie dans quelques minutes, ou mets à jour le moteur dans Paramètres."
             m.contains("unavailable", true) || m.contains("private", true) -> "Cette vidéo n'est pas disponible."
-            m.contains("403") -> "YouTube a refusé le téléchargement. Mets à jour le moteur dans Paramètres puis réessaie."
+            m.contains("403") -> "Le serveur a refusé le téléchargement. Mets à jour le moteur dans Paramètres puis réessaie."
             m.contains("No space", true) -> "Plus de place sur le téléphone."
             m.contains("resolve", true) || m.contains("timed out", true) || m.contains("Network", true) || m.contains("connection", true) ->
                 "Pas de connexion internet ?"

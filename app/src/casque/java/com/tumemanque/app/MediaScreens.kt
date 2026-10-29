@@ -154,14 +154,7 @@ private fun DownloadRow(t: DlTask) {
         }
         if (t.active) {
             Spacer(Modifier.height(10.dp))
-            if (t.status == DlStatus.RUNNING && t.progress > 0f) {
-                LinearProgressIndicator(
-                    progress = { t.progress }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
-                    color = P.blueSoft, trackColor = Color(0x1AFFFFFF), drawStopIndicator = {},
-                )
-            } else {
-                LinearProgressIndicator(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = P.blueSoft, trackColor = Color(0x1AFFFFFF))
-            }
+            GlassProgress(t.progress, !(t.status == DlStatus.RUNNING && t.progress > 0f))
             if (t.status == DlStatus.PROCESSING) Text(t.phase, color = P.sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }

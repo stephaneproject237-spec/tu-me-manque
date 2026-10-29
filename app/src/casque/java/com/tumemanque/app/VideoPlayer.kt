@@ -364,6 +364,7 @@ object Vp {
 
     /** Lit une vidéo YouTube (sans la télécharger). */
     suspend fun playYt(ctx: Context, v: YtVideo, auto: Boolean = false) {
+        if (!auto) Feel.tap()
         val p = player(ctx)
         saveLocal()
         if (!auto) played.clear()
@@ -398,6 +399,7 @@ object Vp {
 
     /** Lit une vidéo téléchargée, là où on s'était arrêté. */
     fun playLocal(ctx: Context, item: VideoItem) {
+        Feel.tap()
         val p = player(ctx)
         saveLocal()
         dropPending()

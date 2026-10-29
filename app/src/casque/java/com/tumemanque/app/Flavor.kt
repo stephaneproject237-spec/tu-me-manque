@@ -223,8 +223,8 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
             var ticks by remember { mutableStateOf(Feel.enabled(ctx)) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Vibrations au défilement", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("De petits clics, comme un engrenage, quand tu fais défiler les résultats.", color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                    Text("Vibrations", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("De petits clics, comme un engrenage, quand tu fais défiler les résultats, et une légère vibration quand tu lances une lecture.", color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 androidx.compose.material3.Switch(checked = ticks, onCheckedChange = { ticks = it; Feel.setEnabled(ctx, it) })
             }

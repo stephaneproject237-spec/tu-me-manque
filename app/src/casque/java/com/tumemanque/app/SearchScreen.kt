@@ -131,12 +131,12 @@ fun SearchScreen() {
     var albumQueue by remember { mutableStateOf<List<YtVideo>?>(null) }
     var genre by remember { mutableStateOf<DiscoGenre?>(null) }
     var genreVids by remember { mutableStateOf<List<YtVideo>?>(null) }
-    var collapsed by remember { mutableStateOf(false) }
+    var collapsed by remember { mutableStateOf(true) }
     var seasons by remember { mutableStateOf<List<Yt.YtPlaylist>>(emptyList()) }
     var selSeason by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(submitted) {
         kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null
-        collapsed = false; seasons = emptyList(); selSeason = null
+        collapsed = true; seasons = emptyList(); selSeason = null
         if (submitted.isNotBlank()) {
             val k = Disco.detect(submitted)
             kind = k; stage = 1
@@ -346,15 +346,10 @@ fun SearchScreen() {
                                 if (selAlbum?.id != a.id) return@launch
                                 albumTracks = tr
                                 val artist = (dk as? DiscoKind.Artist)?.name ?: ""
-                                // Chaque titre de l'album est cherché (dans l'ordre) ; le premier démarre tout de suite.
+                                // La liste des titres s'affiche ; rien ne démarre tant qu'on n'a pas touché un titre.
                                 val found = tr.map { t -> scope.async { runCatching { Yt.search("$artist ${t.title}", 3) }.getOrNull()?.firstOrNull() } }
-                                val first = found.firstOrNull()?.await() ?: return@launch
-                                if (selAlbum?.id != a.id) return@launch
-                                Vp.stop()
-                                extraSel = first; selectedId = first.id
-                                listState.animateScrollToItem(0)
-                                Vp.playYt(ctx, first)
-                                albumQueue = found.mapNotNull { it.await() }.distinctBy { it.id }
+                                val q = found.mapNotNull { it.await() }.distinctBy { it.id }
+                                if (selAlbum?.id == a.id) albumQueue = q
                             }
                         },
                         onGenre = { g ->
@@ -602,6 +597,7 @@ private fun FormatsPanel(v: YtVideo, onDownload: (DlKind) -> Unit) {
 private fun FormatRow(k: DlKind, size: String, task: DlTask?, onClick: () -> Unit) {
     val ctx = LocalContext.current
     val done = task?.status == DlStatus.DONE && Dl.stillThere(task)
+    Column(Modifier.fillMaxWidth()) {
     Row(
         Modifier.fillMaxWidth().clickable {
             when {
@@ -627,7 +623,7 @@ private fun FormatRow(k: DlKind, size: String, task: DlTask?, onClick: () -> Uni
             Text(
                 when {
                     task == null || task.status == DlStatus.CANCELED -> k.sub
-                    task.active -> task.phase + if (task.status == DlStatus.RUNNING && task.progress > 0) " ${(task.progress * 100).toInt()} %" else ""
+                    task.active -> if (task.status == DlStatus.RUNNING && task.progress > 0) "Téléchargement · ${(task.progress * 100).toInt()} %" else task.phase
                     done -> if (k.video) "Téléchargé · dans Vidéos" else "Téléchargé · dans Audios"
                     task.status == DlStatus.FAILED -> task.error ?: "Échec"
                     else -> k.sub
@@ -642,6 +638,8 @@ private fun FormatRow(k: DlKind, size: String, task: DlTask?, onClick: () -> Uni
             done -> Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0x264CD08A)), contentAlignment = Alignment.Center) { CIcon(Ic.Play, P.ok, 20.dp) }
             else -> Box(Modifier.size(38.dp).glass(CircleShape, 0.08f), contentAlignment = Alignment.Center) { CIcon(Ic.Download, P.blueSoft, 20.dp) }
         }
+    }
+    if (task?.active == true) GlassProgress(task.progress, task.progress <= 0f || task.status == DlStatus.QUEUED || task.status == DlStatus.PROCESSING, Modifier.padding(start = 70.dp, end = 16.dp, bottom = 8.dp))
     }
 }
 

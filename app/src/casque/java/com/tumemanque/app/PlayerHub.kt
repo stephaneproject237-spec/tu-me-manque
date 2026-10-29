@@ -218,6 +218,7 @@ object Hub {
 
     /** Joue une liste à partir d'un morceau. */
     fun play(list: List<Track>, start: Int = 0, shuffleOn: Boolean? = null) {
+        Feel.tap()
         if (list.isEmpty()) return
         Shell.miniHidden = false
         ensureService()
