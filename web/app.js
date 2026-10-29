@@ -676,7 +676,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     shareOnly: () => shareApp(),
     enablePush: () => enableNotifications(),
     // ----- Casque -----
-    casqueBack: () => { S.cs = "settings"; render(); },
+    casqueBack: () => { S.cs = S.csPrev && S.csPrev !== "help" ? S.csPrev : "player"; render(); },
     openFriend: (id) => act(async () => {
       const f = (S.friends || []).find((x) => x.id === id);
       if (!f) return;
@@ -1089,7 +1089,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     else if (!S.partnerName) html = partnerScreen();
     else html = homeScreen();
 
-    const back = CAS && S.cs === "help" && !casLogin && !(chat() && chat().isOpen()) ? '<button class="cas-back" data-action="casqueBack" aria-label="Retour">‹</button>' : "";
+    const back = CAS && S.cs === "help" && !casLogin && !(chat() && chat().isOpen()) ? '<button class="cas-back" data-action="casqueBack" aria-label="Retour"><i>‹</i><span>Retour</span></button>' : "";
     root.innerHTML = html + (CAS ? back : settingsBtn()) + dialogs() + `<p class="petit">Version ${esc(CFG.VERSION)}</p>`;
 
     if (activeId) {
@@ -1140,7 +1140,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     setUnread(n) { if (S.unread !== n) { S.unread = n; lastSnapshotKey = ""; render(); } },
     reload() { return refresh(); },
     casque: {
-      help() { S.cs = "help"; render(); if (!S.loading && !S.needAuth && S.username) loadFriends().then(() => render()); },
+      help() { if (S.cs !== "help") S.csPrev = S.cs; S.cs = "help"; render(); if (!S.loading && !S.needAuth && S.username) loadFriends().then(() => render()); },
       screen(v) { S.cs = v; render(); },
       version: () => CFG.VERSION,
       username: () => S.username || null,
