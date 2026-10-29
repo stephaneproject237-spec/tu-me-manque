@@ -1,6 +1,6 @@
 {
- "versionCode": 54,
- "versionName": "1.54",
- "notes": "Le bouton À propos devient Tchat.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-54/casque.apk"
+ "versionCode": 56,
+ "versionName": "1.56",
+ "notes": "Choix de la résolution des vidéos, et la vidéo suivante démarre toute seule même écran verrouillé.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-56/casque.apk"
 }
