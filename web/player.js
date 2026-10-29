@@ -1999,9 +1999,9 @@
       if (d.app !== "rel" || (d.st !== "wait" && d.st !== "recv")) return;
       const v = d.vp || 0; let n = v;
       if (d.st === "wait") {
-        const pr = Math.min(67, d.pr || 0), cap = pr >= 67 ? 67 : Math.min(66, pr + 14);
-        if (v < pr) n = Math.min(pr, v + (pr - v) * 0.3 + 0.2);
-        else n = Math.min(cap, v + (cap - v) * 0.035);
+        const pr = Math.min(67, d.pr || 0), cap = pr >= 67 ? 67 : Math.min(66, pr + 24);
+        if (v < pr) n = Math.min(pr, v + (pr - v) * 0.45 + 0.3);
+        else n = Math.min(cap, v + (cap - v) * 0.08 + 0.05);
       } else {
         const t = 67 + (d.p || 0) * 33;
         n = v < t ? Math.min(t, v + Math.max((t - v) * 0.3, 0.6)) : v;
