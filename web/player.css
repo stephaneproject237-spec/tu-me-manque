@@ -437,3 +437,8 @@ body.cq-on{overflow:hidden}
 #player .dbar i::after{display:none!important}
 #player .dbar i::before{height:40%;border-radius:6px}
 #player .dbar.ind i{animation:none!important;width:0!important}
+
+/* v2.15 : barre encore plus fine, bleu néon léger et uniforme */
+#player .dbar{height:5px;padding:.8px;border-radius:5px;margin-top:8px}
+#player .dbar i{background:#2E9BFF!important;box-shadow:0 0 6px rgba(46,155,255,.45)!important;border-radius:4px}
+#player .dbar i::before{display:none!important}
