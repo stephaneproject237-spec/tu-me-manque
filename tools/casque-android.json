@@ -1,6 +1,6 @@
 {
- "versionCode": 115,
- "versionName": "1.115",
- "notes": "Téléchargement pour un ami iPhone : la barre avance en trois étapes égales. Lecteur des Téléchargements, plein écran amélioré.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-115/casque.apk"
+ "versionCode": 117,
+ "versionName": "1.117",
+ "notes": "Téléchargements pour un ami iPhone plus rapides (audio sans conversion). Barre de téléchargement en trois étapes égales.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-117/casque.apk"
 }
