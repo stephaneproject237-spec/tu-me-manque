@@ -481,3 +481,8 @@ html,body{overflow-x:hidden;overscroll-behavior-x:none}
 #cq-video.full.noctl .vb-bar{opacity:0;transform:translateY(-100%);pointer-events:none}
 #cq-video.full .vb-media{transition:top .3s ease}
 #cq-video.full.noctl .vb-media{top:env(safe-area-inset-top)}
+
+/* v2.18 : léger flou remis sous la vidéo (doux, sans masque pour éviter un bord net) */
+#player .chrome::before{opacity:1!important;bottom:0!important;-webkit-backdrop-filter:blur(8px) saturate(1.5)!important;backdrop-filter:blur(8px) saturate(1.5)!important;
+  background:linear-gradient(180deg,rgba(11,13,16,.34),rgba(11,13,16,.14))!important}
+#player .chrome.sc::before{background:linear-gradient(180deg,rgba(11,13,16,.42),rgba(11,13,16,.20))!important}
