@@ -131,7 +131,7 @@
       if (S.ftMode) await loadFt();
       else if (S.thread) await openThread(S.thread.id, S.thread.name, true);
       else await loadAll();
-    }, 5000);
+    }, S.ftMode ? 2000 : 5000);
   }
 
   // ---------- Messagerie ----------
@@ -197,7 +197,7 @@
   // ---------- Clients Free tune ----------
   async function loadFt() {
     // Demande aux Android silencieux de se signaler (au plus une fois par minute) : ils apparaissent « sur internet » s'ils sont joignables.
-    if (Date.now() - (S.pingAt || 0) > 60000) { S.pingAt = Date.now(); call("admin_ft_ping").catch(() => {}); }
+    if (Date.now() - (S.pingAt || 0) > 8000) { S.pingAt = Date.now(); call("admin_ft_ping").catch(() => {}); }
     try {
       S.ft = await call("admin_ft_clients"); S.err = null;
     } catch (e) {

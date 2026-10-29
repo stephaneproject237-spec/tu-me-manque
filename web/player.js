@@ -1821,7 +1821,7 @@
     if (document.hidden || !A || !A.casque || !A.casque.ready || !A.casque.ready()) return;
     A.authed("POST", "/rest/v1/rpc/heartbeat", { p_platform: "ios", p_share: null }).catch(() => {});
   }
-  setInterval(beat, 40000); setTimeout(beat, 4000);
+  setInterval(beat, 20000); setTimeout(beat, 2000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) beat(); });
   let pollT = null, polling = false;
   const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
