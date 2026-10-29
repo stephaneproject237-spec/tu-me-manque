@@ -299,3 +299,7 @@ body.cq-on{overflow:hidden}
 #cq-video.mini .vb-hide{display:flex;position:absolute;left:6px;bottom:6px;width:30px;height:30px;border-radius:50%;z-index:3;transform:rotate(90deg)}
 #cq-video .vb-min svg,#cq-video .vb-hide svg{width:20px;height:20px}
 #cq-video.mini.ifr .vb-ctl .tl,#cq-video.mini.ifr .vb-ctl .tr{z-index:3}
+
+/* Écran Rechercher : la fenêtre de lecture reste en haut, le reste défile dessous. */
+#player .pst{position:sticky;top:-6px;z-index:4;padding:8px 16px 6px;background:var(--bg)}
+#player .pc{padding-top:2px}

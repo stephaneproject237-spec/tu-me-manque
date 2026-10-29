@@ -1201,6 +1201,26 @@
       th: (x.artworkUrl100 || "").replace("100x100", "400x400"), hd: (x.artworkUrl100 || "").replace("100x100", "600x600"), pv: x.previewUrl || "", src: "it",
     }));
   }
+  // Propositions du même thème que la vidéo choisie (même titre, même chaîne, mix) : elles s'ajoutent à la liste.
+  let relTok = 0;
+  const theme = (v) => String(v.ti || "").replace(/[\(\[].*?[\)\]]/g, " ").replace(/official|video|music|lyrics?|audio|clip|officiel|\bhd\b|\b4k\b|\|.*$/gi, " ").replace(/\s+/g, " ").trim();
+  async function loadRelated(sel) {
+    if (!sel || sel.src !== "yt" || SR.relFor === sel.id) return;
+    SR.relFor = sel.id;
+    const my = ++relTok;
+    const base = theme(sel) || sel.ti;
+    const qs = [base, sel.ch, (sel.ch || base) + " mix", base + " similaire"].filter(Boolean);
+    const res = await Promise.all(qs.map((q) => ytSearch(q).catch(() => [])));
+    if (my !== relTok || SR.sel !== sel.id) return;
+    const keep = SR.items.filter((x) => !x.rel || x.id === sel.id);
+    const seen = new Set(keep.map((x) => x.id));
+    const add = [];
+    for (let i = 0; i < 25; i++) res.forEach((l) => { const x = l[i]; if (x && !seen.has(x.id)) { seen.add(x.id); add.push(Object.assign(x, { rel: true })); } });
+    if (!add.length) return;
+    SR.items = keep.concat(add.slice(0, 70));
+    saveSr();
+    if (U.sec === "search" && !host.hidden) draw();
+  }
   let srTok = 0;
   async function doSearch(q) {
     q = String(q || SR.q).trim();
@@ -1221,6 +1241,7 @@
     saveSr();
     const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
     draw();
+    SR.relFor = null; if (items[0]) loadRelated(items[0]);
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
@@ -1536,19 +1557,22 @@
       const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
       if (sel) {
         const playing = V.yid === sel.id;
-        body += '<div class="pc"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
-          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
+        body += '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
+          (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>" +
+          '<div class="pc">' +
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
           (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
         body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
           '<p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
           '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div>";
-        const others = SR.items.filter((x) => x !== sel);
-        if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map((o) => {
+        const rowOf = (o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
           return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
             '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small>" + (got ? '<small class="done">Téléchargé</small>' : "") + "</div></div>";
-        }).join("");
+        };
+        const others = SR.items.filter((x) => x !== sel && !x.rel), rels = SR.items.filter((x) => x !== sel && x.rel);
+        if (others.length) body += '<p class="sec2">AUTRES RÉSULTATS</p>' + others.map(rowOf).join("");
+        if (rels.length) body += '<p class="sec2">DANS LA MÊME THÉMATIQUE</p>' + rels.map(rowOf).join("");
       }
     }
     return big("Rechercher") + bar + '<main class="list">' + body + "</main>";
@@ -1592,6 +1616,7 @@
         SR.sel = id; saveSr();
         const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
         draw();
+        loadRelated(SR.items.find((x) => x.id === id));
         return true;
       }
       case "yget": {
