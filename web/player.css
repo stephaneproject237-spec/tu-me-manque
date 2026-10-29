@@ -403,3 +403,5 @@ body.cq-on{overflow:hidden}
 #player .dsc .dbg{position:absolute;inset:0;z-index:0;display:flex;filter:blur(32px) saturate(1.9);transform:scale(1.35);opacity:.85}
 #player .dsc .dbg img{flex:1;min-width:0;height:100%;object-fit:cover}
 #player .dsc.hasbg::before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(0,0,0,.12))}
+
+#cq-video.mini .vb-hide{display:none!important}

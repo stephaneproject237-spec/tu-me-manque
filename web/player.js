@@ -1163,16 +1163,31 @@
   vbox.addEventListener("touchmove", (e) => {
     if (!drag || !drag.mini) return;
     const t = e.touches[0];
-    V.dx = Math.min(0, Math.max(-(window.innerWidth - 230) - 150, t.clientX - drag.x));
+    V.dx = Math.min(0, Math.max(-(window.innerWidth - 230), t.clientX - drag.x));
     V.dy = Math.min(0, Math.max(-(window.innerHeight - 340), t.clientY - drag.y));
     drag.moved = true;
     vbox.style.transform = "translate(" + V.dx + "px," + V.dy + "px)";
   }, { passive: true });
   vbox.addEventListener("touchend", (e) => {
     if (drag && !drag.mini && e.changedTouches[0].clientY - drag.y0 > 60) { V.full = false; placeVideo(); }
-    // Poussée au-delà du bord gauche : la bulle se cache, le son continue.
-    else if (drag && drag.mini && drag.moved && V.dx < -(window.innerWidth - 230) - 60) { V.hid = true; placeVideo(); }
-    else if (drag && drag.mini && V.dx < -(window.innerWidth - 230)) { V.dx = -(window.innerWidth - 230); placeVideo(); }
+    // Dans l'appli la bulle ne se cache pas : posée devant l'écran du lecteur, elle y entre et la vidéo continue.
+    else if (drag && drag.mini && drag.moved) {
+      const slot = !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
+      const br = vbox.getBoundingClientRect();
+      if (slot) {
+        const sr = slot.getBoundingClientRect();
+        const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+        if (cx > sr.left && cx < sr.right && cy > sr.top && cy < sr.bottom) {
+          const dx = sr.left + sr.width / 2 - cx, dy = sr.top + sr.height / 2 - cy;
+          vbox.style.transition = "transform .28s cubic-bezier(.4,0,.2,1),opacity .28s ease";
+          vbox.style.transform = "translate(" + (V.dx + dx) + "px," + (V.dy + dy) + "px) scale(.45)";
+          vbox.style.opacity = "0";
+          setTimeout(() => { V.bub = false; V.dx = 0; V.dy = 0; placeVideo(); }, 290);
+          drag = null; return;
+        }
+      }
+      if (V.dx < -(window.innerWidth - 230)) { V.dx = -(window.innerWidth - 230); placeVideo(); }
+    }
     drag = null;
   }, { passive: true });
 
