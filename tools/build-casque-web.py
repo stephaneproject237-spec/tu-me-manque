@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
 VERSION = "web 2.13"
-NOTES = "Vibration à la lecture, album sans lecture automatique, albums repliés au départ, barre de chargement en verre liquide."
+NOTES = "Vibration et surbrillance au toucher d'une chanson, albums repliés et sans lecture automatique, téléchargement sans messages."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

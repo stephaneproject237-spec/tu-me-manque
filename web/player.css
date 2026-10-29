@@ -426,3 +426,7 @@ body.cq-on{overflow:hidden}
 #player .dbar i::before{content:"";position:absolute;left:2px;right:2px;top:1px;height:42%;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.65),rgba(255,255,255,0))}
 #player .dbar i::after{content:"";position:absolute;top:0;bottom:0;width:45%;left:-45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:cqshine 1.6s linear infinite}
 @keyframes cqshine{to{left:110%}}
+
+/* v2.13 : légère surbrillance au toucher d'une chanson */
+@keyframes tapg{0%{background:rgba(127,176,255,.28)}100%{background:rgba(127,176,255,0)}}
+#player .tapg{animation:tapg .55s ease-out;border-radius:12px}

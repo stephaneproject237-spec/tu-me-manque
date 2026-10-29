@@ -684,6 +684,7 @@
     const el = ev.target.closest("[data-a]");
     if (!el) return;
     const a = el.dataset.a, id = el.dataset.id;
+    if (a === "ysel" || a === "dcvid" || a === "dctrack" || a === "lplay" || a === "row" || a === "yplay") { lastTick = 0; tick(true); el.classList.remove("tapg"); void el.offsetWidth; el.classList.add("tapg"); }
     if (a === "menu" || a === "pp" || a === "prev" || a === "next" || a === "fav" || a === "plmenu" || a === "dlmenu" || a === "dlrm" || a === "yfill" || a === "dlretry") ev.stopPropagation();
     if (plusClick(a, id, el)) return;
     switch (a) {
@@ -1892,16 +1893,16 @@
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Aucun ami Android n'a pu la télécharger";
-      if (d.st === "recv") return "Téléchargement · " + Math.round((d.p || 0) * 100) + " %";
-      if (d.st === "wait") return "Connexion au serveur…";
-      if (d.st === "sending") return "Connexion au serveur…";
-      return Date.now() - d.at > 180000 ? "En attente : un ami doit ouvrir Free tune sur son Android" : "Connexion au serveur…";
+      if (d.st === "recv") return Math.round((d.p || 0) * 100) + " %";
+      if (d.st === "wait") return "";
+      if (d.st === "sending") return "";
+      return Date.now() - d.at > 180000 ? "En attente : un ami doit ouvrir Free tune sur son Android" : "";
     }
     if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
     if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;
-    if (d.st === "recv") return "Téléchargement · " + Math.round((d.p || 0) * 100) + " %";
-    if (d.st === "wait") return "Connexion au serveur…";
-    if (d.st === "sending") return "Connexion au serveur…";
+    if (d.st === "recv") return Math.round((d.p || 0) * 100) + " %";
+    if (d.st === "wait") return "";
+    if (d.st === "sending") return "";
     return kind + " · " + (Date.now() - d.at > 180000 ? "en attente : @" + d.fr + " doit ouvrir votre conversation dans Tu me manques" : "demande envoyée à @" + d.fr);
   }
   function dlRow(d) {
