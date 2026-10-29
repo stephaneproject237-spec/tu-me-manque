@@ -1,5 +1,8 @@
 package com.tumemanque.app
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import android.app.Activity
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -129,6 +132,8 @@ object Vp {
     var fullscreen by mutableStateOf(false)
     /** Réduite en petite fenêtre flottante dans l'appli. */
     var mini by mutableStateOf(false)
+    /** Position à l'écran de la fenêtre du lecteur (onglet Rechercher) : on peut y poser la bulle. */
+    var slot by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     /** Fenêtre flottante d'Android (par-dessus les autres applis). */
     var inPip by mutableStateOf(false)
     var aspect by mutableFloatStateOf(16f / 9f)
@@ -625,41 +630,42 @@ fun BoxScope.MiniVideo(bottom: Dp) {
     var off by remember { mutableStateOf(Offset.Zero) }
     var showCtl by remember { mutableStateOf(true) }
     LaunchedEffect(showCtl, Vp.playing) { if (showCtl && Vp.playing) { delay(2500); showCtl = false } }
-    if (Vp.miniHidden) {
-        // Poussée vers la gauche : la vidéo n'est plus visible, le son continue. Une languette permet de la rappeler.
-        Box(Modifier.matchParentSize()) {
-            Box(
-                Modifier.align(Alignment.BottomStart).padding(bottom = bottom + 8.dp)
-                    .clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
-                    .background(Color(0xCC1C1C22))
-                    .clickable { Vp.miniHidden = false; off = Offset.Zero }
-                    .padding(horizontal = 6.dp, vertical = 12.dp),
-            ) { CIcon(Ic.Pip, Color.White, 18.dp) }
-        }
-        return
-    }
+    // Dans l'appli, la bulle ne se cache pas : on peut la poser devant l'écran du lecteur, elle y entre alors.
+    val dock = remember { androidx.compose.animation.core.Animatable(0f) }
+    var bubble by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var dock0 by remember { mutableStateOf(Offset.Zero) }
+    val scopeM = androidx.compose.runtime.rememberCoroutineScope()
     BoxWithConstraints(Modifier.matchParentSize()) {
         val w = 210.dp
         val h = (w / Vp.aspect.coerceIn(0.56f, 2.4f)).coerceAtMost(300.dp)
         val maxX = with(density) { (maxWidth - w - 24.dp).toPx() }.coerceAtLeast(0f)
         val maxY = with(density) { (maxHeight - h - bottom - 60.dp).toPx() }.coerceAtLeast(0f)
-        val extra = with(density) { (w * 0.7f).toPx() }
         Box(
             Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = bottom)
                 .offset { IntOffset(off.x.roundToInt(), off.y.roundToInt()) }
-                .pointerInput(maxX, maxY, extra) {
-                    var lastDx = 0f
+                .graphicsLayer {
+                    translationX = dock0.x * dock.value; translationY = dock0.y * dock.value
+                    val k = 1f - 0.55f * dock.value; scaleX = k; scaleY = k; alpha = 1f - 0.85f * dock.value
+                }
+                .onGloballyPositioned { bubble = it.boundsInRoot() }
+                .pointerInput(maxX, maxY) {
                     detectDragGestures(
                         onDragEnd = {
-                            // Poussée vers la gauche : un geste rapide ou la moitié du chemin suffit pour cacher la bulle.
-                            val past = -off.x - maxX
-                            if (past > extra * 0.12f || (lastDx < -12f && -off.x > maxX * 0.55f)) Vp.miniHidden = true
-                            else off = Offset(off.x.coerceAtLeast(-maxX), off.y)
+                            val slot = Vp.slot
+                            val c = bubble.center
+                            if (slot != null && Shell.tab == "search" && slot.contains(c)) {
+                                // La bulle entre dans l'écran du lecteur, la vidéo continue sans coupure.
+                                dock0 = slot.center - c
+                                scopeM.launch {
+                                    dock.animateTo(1f, androidx.compose.animation.core.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                                    Vp.mini = false
+                                    dock.snapTo(0f); off = Offset.Zero
+                                }
+                            }
                         },
                     ) { change, drag ->
                         change.consume()
-                        lastDx = drag.x
-                        off = Offset((off.x + drag.x).coerceIn(-maxX - extra, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
+                        off = Offset((off.x + drag.x).coerceIn(-maxX, 0f), (off.y + drag.y).coerceIn(-maxY, 0f))
                     }
                 }
                 .size(w, h)
@@ -675,7 +681,6 @@ fun BoxScope.MiniVideo(bottom: Dp) {
                 Box(Modifier.fillMaxSize().background(Color(0x66000000))) {
                     RoundBtn(Ic.Close, { Vp.stop() }, Modifier.align(Alignment.TopStart).padding(6.dp), size = 30.dp, iconSize = 16.dp, tint = Color.White)
                     RoundBtn(Ic.Fullscreen, { Vp.mini = false; Vp.fullscreen = true }, Modifier.align(Alignment.TopEnd).padding(6.dp), size = 30.dp, iconSize = 18.dp, tint = Color.White)
-                    RoundBtn(Ic.ChevronDown, { Vp.miniHidden = true }, Modifier.align(Alignment.BottomStart).padding(6.dp).rotate(90f), size = 30.dp, iconSize = 18.dp, tint = Color.White)
                     RoundBtn(if (Vp.playing) Ic.Pause else Ic.Play, { Vp.toggle(); showCtl = true }, Modifier.align(Alignment.Center), size = 46.dp, iconSize = 26.dp, tint = Color.White)
                 }
             }

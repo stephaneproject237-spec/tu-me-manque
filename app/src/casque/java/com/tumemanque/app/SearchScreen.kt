@@ -1,5 +1,6 @@
 package com.tumemanque.app
 
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -473,9 +474,10 @@ private fun PlayerWindow(v: YtVideo, onTop: (Float) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
     val soft = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { Vp.slot = null } }
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).onGloballyPositioned { onTop(it.positionInRoot().y) }.shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).onGloballyPositioned { onTop(it.positionInRoot().y); Vp.slot = it.boundsInRoot() }.shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {
