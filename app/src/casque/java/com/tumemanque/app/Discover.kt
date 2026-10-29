@@ -1,5 +1,6 @@
 package com.tumemanque.app
 
+import androidx.compose.ui.draw.blur
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -335,11 +336,19 @@ fun DiscoverCard(
     val parts = if (kind is DiscoKind.Artist) listOf("Albums", kind.name) else (kind as DiscoKind.Topic).title.split(" · ", limit = 2)
     val shape30 = RoundedCornerShape(30.dp)
     val sub = if (parts.size > 1) parts[1] else parts[0]
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).glass(shape30, 0.12f)
-            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f))
-            .padding(top = if (collapsed) 4.dp else 16.dp, bottom = if (collapsed) 4.dp else 16.dp),
+    val covers = if (kind is DiscoKind.Artist) albums?.take(5) else null
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clip(shape30).glass(shape30, 0.12f)
+            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f)),
     ) {
+    // Les pochettes en fond, floutées : un peu de couleur et de texture (verre liquide).
+    if (!covers.isNullOrEmpty()) {
+        Row(Modifier.matchParentSize().blur(30.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded).graphicsLayer { alpha = 0.8f }) {
+            covers.forEach { c -> AsyncImage(model = c.art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxHeight()) }
+        }
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1A000000), Color(0x59080A0E)))))
+    }
+    Column(Modifier.fillMaxWidth().padding(top = if (collapsed) 4.dp else 16.dp, bottom = if (collapsed) 4.dp else 16.dp)) {
         Row(
             Modifier.fillMaxWidth().then(if (collapsed) Modifier.pressable { onToggle() } else Modifier).padding(start = 20.dp, end = 12.dp, top = if (collapsed) 10.dp else 0.dp, bottom = if (collapsed) 10.dp else 0.dp),
             verticalAlignment = if (collapsed) Alignment.CenterVertically else Alignment.Top,
@@ -401,7 +410,7 @@ fun DiscoverCard(
         } else {
             RubricRow((kind as DiscoKind.Topic).rubrics, selGenre, onGenre)
         }
-    }
+    }    }
 }
 
 /** Tuiles de verre colorées avec une icône fine, comme les icônes d'iOS 26. */

@@ -254,6 +254,8 @@ fun SearchScreen() {
         // le reste (infos, téléchargements, résultats) défile dessous, en verre flou.
         if (selected != null && winShown) PlayerWindow(selected) { vTop = it }
         Spacer(Modifier.fillMaxWidth().height(0.dp).onGloballyPositioned { hBottom = it.positionInRoot().y })
+        // Les infos de la vidéo restent fixes sous la vidéo.
+        if (selected != null && winShown) PlayerInfo(selected)
     }) {
         // ------------------------------------------------------------------ contenu
         LazyColumn(
@@ -326,7 +328,6 @@ fun SearchScreen() {
             }
 
             if (selected != null) {
-                item(key = "info") { PlayerInfo(selected) }
                 val dk = kind
                 if (dk != null && stage != 2) item(key = "disco") {
                     DiscoverCard(
@@ -502,20 +503,31 @@ private fun PlayerWindow(v: YtVideo, onTop: (Float) -> Unit = {}) {
 @Composable
 private fun PlayerInfo(v: YtVideo) {
     val ctx = LocalContext.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp)) {
-        Spacer(Modifier.height(6.dp))
-        Text(v.title, color = P.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
-        Text(
-            listOf(v.channel, fmtViews(v.views)).filter { it.isNotBlank() }.joinToString(" · "),
-            color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-        )
-        // Lecture continue : à la fin, une vidéo du même thème démarre toute seule.
-        LaunchedEffect(Unit) { Vp.loadPrefs(ctx) }
-        Spacer(Modifier.height(6.dp))
-        GlassChip(
-            if (Vp.autoplay) "Lecture continue : activée" else "Lecture continue : désactivée",
-            Ic.Repeat, if (Vp.autoplay) P.blueSoft else P.sub, Modifier.padding(horizontal = 4.dp),
-        ) { Vp.setAutoplay(ctx, !Vp.autoplay) }
+    LaunchedEffect(Unit) { Vp.loadPrefs(ctx) }
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 0.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(v.title, color = P.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(v.channel, fmtViews(v.views)).filter { it.isNotBlank() }.joinToString(" · "),
+                color = P.sub, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        AutoplaySwitch(Vp.autoplay) { Vp.setAutoplay(ctx, !Vp.autoplay) }
+    }
+}
+
+/** Lecture automatique, comme l'interrupteur de YouTube : une pastille avec une icône lecture dans le rond. */
+@Composable
+private fun AutoplaySwitch(on: Boolean, onClick: () -> Unit) {
+    val x by androidx.compose.animation.core.animateDpAsState(if (on) 18.dp else 0.dp, androidx.compose.animation.core.tween(220), label = "ap")
+    val track by androidx.compose.animation.animateColorAsState(if (on) P.blue else Color(0x44FFFFFF), androidx.compose.animation.core.tween(220), label = "apc")
+    Box(
+        Modifier.width(40.dp).height(22.dp).clip(RoundedCornerShape(50)).background(track).pressable(onClick).padding(2.dp),
+    ) {
+        Box(Modifier.offset(x = x).size(18.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+            CIcon(if (on) Ic.Play else Ic.Pause, Color(0xFF202225), 11.dp)
+        }
     }
 }
 
