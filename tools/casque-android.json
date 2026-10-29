@@ -1,6 +1,6 @@
 {
- "versionCode": 75,
- "versionName": "1.75",
- "notes": "Rubriques et albums en verre liquide (style iOS 26), propositions de recherche flottantes, fenêtre vidéo plus douce, infos avant les albums, téléchargement en une ligne.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-75/casque.apk"
+ "versionCode": 78,
+ "versionName": "1.78",
+ "notes": "Sous un artiste, seulement ses albums (plus de « Et aussi »).",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-78/casque.apk"
 }
