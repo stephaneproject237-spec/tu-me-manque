@@ -1,7 +1,7 @@
 {
  "version": "web 1.8",
- "notes": "Bouton Envoyer l'application avec parrain, et aide aux amis iPhone pour les téléchargements.",
- "versionCode": 51,
- "versionName": "1.51",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-51/casque.apk"
+ "notes": "Le bouton À propos devient Tchat.",
+ "versionCode": 54,
+ "versionName": "1.54",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-54/casque.apk"
 }
