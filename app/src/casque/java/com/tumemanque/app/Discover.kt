@@ -366,8 +366,6 @@ fun DiscoverCard(
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            RubricRow(Disco.artistRubrics(kind.name), selGenre, onGenre)
         } else {
             RubricRow((kind as DiscoKind.Topic).rubrics, selGenre, onGenre)
         }
