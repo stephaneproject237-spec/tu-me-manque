@@ -442,3 +442,22 @@ body.cq-on{overflow:hidden}
 #player .dbar{height:5px;padding:.8px;border-radius:5px;margin-top:8px}
 #player .dbar i{background:#2E9BFF!important;box-shadow:0 0 6px rgba(46,155,255,.45)!important;border-radius:4px}
 #player .dbar i::before{display:none!important}
+
+/* v2.16 : page Rechercher stable, en-tête sans bord flou permanent, bouton des albums symétrique */
+#player .list{overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;overflow-anchor:none}
+/* L'en-tête n'a plus de fond ni de flou au repos ; quand la liste passe dessous, un voile fondu apparaît (sans bord net). */
+#player .chrome{background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
+#player .chrome::after{display:none!important}
+#player .chrome::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-22px;z-index:0;pointer-events:none;opacity:0;transition:opacity .3s ease;
+  background:linear-gradient(180deg,rgba(11,13,16,.55),rgba(11,13,16,.28) 70%,rgba(11,13,16,0));
+  -webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6);
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(180deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
+#player .chrome.sc::before{opacity:1}
+#player .chrome>*{position:relative;z-index:1}
+/* Carte des albums : mêmes marges que la barre de recherche ; fermée, texte centré avec la flèche équilibrée par un vide de même taille. */
+#player .dsc{margin:6px 16px}
+#player .dsc.col .dsh{justify-content:center;padding:8px 14px}
+#player .dsc.col .dsh::before{content:"";flex:0 0 32px;height:32px}
+#player .dsc.col .dsh .t2{flex:0 1 auto;text-align:center;padding:0 8px}
+#player .dsc{box-sizing:border-box;max-width:calc(100% - 32px)}
+#player .dsc .dsw,#player .dsc .dsi{min-width:0}

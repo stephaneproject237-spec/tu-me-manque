@@ -587,7 +587,13 @@
   let toastT = null;
   function toast(t) { U.toast = t; clearTimeout(toastT); toastT = setTimeout(() => { U.toast = ""; const e = host.querySelector(".toast"); if (e) e.remove(); }, 2600); const e = host.querySelector(".toast"); if (e) e.textContent = t; else draw(); }
 
+  // Pendant un défilement on n'efface pas la page : on attend la fin du geste (sinon la liste saute et l'élan s'arrête).
+  let lastScrollAt = 0, drawT = null, chRO = null;
   function draw() {
+    if (U.sec === "search" && !host.hidden && L.ready && Date.now() - lastScrollAt < 220) { clearTimeout(drawT); drawT = setTimeout(draw, 240); return; }
+    drawNow();
+  }
+  function drawNow() {
     if (host.hidden) return;
     const keepScroll = host.querySelector(".list");
     const sc = keepScroll ? keepScroll.scrollTop : 0;
@@ -613,6 +619,14 @@
         top.forEach((e) => ch.appendChild(e));
         l.parentNode.insertBefore(ch, l);
         l.style.paddingTop = ch.offsetHeight + 6 + "px";
+        if (window.ResizeObserver) {
+          if (chRO) chRO.disconnect();
+          chRO = new ResizeObserver(() => {
+            const c = host.querySelector(".chrome"), ll = host.querySelector(".list");
+            if (c && ll && Math.abs((parseFloat(ll.style.paddingTop) || 0) - (c.offsetHeight + 6)) > 1) ll.style.paddingTop = c.offsetHeight + 6 + "px";
+          });
+          chRO.observe(ch);
+        }
         placeSgo();
       }
       l.scrollTop = sc;
@@ -684,7 +698,7 @@
     const el = ev.target.closest("[data-a]");
     if (!el) return;
     const a = el.dataset.a, id = el.dataset.id;
-    if (a === "ysel" || a === "dcvid" || a === "dctrack" || a === "lplay" || a === "row" || a === "yplay") { lastTick = 0; tick(true); el.classList.remove("tapg"); void el.offsetWidth; el.classList.add("tapg"); }
+    if (a === "ysel" || a === "dcvid" || a === "dctrack" || a === "lplay" || a === "row" || a === "yplay" || a === "dcalb" || a === "dcgen" || a === "dcseason" || a === "yget") { feelTick(true); el.classList.remove("tapg"); void el.offsetWidth; el.classList.add("tapg"); }
     if (a === "menu" || a === "pp" || a === "prev" || a === "next" || a === "fav" || a === "plmenu" || a === "dlmenu" || a === "dlrm" || a === "yfill" || a === "dlretry") ev.stopPropagation();
     if (plusClick(a, id, el)) return;
     switch (a) {
@@ -1289,9 +1303,17 @@
   host.addEventListener("scroll", (ev) => {
     const el = ev.target;
     if (!el || !el.classList || !el.classList.contains("list") || U.sec !== "search") return;
+    lastScrollAt = Date.now();
     const top = el.scrollTop;
     if (Math.abs(top - lastTop) >= 70) { lastTop = top; feelTick(); }
   }, true);
+  // Sur iPhone, le « clic » n'est autorisé que pendant un geste du doigt : on le déclenche donc aussi pendant le glissement.
+  host.addEventListener("touchmove", (ev) => {
+    const el = ev.target && ev.target.closest ? ev.target.closest(".list") : null;
+    if (!el || U.sec !== "search") return;
+    lastScrollAt = Date.now();
+    if (Math.abs(el.scrollTop - lastTop) >= 60) { lastTop = el.scrollTop; feelTick(); }
+  }, { passive: true, capture: true });
 
   // ---------- Séries : saisons (playlists YouTube) ----------
   const seasonNum = (t) => { const m = /(saison|season)\s*0?(\d{1,2})/i.exec(t || ""); return m ? +m[2] : 999; };
