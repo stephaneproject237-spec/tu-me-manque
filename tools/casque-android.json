@@ -1,6 +1,6 @@
 {
- "versionCode": 69,
- "versionName": "1.69",
- "notes": "Albums lus automatiquement avec lecture continue, suggestions de recherche (artiste le plus proche puis titres), barre audio plus facile à ranger.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-69/casque.apk"
+ "versionCode": 71,
+ "versionName": "1.71",
+ "notes": "Écran vidéo pleine largeur sans bordures ; rubriques proposées automatiquement à chaque recherche (albums, saisons, openings, genres, thèmes...).",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-71/casque.apk"
 }
