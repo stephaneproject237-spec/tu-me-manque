@@ -181,7 +181,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     // Un compte « Tu me manques » existant est repris tel quel : rien n'est redemandé.
     var skipContact by rememberSaveable { mutableStateOf(false) }
     val casqueLogin = BuildConfig.CASQUE && !state.loading &&
-        (state.needAuth || (state.error == null && (state.username == null || (state.needContact && !skipContact))))
+        (state.needAuth || (state.error == null && (state.username == null || (state.needContact && !skipContact && !BuildConfig.CASQUE))))
     if (BuildConfig.CASQUE && casqueScreen != "help" && !casqueLogin) {
         CasqueMain(casqueScreen, updateVm, updState.available != null, state.username) { casqueScreen = it }
         return
@@ -264,7 +264,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
             onBack = { showChat = false },
             onRead = { vm.setUnread(0) },
         )
-    } else if (BuildConfig.CASQUE && !state.loading && !state.needAuth && state.error == null && state.username != null && !(state.needContact && !skipContact)) {
+    } else if (BuildConfig.CASQUE && !state.loading && !state.needAuth && state.error == null && state.username != null && !(state.needContact && !skipContact && !BuildConfig.CASQUE)) {
         CasqueFriends(
             state, vm, chatVm,
             onBack = { casqueScreen = "settings" },
