@@ -252,7 +252,7 @@ object Dl {
                 var streams = 0
                 var lastPush = 0L
                 try {
-                    YoutubeDL.execute(request(t0, dir, full), id) { p, eta, line ->
+                    EngineHeal.exec(request(t0, dir, full), id) { p, eta, line ->
                         var phase: String? = null
                         var processing = false
                         when {

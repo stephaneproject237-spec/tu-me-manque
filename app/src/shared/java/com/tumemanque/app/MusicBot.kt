@@ -106,6 +106,7 @@ object MbEngine {
     suspend fun ensure(ctx: Context) = withContext(Dispatchers.IO) {
         lock.withLock {
             if (ready) return@withLock
+            EngineHeal.appCtx = ctx.applicationContext
             YoutubeDL.getInstance().init(ctx.applicationContext)
             FFmpeg.getInstance().init(ctx.applicationContext)
             ready = true
@@ -144,7 +145,7 @@ object MbEngine {
         val req = YoutubeDLRequest("ytsearch10:$q")
             .addOption("--flat-playlist").addOption("--dump-single-json")
             .addOption("--no-warnings").addOption("--socket-timeout", "15")
-        val o = JSONObject(YoutubeDL.getInstance().execute(req, null, null).out)
+        val o = JSONObject(EngineHeal.exec(req, null, null).out)
         val e = o.optJSONArray("entries") ?: return@withContext emptyList()
         (0 until e.length()).mapNotNull { i ->
             val x = e.optJSONObject(i) ?: return@mapNotNull null
@@ -173,7 +174,7 @@ object MbEngine {
             .addOption("-x").addOption("--audio-format", "mp3").addOption("--audio-quality", "${kbps}K")
             .addOption("--embed-metadata")
             .addOption("-o", File(dir, "song.%(ext)s").absolutePath)
-        YoutubeDL.getInstance().execute(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) }
+        EngineHeal.exec(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) }
         val f = dir.listFiles()?.filter { it.extension.equals("mp3", true) }?.maxByOrNull { it.length() }
             ?: throw Exception("Fichier introuvable")
         val nice = File(dir, safeName(s.title) + ".mp3")
@@ -194,7 +195,7 @@ object MbEngine {
             .addOption("--no-playlist").addOption("--no-mtime").addOption("--newline").addOption("--no-warnings")
             .addOption("-f", fmt)
             .addOption("-o", File(dir, "song.%(ext)s").absolutePath)
-        val ok = runCatching { YoutubeDL.getInstance().execute(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }.isSuccess
+        val ok = runCatching { EngineHeal.exec(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }.isSuccess
         val f = dir.listFiles()?.filter { it.extension.equals("m4a", true) }?.maxByOrNull { it.length() }
         if (!ok || f == null || f.length() < 1000) { dir.deleteRecursively(); return@withContext null }
         val nice = File(dir, safeName(s.title) + ".m4a")
@@ -217,7 +218,7 @@ object MbEngine {
                 .addOption("--merge-output-format", "mp4")
                 .addOption("--max-filesize", "48M")
                 .addOption("-o", File(dir, "video.%(ext)s").absolutePath)
-            runCatching { YoutubeDL.getInstance().execute(req, "botv${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }
+            runCatching { EngineHeal.exec(req, "botv${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }
             f = dir.listFiles()?.filter { it.extension.equals("mp4", true) }?.maxByOrNull { it.length() }
             if (f != null) break
         }

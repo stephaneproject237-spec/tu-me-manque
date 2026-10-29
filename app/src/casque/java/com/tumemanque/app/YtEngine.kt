@@ -86,6 +86,7 @@ object Yt {
     fun warmUp(ctx: Context) {
         if (::app.isInitialized) return
         app = ctx.applicationContext
+        EngineHeal.appCtx = app
         scope.launch {
             runCatching { ensure() }
             val last = prefs().getLong("updated_at", 0L)
@@ -100,6 +101,7 @@ object Yt {
             withContext(Dispatchers.IO) {
                 state = State.PREPARING
                 try {
+                    EngineHeal.appCtx = app
                     YoutubeDL.init(app)
                     FFmpeg.init(app)
                     engineVersion = runCatching { YoutubeDL.versionName(app) ?: YoutubeDL.version(app) }.getOrNull().orEmpty()
@@ -148,7 +150,7 @@ object Yt {
         val req = base(YoutubeDLRequest("ytsearch$count:$query"))
             .addOption("--flat-playlist")
             .addOption("--dump-single-json")
-        val out = YoutubeDL.execute(req, pid, null).out
+        val out = EngineHeal.exec(req, pid, null).out
         val entries = JSONObject(out).optJSONArray("entries") ?: JSONArray()
         (0 until entries.length()).mapNotNull { i ->
             val o = entries.optJSONObject(i) ?: return@mapNotNull null
@@ -193,7 +195,7 @@ object Yt {
         val url = "https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8") + "&sp=CAISAhAB"
         val r = runCatching {
             val req = base(YoutubeDLRequest(url)).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", count.toString())
-            parseVideos(YoutubeDL.execute(req, pid, null).out)
+            parseVideos(EngineHeal.exec(req, pid, null).out)
         }.getOrDefault(emptyList())
         if (r.size >= 4) r else search(query, count)
     }
@@ -206,7 +208,7 @@ object Yt {
         val url = "https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8") + "&sp=EgIQAw%253D%253D"
         runCatching {
             val req = base(YoutubeDLRequest(url)).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", "20")
-            val entries = JSONObject(YoutubeDL.execute(req, "plsearch", null).out).optJSONArray("entries") ?: JSONArray()
+            val entries = JSONObject(EngineHeal.exec(req, "plsearch", null).out).optJSONArray("entries") ?: JSONArray()
             (0 until entries.length()).mapNotNull { i ->
                 val o = entries.optJSONObject(i) ?: return@mapNotNull null
                 val u = o.optString("url")
@@ -221,7 +223,7 @@ object Yt {
         ensure()
         runCatching {
             val req = base(YoutubeDLRequest("https://www.youtube.com/playlist?list=$id")).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", "80")
-            parseVideos(YoutubeDL.execute(req, "plvideos", null).out)
+            parseVideos(EngineHeal.exec(req, "plvideos", null).out)
         }.getOrDefault(emptyList())
     }
 
@@ -247,7 +249,7 @@ object Yt {
             .addOption("--no-playlist")
             .addOption("-f", "18/b[ext=mp4][vcodec!=none][acodec!=none]/bv*[vcodec^=avc1][height<=720]+ba[ext=m4a]/b/bv*+ba")
             .addOption("--dump-json")
-        val o = JSONObject(YoutubeDL.execute(req, null, null).out)
+        val o = JSONObject(EngineHeal.exec(req, null, null).out)
         val dur = o.optDouble("duration", 0.0).toInt()
         val headers = HashMap<String, String>()
         o.optJSONObject("http_headers")?.let { h -> h.keys().forEach { k -> headers[k] = h.optString(k) } }
