@@ -190,7 +190,7 @@ class AuthViewModel : ViewModel() {
             try {
                 when (Backend.createAccount(s.pseudo, s.age ?: 0)) {
                     "ok", "has_username" -> {
-                        s.birthIso?.let { Backend.saveContact(it, s.phone) }
+                        if (s.phoneOk) s.birthIso?.let { Backend.saveContact(it, s.phone) }
                         onDone()
                     }
                     "taken" -> _state.update { it.copy(avail = "taken", msg = "Ce pseudo est déjà pris. Choisis-en un autre.") }

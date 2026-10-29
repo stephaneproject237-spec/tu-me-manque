@@ -289,7 +289,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
                 Button(onClick = { vm.start() }) { Text("Réessayer") }
             }
             state.username == null -> ProfileScreen(authState, authVm) { vm.start() }
-            state.needContact && !skipContact -> ContactScreen(authState, authVm, onSkip = { skipContact = true }) { vm.start() }
+            state.needContact && !skipContact && !BuildConfig.CASQUE -> ContactScreen(authState, authVm, onSkip = { skipContact = true }) { vm.start() }
             state.partnerName == null -> PartnerScreen(state, vm, onSupport = { showSupport = true }) { shareApp(context, state.username) }
             else -> HomeScreen(state, vm, onSupport = { showSupport = true }) { showChat = true }
         }

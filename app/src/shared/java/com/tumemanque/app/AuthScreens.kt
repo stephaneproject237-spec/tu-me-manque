@@ -139,7 +139,7 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         when (s.screen) {
             "create" -> if (GOOGLE_FIRST) {
-                Text("💗", fontSize = 56.sp)
+                Text(if (BuildConfig.CASQUE) "🎧" else "💗", fontSize = 56.sp)
                 Text("Créer mon compte", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -253,25 +253,48 @@ fun AuthScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
     }
 }
 
-/** Connecté mais sans pseudo : on demande le pseudo et l'âge. */
+/** Connecté mais sans pseudo : on demande le pseudo (et la date de naissance si elle n'est pas déjà connue). */
 @Composable
 fun ProfileScreen(s: AuthState, vm: AuthViewModel, onDone: () -> Unit) {
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadKnown() }
+    val casque = BuildConfig.CASQUE
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text("💗", fontSize = 56.sp)
+        Text(if (casque) "🎧" else "💗", fontSize = 56.sp)
         Spacer(Modifier.height(8.dp))
-        Text("Bienvenue", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        if (s.email.isNotEmpty()) Text("Compte : ${s.email}", color = Color.Gray, fontSize = 14.sp)
+        Text(if (casque) "Choisis ton pseudo" else "Bienvenue", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        if (s.email.isNotEmpty()) Text("Compte Google : ${s.email}", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
-        Text("Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.", textAlign = TextAlign.Center)
+        Text(
+            if (casque) "Ton compte Google est prêt. Choisis le pseudo sous lequel tes amis te retrouveront, puis connecte-toi."
+            else "Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.",
+            textAlign = TextAlign.Center,
+        )
         Spacer(Modifier.height(16.dp))
-        PseudoAgeFields(s, vm)
+        if (casque) {
+            OutlinedTextField(
+                value = s.pseudo, onValueChange = { vm.setPseudo(it) }, label = { Text("Ton pseudo") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                availText(s.avail), fontSize = 13.sp,
+                color = if (s.avail == "available") Color(0xFF2E7D32) else if (s.avail == "checking" || s.avail == null) Color.Gray else Color(0xFFC62828),
+                modifier = Modifier.fillMaxWidth().height(22.dp),
+            )
+            if (!s.birthOk) {
+                var picker by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                OutlinedButton(onClick = { picker = true }, modifier = Modifier.fillMaxWidth()) { Text("🎂 Choisir ma date de naissance") }
+                if (picker) BirthPickerDialog(onPick = { vm.setBirth(it); picker = false }, onDismiss = { picker = false })
+                Spacer(Modifier.height(8.dp))
+            }
+        } else {
+            PseudoAgeFields(s, vm)
+        }
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = { vm.createProfile(onDone) },
-            enabled = s.canContinue,
+            enabled = if (casque) (s.avail == "available" && s.birthOk && !s.busy) else s.canContinue,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Créer mon compte") }
+        ) { Text(if (casque) "Se connecter" else "Créer mon compte") }
         Msg(s.msg)
     }
 }
