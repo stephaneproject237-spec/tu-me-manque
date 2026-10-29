@@ -59,7 +59,7 @@ object Relay {
             if (Backend.hasSession()) {
                 // Présence en ligne (vue dans l'appli Admin) : toutes les 40 secondes, avec l'état du partage.
                 val now = System.currentTimeMillis()
-                if (now - lastBeat > 40_000) { lastBeat = now; scope.launch { Backend.heartbeat(enabled(ctx), Presence.foreground) } }
+                if (now - lastBeat > 20_000) { lastBeat = now; scope.launch { Backend.heartbeat(enabled(ctx), Presence.foreground) } }
                 if (enabled(ctx)) runCatching { step(ctx) }
             }
             delay(4_000)

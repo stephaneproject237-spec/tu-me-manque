@@ -219,7 +219,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
         while (c is android.content.ContextWrapper) { if (c is androidx.activity.ComponentActivity) { act = c; break }; c = c.baseContext }
         val lc = act?.lifecycle
         val upd = { Presence.foreground = lc?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true }
-        val obs = androidx.lifecycle.LifecycleEventObserver { _, _ -> upd() }
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, _ -> upd(); Relay.ping(ctx) }
         upd(); lc?.addObserver(obs)
         onDispose { lc?.removeObserver(obs); Presence.foreground = false }
     }

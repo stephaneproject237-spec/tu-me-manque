@@ -1,7 +1,7 @@
 {
- "version": "web 2.29",
- "notes": "Présence en ligne et répartition des téléchargements entre les amis Android.",
- "versionCode": 122,
- "versionName": "1.122",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-122/casque.apk"
+ "version": "web 2.30",
+ "notes": "Le moteur YouTube se répare et se met à jour tout seul quand YouTube change.",
+ "versionCode": 127,
+ "versionName": "1.127",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-127/casque.apk"
 }
