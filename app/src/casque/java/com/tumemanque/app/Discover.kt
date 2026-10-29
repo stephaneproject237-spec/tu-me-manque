@@ -1,5 +1,6 @@
 package com.tumemanque.app
 
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.draw.blur
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
