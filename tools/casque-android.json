@@ -1,6 +1,6 @@
 {
- "versionCode": 62,
- "versionName": "1.62",
- "notes": "Fenêtre vidéo fixe et plus de propositions du même thème, vidéos 240p par défaut, vidéos téléchargées privées (hors galerie).",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-62/casque.apk"
+ "versionCode": 66,
+ "versionName": "1.66",
+ "notes": "Fenêtre vidéo fixe sous la barre de recherche, albums d'un artiste et genres de films dans la recherche.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-66/casque.apk"
 }
