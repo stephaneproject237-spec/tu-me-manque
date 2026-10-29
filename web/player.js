@@ -1986,19 +1986,43 @@
   // Avancement total (0 à 100) d'une demande faite à un ami Android : chez lui (jusqu'à 90 %), puis réception sur l'iPhone ; -1 = on ne sait pas encore.
   function dlPct(d) {
     if (d.app === "rel") {
-      if (d.st === "recv") return Math.round(67 + (d.p || 0) * 33);
-      if (d.st === "wait" && d.pr > 0) return Math.min(67, d.pr);
+      if (d.st === "recv") return Math.round(d.vp > 0 ? d.vp : 67 + (d.p || 0) * 33);
+      if (d.st === "wait") { const v = Math.round(Math.max(d.vp || 0, d.pr || 0)); return v > 0 ? Math.min(67, v) : -1; }
       return -1;
     }
     return d.st === "recv" ? Math.round((d.p || 0) * 100) : -1;
   }
+  // Barre fluide : elle avance toujours un peu devant ce que l'Android a annoncé (pour ne jamais sauter),
+  // puis, dès que le fichier est prêt, elle rejoint 67 % et se remplit au rythme de la réception sur l'iPhone.
+  function dlAnim() {
+    DL.forEach((d) => {
+      if (d.app !== "rel" || (d.st !== "wait" && d.st !== "recv")) return;
+      const v = d.vp || 0; let n = v;
+      if (d.st === "wait") {
+        const pr = Math.min(67, d.pr || 0), cap = pr >= 67 ? 67 : Math.min(66, pr + 14);
+        if (v < pr) n = Math.min(pr, v + (pr - v) * 0.3 + 0.2);
+        else n = Math.min(cap, v + (cap - v) * 0.035);
+      } else {
+        const t = 67 + (d.p || 0) * 33;
+        n = v < t ? Math.min(t, v + Math.max((t - v) * 0.3, 0.6)) : v;
+      }
+      if (n > v) d.vp = n;
+      const pc = dlPct(d);
+      host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
+        const b = row.querySelector(".dbar"), i = b && b.querySelector("i");
+        if (i) { i.style.width = (pc >= 0 ? pc : 30) + "%"; b.classList.toggle("ind", pc < 0); }
+        const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
+      });
+    });
+  }
+  setInterval(() => { if (!document.hidden && DL.some((d) => d.app === "rel" && (d.st === "wait" || d.st === "recv"))) dlAnim(); }, 250);
   function dlStatus(d) {
     const kind = isV(d.f) ? "MP4" : "MP3";
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Téléchargement impossible";
       if (d.st === "recv") return kind + " · " + dlPct(d) + " %";
-      if (d.st === "wait") return d.pr > 0 ? kind + " · " + dlPct(d) + " %" : kind + " · en préparation…";
+      if (d.st === "wait") return dlPct(d) > 0 ? kind + " · " + dlPct(d) + " %" : kind + " · en préparation…";
       if (d.st === "sending") return "";
       return "";
     }

@@ -492,21 +492,29 @@ html,body{overflow-x:hidden;overscroll-behavior-x:none}
   background:linear-gradient(180deg,rgba(11,13,16,.40),rgba(11,13,16,.18) 80%,rgba(11,13,16,0))!important;bottom:-10px!important}
 #player .pst .pc{-webkit-backdrop-filter:blur(8px) saturate(1.5);backdrop-filter:blur(8px) saturate(1.5);background:linear-gradient(180deg,rgba(11,13,16,.34),rgba(11,13,16,.16))}
 
-/* v2.24 : albums fermés = pochettes entrevues derrière le verre ; bouton de dépliage plus large ; bouton Retour permanent dans le tchat ; page immobile à l'horizontale */
-#player .dsc.hasbg .dbg{transition:filter .45s cubic-bezier(.32,.72,0,1),transform .45s cubic-bezier(.32,.72,0,1),opacity .3s ease}
-#player .dsc.hasbg.col{padding:0;min-height:62px;display:flex;flex-direction:column;justify-content:center}
-#player .dsc.hasbg.col .dbg{filter:blur(2.5px) saturate(1.45) brightness(.92);transform:scale(1.04);opacity:1}
-#player .dsc.hasbg.col::before{background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.04) 55%,rgba(8,10,14,.32))}
-#player .dsc.hasbg.col::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(255,255,255,.12)}
-#player .dsc.col .dsh .t2{color:#fff;font-size:15px!important;font-weight:700!important;text-shadow:0 1px 8px rgba(0,0,0,.65)}
-#player .dsh{min-height:52px;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
-#player .dsh .chv{flex:0 0 auto;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);border:.8px solid rgba(255,255,255,.38);
-  -webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 4px 12px rgba(0,0,0,.25);color:#fff;transition:transform .35s cubic-bezier(.32,.72,0,1),background .2s}
-#player .dsh .chv svg{width:20px;height:20px}
-#player .dsh:active .chv{background:rgba(255,255,255,.36);transform:scale(.92) rotate(180deg)}
-#player .dsc.col .dsh:active .chv{transform:scale(.92)}
-#player .dsc.col .dsh{padding:8px 12px 8px 12px}
-#player .dsc.col .dsh::before{flex:0 0 38px;height:38px}
+/* v2.24 : bouton Retour permanent dans le tchat, page immobile à l'horizontale */
+/* v2.25 : bandeau des albums identique à celui de l'appli Android (verre, pochettes très floutées, texte à gauche, bouton rond de 32) */
+#player .dsc{margin:6px 12px;padding:10px 0;border-radius:26px;max-width:calc(100% - 24px);min-height:0;display:block;background:rgba(255,255,255,.10)}
+#player .dsc.col{padding:2px 0}
+#player .dsc .dbg{filter:blur(30px);transform:none;opacity:.8;transition:none}
+#player .dsc.hasbg::before{z-index:1;background:linear-gradient(180deg,rgba(255,255,255,.25),rgba(0,0,0,.10) 50%,rgba(8,10,14,.35))}
+#player .dsc.hasbg::after{display:none}
+#player .dsh{align-items:flex-start;min-height:0;padding:0 12px 0 20px;margin-bottom:8px;-webkit-tap-highlight-color:transparent}
+#player .dsc.col .dsh{align-items:center;justify-content:flex-start;padding:10px 12px 10px 20px;margin:0}
+#player .dsc.col .dsh::before{display:none}
+#player .dsh .t1{font-size:17px;font-weight:700;letter-spacing:0;line-height:1.2;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+#player .dsh .t1 small{margin-top:1px;font-size:12px;font-weight:500;color:var(--sub);text-shadow:none}
+#player .dsc.col .dsh .t2{flex:1;min-width:0;text-align:left;padding:0;font-size:15px!important;font-weight:600!important;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+#player .dsh .chv{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.133);border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;color:#fff;transition:transform .28s ease,background .2s}
+#player .dsh .chv svg{width:16px;height:16px}
+#player .dsh:active .chv{background:rgba(255,255,255,.28)}
+#player .dsr{gap:14px;padding:6px 20px}
+#player .dsa{flex:0 0 var(--as)}
+#player .dsa img{width:var(--as);height:var(--as);border-radius:calc(var(--as) * .21 + 6px);border:.8px solid rgba(255,255,255,.18);box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.38)}
+#player .dsa.on img{border:2.5px solid var(--bls);box-shadow:0 10px 26px rgba(47,123,255,.45);outline:none;transform:scale(1.03)}
+#player .dsa b{margin-top:5px;font-size:11px;line-height:13px;font-weight:600}
+#player .dsa small{font-size:10px}
+#player{--as:clamp(65.5px,20.46vw,81.8px)}
 .cas-back{width:auto;min-width:44px;height:42px;padding:0 16px 0 10px;border-radius:50px;gap:2px;font-size:16px;font-weight:600;background:rgba(40,50,70,.55);
   -webkit-backdrop-filter:blur(20px) saturate(1.7);backdrop-filter:blur(20px) saturate(1.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 18px rgba(0,0,0,.3);-webkit-tap-highlight-color:transparent}
 .cas-back i{font-style:normal;font-size:32px;line-height:1;margin-top:-3px}

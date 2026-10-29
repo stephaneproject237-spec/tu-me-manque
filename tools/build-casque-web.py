@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.24"
-NOTES = "Albums : pochettes visibles derrière le verre liquide, bouton de dépliage plus large. Tchat : bouton Retour permanent, page fixe à l'horizontale."
+VERSION = "web 2.25"
+NOTES = "Albums : bandeau identique à Android. Téléchargement via un ami : barre de progression fluide sans saut."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

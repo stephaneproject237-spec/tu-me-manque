@@ -1,7 +1,7 @@
 {
- "version": "web 2.24",
- "notes": "Téléchargements pour un ami iPhone plus rapides (audio sans conversion). Barre de téléchargement en trois étapes égales.",
- "versionCode": 117,
- "versionName": "1.117",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-117/casque.apk"
+ "version": "web 2.25",
+ "notes": "Connexion Google plus rapide. Fonctionne avec le réveil automatique pour les téléchargements des amis iPhone.",
+ "versionCode": 119,
+ "versionName": "1.119",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-119/casque.apk"
 }
