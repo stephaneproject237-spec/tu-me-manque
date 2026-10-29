@@ -540,6 +540,8 @@
       '<button class="bt out wide" data-a="pick">' + I.plus + " Ajouter des fichiers audio</button>" +
       (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out wide" data-a="pickdir">' + I.folder + " Choisir un dossier source</button>") +
       '<button class="bt out wide" data-a="clear">Vider la bibliothèque</button></div>' +
+      '<p class="sec">DÉFILEMENT</p><div class="card l"><p><b>Vibrations au défilement</b></p><p class="note">De petits clics, comme un engrenage, quand tu fais défiler les résultats (selon ton appareil).</p><button class="bt out wide" data-a="tickstog">' + (ticksOn() ? "Activées · touche pour couper" : "Désactivées · touche pour activer") + "</button></div>" +
+      '<p class="sec">MES MÉDIAS</p><div class="card l"><p>Tout ce que tu télécharges est noté dans ton compte. Sur un nouvel appareil, retrouve tes musiques, tes vidéos et tes playlists.</p>' + (RS.msg ? '<p class="note">' + esc(RS.msg) + "</p>" : "") + '<button class="bt wide" data-a="restore">' + (RS.busy ? "Un instant…" : "Restaurer mes médias") + "</button></div>" +
       '<p class="sec">PARRAINAGE</p><div class="card l"><p>Envoie à tes amis un lien pour télécharger Free tune (toujours la dernière version), sur Android ou iPhone. Ils sauront que c\'est toi qui les as invités.</p><button class="bt wide" data-a="sendapp">Envoyer l\'application</button>' +
       '<p class="note" style="margin-top:14px"><b>Parrain</b></p>' +
       (SP.name ? '<p><b>@' + esc(SP.name) + "</b></p>" : SP.loaded ? '<p class="note">Tu n\'as pas de parrain. Si quelqu\'un t\'a fait découvrir Free tune, écris son pseudo :</p><input id="spin" class="ti2" maxlength="30" placeholder="Pseudo du parrain" autocapitalize="none" autocomplete="off"><button class="bt out wide" data-a="sponsorset">Valider</button>' : '<p class="note">…</p>') +
@@ -760,6 +762,8 @@
       case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Casque seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
       case "update": checkUpdate(); break;
       case "sendapp": sendApp(); break;
+      case "tickstog": lsSet("casque_ticks", ticksOn() ? "0" : "1"); if (ticksOn()) tick(); draw(); break;
+      case "restore": if (!RS.busy) mediaSummary(); break;
       case "sponsorset": setSponsor(); break;
       default: break;
     }
@@ -847,7 +851,7 @@
     const t = {
       id: uid(), file: safe(o.title) + (o.video ? ".mp4" : ".mp3"), size: f.size, mime, title: o.title || "Sans titre", artist: o.artist || "Artiste inconnu",
       album: o.video ? "Vidéos" : "Téléchargements", folder: "Téléchargements", dur: o.d || (o.video ? 0 : await duration(f)), added: Date.now(),
-      cover: cv, art: o.art || "", video: !!o.video, dl: true, yid: o.yid || "",
+      cover: cv, art: o.art || "", video: !!o.video, dl: true, yid: o.yid || "", fk: o.fk || "",
     };
     await tx("blobs", "readwrite", (x) => x.objectStore("blobs").put({ id: t.id, blob: f }));
     await tx("tracks", "readwrite", (x) => x.objectStore("tracks").put(t));
@@ -1172,13 +1176,156 @@
     drag = null;
   }, { passive: true });
 
+
+  // ---------- Trace des téléchargements dans le compte + restauration ----------
+  const FK = { al: "MP3_LITE", a: "MP3_HQ", ah: "M4A", vl: "MP4_360", v: "MP4_720", vh: "MP4_1080" };
+  const KF = {}; Object.keys(FK).forEach((k) => { KF[FK[k]] = k; });
+  function mediaAdd(d) {
+    const A = API();
+    if (!A || !d || !d.yid || !FK[d.f]) return;
+    A.authed("POST", "/rest/v1/rpc/media_add", { p_items: [{ yid: d.yid, ti: d.ti, ch: d.ch, d: d.d || 0, kind: FK[d.f], size: d.size || 0 }] }).catch(() => {});
+    mediaPl(); applyRestorePl();
+  }
+  function mediaPl() {
+    const A = API();
+    if (!A) return;
+    L.playlists.forEach((p) => {
+      const keys = p.ids.map(byId).filter((t) => t && t.yid && t.fk && FK[t.fk]).map((t) => t.yid + ":" + FK[t.fk]);
+      if (keys.length) A.authed("POST", "/rest/v1/rpc/media_pl_set", { p_name: p.name, p_items: keys }).catch(() => {});
+    });
+  }
+  // Playlists à recréer quand leurs titres sont revenus.
+  function applyRestorePl() {
+    let pend = []; try { pend = JSON.parse(lsGet("casque_rpl") || "[]") || []; } catch (e) { pend = []; }
+    if (!pend.length) return;
+    const left = [];
+    pend.forEach((pl) => {
+      const ids = pl.items.map((k) => { const i = k.lastIndexOf(":"); const y = k.slice(0, i), f = KF[k.slice(i + 1)]; const t = L.tracks.find((x) => x.yid === y && (x.fk === f || (!x.fk && isV(f) === !!x.video))); return t ? t.id : null; });
+      const ok = ids.filter(Boolean);
+      if (ok.length === pl.items.length) { if (!L.playlists.some((x) => x.name === pl.name)) newPlaylist(pl.name, ok); } else left.push(pl);
+    });
+    lsSet("casque_rpl", JSON.stringify(left));
+    if (left.length !== pend.length) draw();
+  }
+  const RS = { busy: false, sum: null, msg: "" };
+  async function mediaSummary() {
+    const A = API();
+    if (!A || !A.casque.ready()) { RS.msg = "Connexion en cours, réessaie dans un instant."; draw(); return; }
+    RS.busy = true; RS.msg = ""; draw();
+    try {
+      const r = await A.authed("POST", "/rest/v1/rpc/media_summary", {});
+      RS.busy = false;
+      if (!r || !r.count) { RS.msg = "Aucun média dans ton compte pour le moment."; draw(); return; }
+      RS.sum = r;
+      sheet({ kind: "confirm", title: "Restaurer mes médias", text: r.count + " médias (" + r.audio + " audio, " + r.video + " vidéo) · environ " + (r.bytes / 1048576 >= 1024 ? (r.bytes / 1073741824).toFixed(1) + " Go" : (r.bytes / 1048576).toFixed(0) + " Mo") + ". Les télécharger de nouveau sur cet appareil (via tes amis Android) et restaurer tes playlists ?", ok: "Oui, télécharger" });
+      pending = () => { U.sheet = null; draw(); mediaRestore(); };
+    } catch (e) { RS.busy = false; RS.msg = "Impossible de joindre ton compte pour l'instant."; draw(); }
+  }
+  async function mediaRestore() {
+    const A = API();
+    try {
+      const list = (await A.authed("POST", "/rest/v1/rpc/media_list", {})) || [];
+      const pls = (await A.authed("POST", "/rest/v1/rpc/media_pl_list", {})) || [];
+      lsSet("casque_rpl", JSON.stringify(pls.filter((x) => x && x.items && x.items.length)));
+      let n = 0;
+      for (const m of list) {
+        const f = KF[m.kind]; if (!f) continue;
+        if (L.tracks.some((t) => t.yid === m.yid && (t.fk === f || (!t.fk && isV(f) === !!t.video)))) continue;
+        sendDl({ src: "yt", id: m.yid, ti: m.ti, ch: m.ch, d: m.d || 0, th: "https://i.ytimg.com/vi/" + m.yid + "/mqdefault.jpg" }, f);
+        n++;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      applyRestorePl();
+      RS.msg = n ? "Restauration lancée : " + n + " média(s) demandé(s). Suis-la dans Téléchargements." : "Tout est déjà sur cet appareil.";
+      draw();
+    } catch (e) { RS.msg = "La restauration n'a pas pu démarrer. Réessaie."; draw(); }
+  }
+
+  // ---------- Petits clics au défilement (iPhone : interrupteur tactile ; Android : vibration) ----------
+  const ticksOn = () => lsGet("casque_ticks") !== "0";
+  let tickEl = null, lastTick = 0, lastTop = 0;
+  function tick() {
+    if (!ticksOn()) return;
+    const now = Date.now();
+    if (now - lastTick < 45) return;
+    lastTick = now;
+    try {
+      if (navigator.vibrate && !/iPhone|iPad/.test(navigator.userAgent)) { navigator.vibrate(8); return; }
+      if (!tickEl) {
+        tickEl = document.createElement("label");
+        tickEl.style.cssText = "position:fixed;left:-99px;top:-99px;opacity:0;pointer-events:none";
+        tickEl.innerHTML = '<input type="checkbox" switch tabindex="-1" aria-hidden="true">';
+        document.body.appendChild(tickEl);
+      }
+      tickEl.click();
+    } catch (e) { /* ignoré */ }
+  }
+  host.addEventListener("scroll", (ev) => {
+    const el = ev.target;
+    if (!el || !el.classList || !el.classList.contains("list") || U.sec !== "search") return;
+    const top = el.scrollTop;
+    if (Math.abs(top - lastTop) >= 70) { lastTop = top; tick(); }
+  }, true);
+
+  // ---------- Séries : saisons (playlists YouTube) ----------
+  const seasonNum = (t) => { const m = /(saison|season)\s*0?(\d{1,2})/i.exec(t || ""); return m ? +m[2] : 999; };
+  const seasonLabel = (t) => { const m = /(saison|season|s)\s*0?(\d{1,2})/i.exec(t || ""); return m ? "Saison " + m[2] : String(t || "").slice(0, 24); };
+  async function ytPlaylists(q) {
+    const tries = [];
+    PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=playlists&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
+      const l = ((j && j.items) || []).map((x) => ({ id: String(x.url || "").split("list=")[1], ti: x.name || "", n: x.videos || 0 })).filter((x) => x.id);
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/search?type=playlist&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
+      const l = (Array.isArray(j) ? j : []).filter((x) => x.playlistId).map((x) => ({ id: x.playlistId, ti: x.title || "", n: x.videoCount || 0 }));
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    return anyOf(tries);
+  }
+  async function ytPlVideos(id) {
+    const tries = [];
+    PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/playlists/" + encodeURIComponent(id)).then((r) => r.json()), 8000).then((j) => {
+      const l = ((j && j.relatedStreams) || []).filter((x) => x.url && /watch\?v=/.test(x.url)).map((x) => ({ id: x.url.split("v=")[1].split("&")[0], ti: x.title, ch: (x.uploaderName || "").replace(/ - Topic$/, ""), d: x.duration > 0 ? x.duration : 0, v: x.views || 0, th: x.thumbnail || "" }));
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    INV.forEach((b) => tries.push(withTimeout(fetch(b + "/api/v1/playlists/" + encodeURIComponent(id)).then((r) => r.json()), 8000).then((j) => {
+      const l = ((j && j.videos) || []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: 0, th: "" }));
+      if (!l.length) throw new Error("vide");
+      return l;
+    })));
+    const l = await anyOf(tries);
+    return l.slice(0, 80).map((x) => Object.assign(x, { src: "yt", th0: x.th || "", th: "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg", hd: "https://i.ytimg.com/vi/" + x.id + "/hqdefault.jpg" }));
+  }
+  async function loadSeasons(d, q) {
+    try {
+      const words = String(q).toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+      const l = (await ytPlaylists(q + " saison")).filter((x) => seasonNum(x.ti) < 999 && words.every((w) => x.ti.toLowerCase().indexOf(w) >= 0));
+      const seen = {}, out = [];
+      l.sort((a, b) => seasonNum(a.ti) - seasonNum(b.ti)).forEach((x) => { const n = seasonNum(x.ti); if (!seen[n]) { seen[n] = 1; out.push(x); } });
+      if (out.length >= 2 && SR.dc === d) { d.seasons = out; if (U.sec === "search" && !host.hidden) draw(); }
+    } catch (e) { /* pas de saisons */ }
+  }
+
   // ---------- Recherche ----------
   const SR = U.sr;
   if (!SR.sel && SR.items.length) SR.sel = SR.items[0].id;
   if (SR.items.length && !SR.done) SR.done = SR.q;
   let hist = []; try { hist = JSON.parse(lsGet("casque_hist") || "[]") || []; } catch (e) { hist = []; }
   const saveSr = () => lsSet("casque_sr", JSON.stringify({ q: SR.done || SR.q, done: SR.done, items: SR.items, src: SR.src, sel: SR.sel }));
-  async function ytSearch(q) {
+  async function ytSearch(q, recent) {
+    if (recent) {
+      try {
+        const l = await anyOf(INV.map((b) => withTimeout(fetch(b + "/api/v1/search?type=video&sort_by=upload_date&q=" + encodeURIComponent(q)).then((r) => r.json()), 6000).then((j) => {
+          const l = (Array.isArray(j) ? j : []).filter((x) => x.videoId).map((x) => ({ id: x.videoId, ti: x.title, ch: (x.author || "").replace(/ - Topic$/, ""), d: x.lengthSeconds || 0, v: x.viewCount || 0, th: "" }));
+          if (l.length < 4) throw new Error("vide");
+          return l;
+        })));
+        return l.slice(0, 25).map((x) => Object.assign(x, { src: "yt", th0: "", th: "https://i.ytimg.com/vi/" + x.id + "/mqdefault.jpg", hd: "https://i.ytimg.com/vi/" + x.id + "/hqdefault.jpg" }));
+      } catch (e) { /* repli : recherche normale */ }
+    }
     const tries = [];
     PIPED.forEach((b) => tries.push(withTimeout(fetch(b + "/search?filter=videos&q=" + encodeURIComponent(q)).then((r) => r.json()), 7000).then((j) => {
       const l = ((j && j.items) || []).filter((x) => x.url && /watch\?v=/.test(x.url) && !x.isShort).map((x) => ({
@@ -1373,8 +1520,10 @@
       else if (!d.albums.length) row = '<p class="dsn">Aucun album trouvé pour cet artiste.</p>';
       else row = '<div class="dsr">' + d.albums.map((a) => '<div class="dsa' + (d.sa === a.id ? " on" : "") + '" data-a="dcalb" data-id="' + a.id + '"><img src="' + esc(a.art) + '" loading="lazy" alt=""><b>' + esc(a.name) + "</b><small>" + esc(a.year) + "</small></div>").join("") + "</div>";
     } else row = rub;
+    const seas = d.seasons && d.seasons.length ? '<p class="dss">Saisons</p><div class="dsr dpl">' + d.seasons.map((x) => '<div class="dsp' + (d.ss === x.id ? " on" : "") + '" data-a="dcseason" data-id="' + esc(x.id) + '">' + esc(seasonLabel(x.ti)) + "</div>").join("") + "</div>" : "";
     const ttl = art ? ["Albums", d.name] : String(d.title).split(" · ");
-    return '<div class="dsc"><div class="dsh"><b>' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
+    const lab = art ? "Voir tous les albums de " + d.name : "Voir toutes les rubriques · " + (ttl[1] || ttl[0]);
+    return '<div class="dsc' + (d.col ? " col" : "") + '"><div class="dsh" data-a="dctog"><b class="t1">' + esc(ttl[0]) + (ttl[1] ? "<small>" + esc(ttl.slice(1).join(" · ")) + "</small>" : "") + '</b><b class="t2">' + esc(lab) + '</b><button class="ib chv" data-a="dctog" aria-label="Réduire ou agrandir">' + I.down + '</button></div><div class="dsw"><div class="dsi">' + seas + row + "</div></div></div>";
   }
   function vidRow(o, act) {
     return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
@@ -1389,6 +1538,12 @@
       h += '<p class="sec2">ALBUM · ' + esc(String((a && a.name) || "").toUpperCase()) + "</p>";
       if (!d.tracks) h += '<div class="dsl"><i class="spin s"></i></div>';
       else h += d.tracks.map((t, i) => '<div class="tkr" data-a="dctrack" data-id="' + i + '"><span>' + t.n + "</span><b>" + esc(t.ti) + "</b>" + (t.ms ? "<small>" + fmt(Math.round(t.ms / 1000)) + "</small>" : "") + I.play + "</div>").join("");
+    }
+    if (d.ss != null && d.seasons) {
+      const se = d.seasons.find((x) => x.id === d.ss);
+      h += '<p class="sec2">' + esc(se ? seasonLabel(se.ti).toUpperCase() : "SAISON") + "</p>";
+      if (!d.gv) h += '<div class="dsl"><i class="spin s"></i></div>';
+      else h += d.gv.map((o) => vidRow(o, "dcvid")).join("");
     }
     if (d.sg != null && d.rub[d.sg]) {
       h += '<p class="sec2">' + esc(d.rub[d.sg][1].toUpperCase()) + "</p>";
@@ -1408,7 +1563,7 @@
     const my = ++srTok;
     SR.loading = true; SR.err = ""; SR.items = []; draw();
     let items = [], src = "";
-    try { items = await ytSearch(q); src = "yt"; } catch (e) {
+    try { items = await ytSearch(q, true); src = "yt"; } catch (e) {
       try { items = await itSearch(q); src = "it"; } catch (e2) { items = []; }
     }
     if (my !== srTok) return;
@@ -1419,7 +1574,7 @@
     draw();
     SR.relFor = null; if (items[0]) loadRelated(items[0]);
     SR.dc = null;
-    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 1 }, k); if (k.kind === "artist") dcAlbums(SR.dc); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
+    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 1 }, k); if (k.kind === "artist") dcAlbums(SR.dc); else if (/^(Série|Dessin animé)/.test(String(k.title))) loadSeasons(SR.dc, q); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
@@ -1568,8 +1723,8 @@
                   const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
                 });
               });
-              const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: isV(d.f), d: d.d || 0, yid: d.yid });
-              d.st = "done"; d.tid = t.id; d.size = blob.size;
+              const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: isV(d.f), d: d.d || 0, yid: d.yid, fk: d.f });
+              d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
               A.authed("POST", "/rest/v1/rpc/relay_ack", { p_id: r.id }).catch(() => {});
               toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
               if (navigator.vibrate) navigator.vibrate(30);
@@ -1606,7 +1761,7 @@
               });
             });
             const t = await importBlob(blob, { title: sg.t || d.ti, artist: sg.a || d.ch, art: sg.th || d.th, video: m.kind === "video", d: (m.meta && m.meta.d) || 0, yid: d.yid });
-            d.st = "done"; d.tid = t.id; d.size = blob.size;
+            d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
             toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
             if (navigator.vibrate) navigator.vibrate(30);
           } catch (e) { d.st = "wait"; }
@@ -1829,13 +1984,20 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
-      case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; draw(); } return true; }
+      case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; const e = host.querySelector(".fp"); if (e) e.classList.toggle("open", U.fpo === sl.id); else draw(); } return true; }
       case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
       case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
-      case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.sg = null; d.gv = null; d.tracks = null; draw(); dcTracks(d, a); return true; }
+      case "dctog": { const d = SR.dc; if (!d) return true; d.col = !d.col; const e = host.querySelector(".dsc"); if (e) e.classList.toggle("col", d.col); return true; }
+      case "dcseason": {
+        const d = SR.dc; if (!d) return true;
+        d.ss = id; d.sg = null; d.sa = null; d.tracks = null; d.gv = null; draw();
+        ytPlVideos(id).catch(() => []).then((l) => { if (SR.dc === d && d.ss === id) { d.gv = l; draw(); } });
+        return true;
+      }
+      case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.sg = null; d.ss = null; d.gv = null; d.tracks = null; draw(); dcTracks(d, a); return true; }
       case "dcgen": {
         const d = SR.dc; if (!d) return true;
-        d.sg = Number(id); d.gv = null; d.sa = null; d.tracks = null; draw();
+        d.sg = Number(id); d.ss = null; d.gv = null; d.sa = null; d.tracks = null; draw();
         const mine = d.sg;
         ytSearch(d.rub[mine][2]).catch(() => []).then((l) => { if (SR.dc === d && d.sg === mine) { d.gv = l.slice(0, 25); draw(); } });
         return true;

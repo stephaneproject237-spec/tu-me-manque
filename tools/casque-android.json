@@ -1,6 +1,6 @@
 {
- "versionCode": 81,
- "versionName": "1.81",
- "notes": "Propositions de recherche devant la vidéo (comme sur iPhone), albums seuls sous un artiste, carte « Aider mes amis iPhone » allégée.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-81/casque.apk"
+ "versionCode": 83,
+ "versionName": "1.83",
+ "notes": "Saisons des séries, résultats récents d'abord, albums réductibles, animations fluides, vibrations au défilement, « Restaurer mes médias ».",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-83/casque.apk"
 }

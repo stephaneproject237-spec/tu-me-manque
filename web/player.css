@@ -367,3 +367,24 @@ body.cq-on{overflow:hidden}
 #player .sgb{position:fixed;left:0;right:0;bottom:0;z-index:4;background:rgba(7,9,13,.38);-webkit-backdrop-filter:blur(28px) saturate(1.5);backdrop-filter:blur(28px) saturate(1.5)}
 #player .sgo{position:fixed;left:0;right:0;top:0;bottom:calc(86px + env(safe-area-inset-bottom));z-index:7;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 20px;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none}
 #player .sgo .sg{pointer-events:auto}
+
+/* v2.8 : réduction animée des albums, des saisons, du panneau de téléchargement */
+#player .fp .fpb{display:block;overflow:hidden;max-height:0;opacity:0;transition:max-height .42s cubic-bezier(.32,.72,0,1),opacity .3s ease;animation:none}
+#player .fp.open .fpb{max-height:760px;opacity:1;animation:none}
+#player .dsc .dsw{display:grid;grid-template-rows:1fr;transition:grid-template-rows .42s cubic-bezier(.32,.72,0,1),opacity .3s ease;opacity:1}
+#player .dsc .dsi{overflow:hidden;min-height:0}
+#player .dsc.col .dsw{grid-template-rows:0fr;opacity:0}
+#player .dsc{transition:padding .35s cubic-bezier(.32,.72,0,1)}
+#player .dsc.col{padding:4px 0}
+#player .dsh{cursor:pointer}
+#player .dsh .t2{display:none;font-size:15px!important;font-weight:600!important}
+#player .dsc.col .dsh .t1{display:none}#player .dsc.col .dsh .t2{display:block;animation:fpo .3s ease}
+#player .dsc.col .dsh{margin-bottom:0;padding-top:8px;padding-bottom:8px}
+#player .dsh .chv{transition:transform .35s cubic-bezier(.32,.72,0,1);transform:rotate(180deg)}
+#player .dsc.col .dsh .chv{transform:none}
+#player .dss{margin:0 20px 4px;color:var(--sub);font-size:13px;font-weight:600}
+#player .dsp{flex:0 0 auto;padding:10px 16px;border-radius:50px;background:rgba(255,255,255,.12);border:.8px solid rgba(255,255,255,.2);font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+#player .dsp.on{background:var(--acc,#0a84ff);border-color:rgba(255,255,255,.5)}
+#player .dsr.dpl{gap:10px;margin-bottom:8px}
+#player .dsh .t2{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#player .dsc.col .dsh{padding-left:20px}
