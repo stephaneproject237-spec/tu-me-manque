@@ -1,7 +1,7 @@
 {
- "version": "web 2.21",
- "notes": "Téléchargements : lecteur vidéo, lecture continue, suivant/précédent ; plein écran amélioré ; appli plus légère et plus rapide.",
- "versionCode": 113,
- "versionName": "1.113",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-113/casque.apk"
+ "version": "web 2.22",
+ "notes": "Téléchargement pour un ami iPhone : la barre avance en trois étapes égales. Lecteur des Téléchargements, plein écran amélioré.",
+ "versionCode": 115,
+ "versionName": "1.115",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-115/casque.apk"
 }

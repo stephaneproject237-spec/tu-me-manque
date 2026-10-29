@@ -862,12 +862,15 @@
   // ---------- Ajout d'un fichier reçu dans la bibliothèque ----------
   async function importBlob(blob, o) {
     if (!db) throw new Error("db");
-    const mime = o.video ? "video/mp4" : "audio/mpeg";
+    // Un audio peut arriver en MP3 ou en AAC (.m4a, plus rapide à préparer) : on reconnaît le format au contenu du fichier.
+    let aac = false;
+    if (!o.video) { try { const h = new Uint8Array(await blob.slice(0, 12).arrayBuffer()); aac = h[4] === 0x66 && h[5] === 0x74 && h[6] === 0x79 && h[7] === 0x70; } catch (e) { aac = false; } }
+    const mime = o.video ? "video/mp4" : aac ? "audio/mp4" : "audio/mpeg";
     const f = blob.type === mime ? blob : new Blob([blob], { type: mime });
     let cv = null;
     if (o.art) { try { const r = await fetch(o.art, { mode: "cors" }); if (r.ok) { const b = await r.blob(); if (/^image\//.test(b.type) && b.size > 500) cv = b; } } catch (e) { /* pochette en ligne seulement */ } }
     const t = {
-      id: uid(), file: safe(o.title) + (o.video ? ".mp4" : ".mp3"), size: f.size, mime, title: o.title || "Sans titre", artist: o.artist || "Artiste inconnu",
+      id: uid(), file: safe(o.title) + (o.video ? ".mp4" : aac ? ".m4a" : ".mp3"), size: f.size, mime, title: o.title || "Sans titre", artist: o.artist || "Artiste inconnu",
       album: o.video ? "Vidéos" : "Téléchargements", folder: "Téléchargements", dur: o.d || (o.video ? 0 : await duration(f)), added: Date.now(),
       cover: cv, art: o.art || "", video: !!o.video, dl: true, yid: o.yid || "", fk: o.fk || "",
     };
@@ -1890,7 +1893,7 @@
       }
     } catch (e) { /* réessai plus tard */ }
     polling = false;
-    pollSoon(DL.some((d) => d.app === "rel" && d.st === "wait") ? 3000 : 12000);
+    pollSoon(pendingDl().length ? 2000 : 12000);
   }
   function fetchProg(url, onProg) {
     return new Promise((ok, ko) => {

@@ -43,7 +43,7 @@ object Relay {
         if (!MbEngine.supported) return
         while (true) {
             if (enabled(ctx) && Backend.hasSession() && !busy) runCatching { step(ctx) }
-            delay(12_000)
+            delay(4_000)
         }
     }
 
@@ -83,10 +83,11 @@ object Relay {
             if (pct - lastPct >= 3 && now - lastAt > 1500) { lastPct = pct; lastAt = now; scope.launch { Backend.relayProgress(id, pct) } }
         }
         val report: (Float) -> Unit = { p -> push((p * 33f).toInt().coerceIn(0, 33)) }
-        val f = if (video) MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fmt), report) else MbEngine.download(ctx, song, MbEngine.audioKbps(fmt), report)
+        val f = if (video) MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fmt), report)
+        else MbEngine.downloadFast(ctx, song, fmt == "al", report) ?: MbEngine.download(ctx, song, MbEngine.audioKbps(fmt), report)
         Backend.relayProgress(id, 33)
         try {
-            val media = Backend.uploadFile(f, if (video) "mp4" else "mp3", if (video) "video/mp4" else "audio/mpeg") { p -> push(33 + (p * 34f).toInt().coerceIn(0, 34)) }
+            val media = Backend.uploadFile(f, if (video) "mp4" else if (f.extension.equals("m4a", true)) "m4a" else "mp3", if (video) "video/mp4" else "audio/mpeg") { p -> push(33 + (p * 34f).toInt().coerceIn(0, 34)) }
             if (!Backend.relayDone(id, media, f.length())) throw Exception("déjà traitée")
         } finally {
             runCatching { f.delete() }

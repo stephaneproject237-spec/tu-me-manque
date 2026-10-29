@@ -181,6 +181,27 @@ object MbEngine {
         nice
     }
 
+    /**
+     * Version rapide : on garde l'audio tel que YouTube le donne (AAC .m4a), sans le recompresser en MP3.
+     * Plus de conversion sur le téléphone : le fichier est prêt dès la fin du téléchargement, et il est plus léger à envoyer.
+     * Renvoie null si aucun flux m4a n'est proposé (on retombe alors sur le MP3).
+     */
+    suspend fun downloadFast(ctx: Context, s: MbSong, light: Boolean, onProgress: (Float) -> Unit): File? = withContext(Dispatchers.IO) {
+        ensure(ctx)
+        val dir = File(ctx.cacheDir, "cam/music/${s.id}").apply { deleteRecursively(); mkdirs() }
+        val fmt = if (light) "bestaudio[ext=m4a][abr<=70]/bestaudio[ext=m4a]" else "bestaudio[ext=m4a]"
+        val req = YoutubeDLRequest(s.url)
+            .addOption("--no-playlist").addOption("--no-mtime").addOption("--newline").addOption("--no-warnings")
+            .addOption("-f", fmt)
+            .addOption("-o", File(dir, "song.%(ext)s").absolutePath)
+        val ok = runCatching { YoutubeDL.getInstance().execute(req, "bot${s.id}") { p, _, _ -> onProgress((p / 100f).coerceIn(0f, 1f)) } }.isSuccess
+        val f = dir.listFiles()?.filter { it.extension.equals("m4a", true) }?.maxByOrNull { it.length() }
+        if (!ok || f == null || f.length() < 1000) { dir.deleteRecursively(); return@withContext null }
+        val nice = File(dir, safeName(s.title) + ".m4a")
+        f.renameTo(nice)
+        nice
+    }
+
     /** Télécharge la vidéo en MP4 (480p max, sous 48 Mo pour pouvoir l'envoyer dans le chat). */
     suspend fun downloadVideo(ctx: Context, s: MbSong, height: Int = 480, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         ensure(ctx)
