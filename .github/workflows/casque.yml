@@ -51,6 +51,7 @@ jobs:
           gradle :app:assembleCasqueDebug ${{ inputs.split && '-PabiSplit=true' || '' }} --no-daemon --stacktrace 2>&1 | tee build.log
           code=${PIPESTATUS[0]}
           grep -E '^e: ' build.log | head -20 | while read -r l; do echo "::error::$l"; done
+          grep -A6 -E 'What went wrong' build.log | head -14 | while read -r l; do echo "::error::$l"; done
           exit $code
 
       - name: Préparer le fichier
