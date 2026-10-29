@@ -461,3 +461,11 @@ body.cq-on{overflow:hidden}
 #player .dsc.col .dsh .t2{flex:0 1 auto;text-align:center;padding:0 8px}
 #player .dsc{box-sizing:border-box;max-width:calc(100% - 32px)}
 #player .dsc .dsw,#player .dsc .dsi{min-width:0}
+
+/* v2.17 : défilement uniquement vertical ; voile d'en-tête sans flou (le flou masqué laissait un bord net sur iPhone) */
+html,body{overflow-x:hidden;overscroll-behavior-x:none}
+#player{overflow-x:hidden}
+#player .list{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y;max-width:100vw}
+#player .dsr,#player .tabs,#player .chips{touch-action:pan-x pan-y;overscroll-behavior-x:contain}
+#player .chrome::before{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;-webkit-mask-image:none!important;mask-image:none!important;bottom:-16px;
+  background:linear-gradient(180deg,rgba(11,13,16,.50) 0,rgba(11,13,16,.32) 55%,rgba(11,13,16,.12) 85%,rgba(11,13,16,0) 100%)}
