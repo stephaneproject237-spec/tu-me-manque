@@ -57,6 +57,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -65,6 +67,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +97,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -138,6 +142,19 @@ object Vp {
     /** Vidéos proposées juste avant (résultats de la recherche) : la suivante part en premier. */
     var queue: List<YtVideo> = emptyList()
     private val played = LinkedHashSet<String>()
+    /** Résolution choisie pour les vidéos YouTube (360 par défaut) et celles que la vidéo en cours propose. */
+    var quality by mutableIntStateOf(360)
+        private set
+    var heights by mutableStateOf<List<Int>>(emptyList())
+        private set
+    var curH by mutableIntStateOf(360)
+        private set
+    private var curInfo: YtInfo? = null
+    /** La vidéo suivante, déjà préparée : elle démarre toute seule, même écran verrouillé. */
+    private var pending: YtVideo? = null
+    private var pendingInfo: YtInfo? = null
+    private var pendingH = 360
+    private var preloadJob: kotlinx.coroutines.Job? = null
     private var appCtx: Context? = null
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     /** Une vidéo YouTube (et non un fichier téléchargé) est chargée. */
@@ -145,19 +162,112 @@ object Vp {
 
     /** Relit le réglage « lecture continue » (avant même de lancer une vidéo). */
     fun loadPrefs(ctx: Context) {
-        autoplay = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).getBoolean("autoplay", false)
+        val sp = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE)
+        autoplay = sp.getBoolean("autoplay", false)
+        quality = sp.getInt("quality", 360)
     }
 
     fun setAutoplay(ctx: Context, on: Boolean) {
         autoplay = on
         ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).edit().putBoolean("autoplay", on).apply()
+        if (on) preloadNext() else dropPending()
+    }
+
+    private fun dropPending() {
+        preloadJob?.cancel()
+        val p = exo
+        if (pending != null && p != null && p.mediaItemCount > 1) p.removeMediaItem(p.mediaItemCount - 1)
+        pending = null; pendingInfo = null
+    }
+
+    /** Résolution : on relit la vidéo là où on en était. */
+    fun setQuality(ctx: Context, h: Int) {
+        val app = ctx.applicationContext
+        quality = h
+        app.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).edit().putInt("quality", h).apply()
+        val p = exo ?: return
+        val info = curInfo ?: return
+        val id = lastYt?.id ?: return
+        if (!isYt) return
+        dropPending()
+        val (src, got) = buildSource(app, info, h, id) ?: return
+        val pos = p.currentPosition
+        val wasPlaying = p.playWhenReady
+        curH = got
+        p.setMediaSource(src, pos)
+        p.prepare()
+        p.playWhenReady = wasPlaying
+        preloadNext()
+    }
+
+    private fun updateHeights(info: YtInfo, got: Int) {
+        heights = (info.videoUrls.keys + (if (info.playUrl != null) listOf(360) else emptyList())).filter { it in 144..2160 }.distinct().sorted()
+        curH = got
+    }
+
+    /** Prépare la source d'une vidéo à la résolution voulue (renvoie aussi la hauteur obtenue). */
+    private fun buildSource(ctx: Context, info: YtInfo, h: Int, id: String): Pair<MediaSource, Int>? {
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(info.headers)
+        info.headers["User-Agent"]?.let { http.setUserAgent(it) }
+        val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http))
+        fun item(u: String) = MediaItem.Builder().setUri(u).setMediaId(id).build()
+        val best = info.videoUrls.keys.filter { it <= h }.maxOrNull()
+        if (!(h == 360 && info.playUrl != null) && best != null && info.bestAudioUrl != null) {
+            return MergingMediaSource(
+                factory.createMediaSource(item(info.videoUrls.getValue(best))),
+                factory.createMediaSource(MediaItem.fromUri(info.bestAudioUrl)),
+            ) to best
+        }
+        return when {
+            info.playUrl != null -> factory.createMediaSource(item(info.playUrl)) to 360
+            info.videoUrl != null && info.audioUrl != null -> MergingMediaSource(
+                factory.createMediaSource(item(info.videoUrl)),
+                factory.createMediaSource(MediaItem.fromUri(info.audioUrl)),
+            ) to 0
+            info.videoUrl != null -> factory.createMediaSource(item(info.videoUrl)) to 0
+            else -> null
+        }
+    }
+
+    private fun nextCandidate(cur: YtVideo): YtVideo? =
+        queue.dropWhile { it.id != cur.id }.drop(1).firstOrNull { it.id !in played }
+            ?: queue.firstOrNull { it.id !in played }
+
+    /** Choisit et charge à l'avance la vidéo suivante : à la fin de la vidéo, la lecture continue sans réseau ni appli au premier plan. */
+    fun preloadNext() {
+        val ctx = appCtx ?: return
+        val p = exo ?: return
+        val cur = lastYt ?: return
+        if (!autoplay || !isYt || pending != null) return
+        preloadJob?.cancel()
+        preloadJob = scope.launch {
+            var n = nextCandidate(cur)
+            if (n == null) {
+                val found = runCatching { Yt.search(cur.title, 12) }.getOrDefault(emptyList())
+                queue = (queue + found).distinctBy { it.id }
+                n = nextCandidate(cur)
+            }
+            if (n == null || key != cur.id || !autoplay) return@launch
+            val info = runCatching { Yt.info(n.id) }.getOrNull() ?: return@launch
+            if (key != cur.id || !autoplay || pending != null) return@launch
+            val (src, got) = buildSource(ctx, info, quality, n.id) ?: return@launch
+            pending = n; pendingInfo = info; pendingH = got
+            p.addMediaSource(src)
+        }
     }
 
     /** Lance la vidéo suivante du même thème (la suivante des résultats, sinon une recherche sur le titre). */
     fun playNextRelated() {
         val ctx = appCtx ?: return
         val cur = lastYt ?: return
+        val wl = runCatching {
+            (ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+                .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "casque:suivante").apply { acquire(90_000L) }
+        }.getOrNull()
         scope.launch {
+          try {
             played.add(cur.id)
             var n = queue.dropWhile { it.id != cur.id }.drop(1).firstOrNull { it.id !in played }
                 ?: queue.firstOrNull { it.id !in played }
@@ -167,13 +277,14 @@ object Vp {
                 n = found.firstOrNull { it.id !in played }
             }
             if (n != null && key == cur.id) playYt(ctx, n, auto = true)
+          } finally { runCatching { if (wl?.isHeld == true) wl.release() } }
         }
     }
 
     fun player(ctx: Context): ExoPlayer {
         exo?.let { return it }
         appCtx = ctx.applicationContext
-        autoplay = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE).getBoolean("autoplay", false)
+        loadPrefs(ctx)
         val p = ExoPlayer.Builder(ctx.applicationContext)
             .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).setUsage(C.USAGE_MEDIA).build(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -183,6 +294,20 @@ object Vp {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 if (!isPlaying) saveLocal()
+            }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val n = pending ?: return
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || mediaItem?.mediaId != n.id) return
+                played.add(n.id)
+                lastYt = n; key = n.id; title = n.title; localId = null
+                error = null; errorDetail = ""; ended = false
+                val inf = pendingInfo
+                pending = null; pendingInfo = null
+                curInfo = inf
+                if (inf != null) updateHeights(inf, pendingH)
+                // On garde la liste courte : seule la vidéo en cours reste.
+                if (p.currentMediaItemIndex > 0) p.removeMediaItems(0, p.currentMediaItemIndex)
+                preloadNext()
             }
             override fun onPlaybackStateChanged(state: Int) {
                 loading = state == Player.STATE_BUFFERING
@@ -242,6 +367,7 @@ object Vp {
         localId = null
         lastYt = v
         key = v.id; title = v.title; error = null; errorDetail = ""; ended = false; loading = true
+        dropPending()
         p.stop(); p.clearMediaItems()
         Hub.player.pause()
         showControls(ctx)
@@ -254,29 +380,23 @@ object Vp {
             return
         }
         if (key != v.id) return
-        val http = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setDefaultRequestProperties(info.headers)
-        info.headers["User-Agent"]?.let { http.setUserAgent(it) }
-        val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http))
-        val src = when {
-            info.playUrl != null -> factory.createMediaSource(MediaItem.fromUri(info.playUrl))
-            info.videoUrl != null && info.audioUrl != null -> MergingMediaSource(
-                factory.createMediaSource(MediaItem.fromUri(info.videoUrl)),
-                factory.createMediaSource(MediaItem.fromUri(info.audioUrl)),
-            )
-            info.videoUrl != null -> factory.createMediaSource(MediaItem.fromUri(info.videoUrl))
-            else -> { loading = false; error = "Aucun flux lisible pour cette vidéo."; return }
-        }
+        val built = buildSource(ctx.applicationContext, info, quality, v.id)
+        if (built == null) { loading = false; error = "Aucun flux lisible pour cette vidéo."; return }
+        val (src, got) = built
+        curInfo = info
+        updateHeights(info, got)
         p.setMediaSource(src)
         p.prepare()
         p.play()
+        preloadNext()
     }
 
     /** Lit une vidéo téléchargée, là où on s'était arrêté. */
     fun playLocal(ctx: Context, item: VideoItem) {
         val p = player(ctx)
         saveLocal()
+        dropPending()
+        curInfo = null; heights = emptyList()
         localId = item.id
         miniHidden = false
         key = item.id; title = item.video.title; error = null; ended = false
@@ -314,6 +434,7 @@ object Vp {
 
     fun stop() {
         saveLocal()
+        preloadJob?.cancel(); pending = null; pendingInfo = null; curInfo = null; heights = emptyList()
         exo?.stop(); exo?.clearMediaItems()
         key = null; localId = null; playing = false; loading = false; error = null
         fullscreen = false; mini = false; miniHidden = false
@@ -426,6 +547,21 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                 Text(fmt(dur), color = Color(0xCCFFFFFF), fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 val act = LocalContext.current.activity()
+                if (Vp.isYt && Vp.heights.size > 1) {
+                    val c = LocalContext.current
+                    var menu by remember { mutableStateOf(false) }
+                    Box {
+                        Text(
+                            if (Vp.curH > 0) "${Vp.curH}p" else "HD", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).clickable { menu = true; touch = System.currentTimeMillis() }.padding(horizontal = 8.dp, vertical = 8.dp),
+                        )
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            Vp.heights.forEach { h ->
+                                DropdownMenuItem(text = { Text(if (h == Vp.curH) "✓  ${h}p" else "${h}p") }, onClick = { menu = false; Vp.setQuality(c, h) })
+                            }
+                        }
+                    }
+                }
                 if (Vp.isYt) {
                     val c = LocalContext.current
                     RoundBtn(Ic.Repeat, { Vp.setAutoplay(c, !Vp.autoplay); touch = System.currentTimeMillis() }, size = 36.dp, iconSize = 20.dp, fill = Color.Transparent, tint = if (Vp.autoplay) P.blueSoft else Color.White)

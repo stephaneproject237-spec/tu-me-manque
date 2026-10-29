@@ -53,6 +53,9 @@ data class YtInfo(
     /** hauteur (côté le plus court) -> taille estimée de la vidéo complète */
     val videoSizes: Map<Int, Long>,
     val maxRes: Int,
+    /** hauteur -> lien de la vidéo seule (sans le son) */
+    val videoUrls: Map<Int, String> = emptyMap(),
+    val bestAudioUrl: String? = null,
 )
 
 /** Le moteur : yt-dlp (avec Python et FFmpeg) embarqué dans l'appli. */
@@ -209,19 +212,26 @@ object Yt {
         var bestAudioAbr = -1.0
         val videoOnly = ArrayList<Pair<Int, Long>>()
         var maxRes = 0
+        val vUrls = HashMap<Int, Pair<Double, String>>()
+        var audioLink: String? = null
         for (i in 0 until formats.length()) {
             val f = formats.getJSONObject(i)
             val v = f.optString("vcodec", "none")
             val a = f.optString("acodec", "none")
             if (v == "none" && a != "none") {
                 val abr = f.optDouble("abr", 0.0)
-                if (f.optString("ext") == "m4a" && abr > bestAudioAbr) { bestAudioAbr = abr; bestAudio = size(f) }
+                if (f.optString("ext") == "m4a" && abr > bestAudioAbr) { bestAudioAbr = abr; bestAudio = size(f); audioLink = f.optString("url").takeIf { it.startsWith("http") } }
             } else if (v != "none" && !f.optString("protocol").startsWith("m3u8")) {
                 val w = f.optInt("width", 0); val h = f.optInt("height", 0)
                 val res = if (w > 0 && h > 0) minOf(w, h) else h
                 if (res <= 0) continue
                 maxRes = maxOf(maxRes, res)
                 if (v.startsWith("avc1")) videoOnly.add(res to size(f))
+                val link = f.optString("url")
+                if (a == "none" && v.startsWith("avc1") && link.startsWith("http") && f.optString("ext") == "mp4") {
+                    val tbr = f.optDouble("tbr", 0.0)
+                    if (vUrls[res] == null || tbr > vUrls[res]!!.first) vUrls[res] = tbr to link
+                }
             }
         }
         val sizes = HashMap<Int, Long>()
@@ -230,7 +240,7 @@ object Yt {
             val best = videoOnly.filter { it.first <= target }.maxByOrNull { it.first * 1_000_000_000L + it.second }
             sizes[target] = (best?.second ?: 0L) + bestAudio
         }
-        val info = YtInfo(id, playUrl, videoUrl, audioUrl, headers, dur, bestAudio, sizes, maxRes)
+        val info = YtInfo(id, playUrl, videoUrl, audioUrl, headers, dur, bestAudio, sizes, maxRes, vUrls.mapValues { it.value.second }, audioLink)
         synchronized(infoCache) { infoCache[id] = System.currentTimeMillis() to info }
         info
     }
