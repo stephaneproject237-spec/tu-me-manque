@@ -322,3 +322,6 @@ body.cq-on{overflow:hidden}
 #player .dsl{display:flex;justify-content:center;padding:18px}#player .dsn{padding:6px 16px;color:var(--sub);font-size:14px}
 #player .tkr{display:flex;align-items:center;gap:10px;padding:11px 20px}#player .tkr span{width:26px;color:var(--sub);font-size:14px}
 #player .tkr b{flex:1;font-size:15px;font-weight:500}#player .tkr small{color:var(--sub);font-size:12px}#player .tkr svg{width:20px;height:20px;color:var(--bls)}
+
+#player .sg.art span{color:var(--bls);font-weight:700}
+#player .sg span small{display:block;margin-top:1px;color:var(--sub);font-size:12px;font-weight:400}

@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -41,6 +43,9 @@ import java.text.Normalizer
 
 data class DiscoAlbum(val id: Long, val name: String, val art: String, val year: String)
 data class DiscoTrack(val n: Int, val title: String, val ms: Long)
+/** Une suggestion pendant la frappe : le texte cherché, ce qu'on affiche, et si c'est un artiste. */
+data class Sug(val text: String, val label: String, val sub: String = "", val artist: Boolean = false)
+
 data class DiscoGenre(val emoji: String, val name: String, val query: String)
 
 /** Ce que la personne cherche : un artiste (→ ses albums) ou des films (→ des genres). */
@@ -106,6 +111,49 @@ object Disco {
         val m = get("https://itunes.apple.com/search?term=${enc(t)}&entity=movie&limit=3")?.optJSONArray("results")
         if (m != null) for (i in 0 until m.length()) if (norm(m.getJSONObject(i).optString("trackName")) == nq) return@withContext DiscoKind.Film
         null
+    }
+
+    /** Pendant la frappe : l'artiste le plus proche d'abord, puis les titres qui y ressemblent, puis les suggestions YouTube. */
+    suspend fun suggest(q: String): List<Sug> = coroutineScope {
+        val t = q.trim()
+        val nq = norm(t)
+        val art = async(Dispatchers.IO) { get("https://itunes.apple.com/search?term=${enc(t)}&entity=musicArtist&limit=6") }
+        val songs = async(Dispatchers.IO) { get("https://itunes.apple.com/search?term=${enc(t)}&entity=song&limit=12") }
+        val yt = async { runCatching { Yt.suggest(t) }.getOrDefault(emptyList()) }
+        val out = ArrayList<Sug>()
+        val seen = HashSet<String>()
+        // L'artiste dont le nom ressemble le plus à ce qui est tapé.
+        var best: String? = null
+        var bestScore = Int.MAX_VALUE
+        art.await()?.optJSONArray("results")?.let { a ->
+            for (i in 0 until a.length()) {
+                val name = a.getJSONObject(i).optString("artistName")
+                val nn = norm(name)
+                if (nn.isEmpty() || nq.isEmpty()) continue
+                val score = when {
+                    nn == nq -> 0
+                    nn.startsWith(nq) -> 1 + (nn.length - nq.length)
+                    nn.contains(nq) && nq.length >= 3 -> 40 + (nn.length - nq.length)
+                    lev(nn, nq) <= maxOf(2, nq.length / 3) -> 100 + lev(nn, nq)
+                    else -> Int.MAX_VALUE
+                }
+                if (score < bestScore) { bestScore = score; best = name }
+            }
+        }
+        best?.let { if (seen.add(norm(it))) out.add(Sug(it, "🎤  $it", "Artiste", true)) }
+        songs.await()?.optJSONArray("results")?.let { a ->
+            var n = 0
+            for (i in 0 until a.length()) {
+                val o = a.getJSONObject(i)
+                if (o.optString("wrapperType") != "track") continue
+                val title = o.optString("trackName"); val artist = o.optString("artistName")
+                if (title.isBlank() || !seen.add(norm("$artist $title"))) continue
+                out.add(Sug("$artist $title", title, artist))
+                if (++n >= 6) break
+            }
+        }
+        for (y in yt.await()) { if (out.size >= 10) break; if (seen.add(norm(y))) out.add(Sug(y, y)) }
+        out
     }
 
     suspend fun albums(artistId: Long): List<DiscoAlbum> = withContext(Dispatchers.IO) {

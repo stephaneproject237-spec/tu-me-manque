@@ -1346,13 +1346,36 @@
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
+  // L'artiste le plus proche d'abord, puis les titres qui y ressemblent, puis les suggestions YouTube.
   function suggest(q) {
     clearTimeout(sugT);
     if (!q.trim()) { SR.sug = []; drawSug(); return; }
     sugT = setTimeout(() => {
+      const t = q.trim(), nq = dnorm(t), P = { art: null, songs: [], yt: [] };
+      const merge = () => {
+        if (SR.q !== q) return;
+        const out = [], seen = new Set();
+        if (P.art && seen.add(dnorm(P.art))) out.push({ t: P.art, l: "🎤 " + P.art, s: "Artiste", a: 1 });
+        P.songs.forEach((x) => { if (out.length < 8 && seen.add(dnorm(x.a + " " + x.ti))) out.push({ t: x.a + " " + x.ti, l: x.ti, s: x.a }); });
+        P.yt.forEach((y) => { if (out.length < 10 && seen.add(dnorm(y))) out.push({ t: y, l: y }); });
+        SR.sug = out;
+        drawSug();
+      };
+      itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=musicArtist&limit=6").then((j) => {
+        let best = null, bs = 1e9;
+        ((j && j.results) || []).forEach((o) => {
+          const nn = dnorm(o.artistName); if (!nn || !nq) return;
+          const sc = nn === nq ? 0 : nn.indexOf(nq) === 0 ? 1 + nn.length - nq.length : nq.length >= 3 && nn.indexOf(nq) >= 0 ? 40 + nn.length - nq.length : lev(nn, nq) <= Math.max(2, Math.floor(nq.length / 3)) ? 100 + lev(nn, nq) : 1e9;
+          if (sc < bs) { bs = sc; best = o.artistName; }
+        });
+        P.art = best; merge();
+      }).catch(() => {});
+      itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=song&limit=12").then((j) => {
+        P.songs = ((j && j.results) || []).filter((o) => o.wrapperType === "track" && o.trackName).slice(0, 6).map((o) => ({ ti: o.trackName, a: o.artistName })); merge();
+      }).catch(() => {});
       const cb = "cqSug" + Date.now();
       const s = document.createElement("script");
-      window[cb] = (j) => { window[cb] = () => {}; s.remove(); if (SR.q === q) { SR.sug = ((j && j[1]) || []).map((x) => (Array.isArray(x) ? x[0] : x)).slice(0, 8); drawSug(); } };
+      window[cb] = (j) => { window[cb] = () => {}; s.remove(); P.yt = ((j && j[1]) || []).map((x) => (Array.isArray(x) ? x[0] : x)).slice(0, 8); merge(); };
       s.onerror = () => { window[cb] = () => {}; s.remove(); };
       s.src = "https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&hl=fr&q=" + encodeURIComponent(q) + "&callback=" + cb;
       document.head.appendChild(s);
@@ -1360,7 +1383,10 @@
   }
   function sugHtml() {
     const q = SR.q.trim();
-    return (SR.sug || []).map((s) => '<div class="sg" data-a="ysug" data-id="' + esc(s) + '">' + I.search + "<span>" + esc(s) + '</span><button data-a="yfill" data-id="' + esc(s) + '">' + I2.nw + "</button></div>").join("") +
+    return (SR.sug || []).map((x) => {
+      const o = typeof x === "string" ? { t: x, l: x } : x;
+      return '<div class="sg' + (o.a ? " art" : "") + '" data-a="ysug" data-id="' + esc(o.t) + '">' + I.search + "<span>" + esc(o.l) + (o.s ? "<small>" + esc(o.s) + "</small>" : "") + '</span><button data-a="yfill" data-id="' + esc(o.t) + '">' + I2.nw + "</button></div>";
+    }).join("") +
       (!(SR.sug || []).length && q ? '<div class="sg go" data-a="ysug" data-id="' + esc(q) + '">' + I.search + "<span>Rechercher « " + esc(q) + " »</span></div>" : "");
   }
   function drawSug() {

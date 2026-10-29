@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.0"
-NOTES = "Albums d'un artiste et genres de films dans la recherche."
+VERSION = "web 2.1"
+NOTES = "Suggestions de recherche : l'artiste le plus proche puis les titres."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

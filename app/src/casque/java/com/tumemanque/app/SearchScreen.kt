@@ -91,7 +91,7 @@ fun SearchScreen() {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var focused by remember { mutableStateOf(false) }
-    var suggestions by remember { mutableStateOf(listOf<String>()) }
+    var suggestions by remember { mutableStateOf(listOf<Sug>()) }
     var history by remember { mutableStateOf(Yt.history()) }
     var token by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
@@ -153,7 +153,7 @@ fun SearchScreen() {
     LaunchedEffect(query, focused) {
         if (!focused || query.isBlank() || query == submitted) { suggestions = emptyList(); return@LaunchedEffect }
         delay(220)
-        suggestions = Yt.suggest(query)
+        suggestions = Disco.suggest(query)
     }
     // Lecture continue : la vidéo suivante est la suivante des résultats ; l'écran suit quand elle change.
     LaunchedEffect(resultsJson, related) { if (results.isNotEmpty()) Vp.queue = (results + related).distinctBy { it.id } }
@@ -222,15 +222,18 @@ fun SearchScreen() {
             contentPadding = PaddingValues(top = 6.dp + LocalTopInset.current, bottom = bottom + 12.dp),
         ) {
             if (showSuggest) {
-                items(suggestions, key = { "s$it" }) { s ->
+                items(suggestions, key = { "s${it.text}" }) { s ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { run(s) }.padding(horizontal = 22.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().clickable { run(s.text) }.padding(horizontal = 22.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CIcon(Ic.Search, P.sub, 18.dp)
+                        CIcon(Ic.Search, if (s.artist) P.blueSoft else P.sub, 18.dp)
                         Spacer(Modifier.width(14.dp))
-                        Text(s, color = P.text, fontSize = 16.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Box(Modifier.size(32.dp).clip(CircleShape).clickable { query = "$s " }, contentAlignment = Alignment.Center) {
+                        Column(Modifier.weight(1f)) {
+                            Text(s.label, color = if (s.artist) P.blueSoft else P.text, fontSize = 16.sp, fontWeight = if (s.artist) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (s.sub.isNotBlank()) Text(s.sub, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Box(Modifier.size(32.dp).clip(CircleShape).clickable { query = "${s.text} " }, contentAlignment = Alignment.Center) {
                             CIcon(Ic.ArrowNW, P.sub, 18.dp)
                         }
                     }
