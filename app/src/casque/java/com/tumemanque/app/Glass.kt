@@ -242,7 +242,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
                 AnimatedVisibility(
                     current != null && !Shell.miniHidden,
                     enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow)) + fadeIn() + slideInVertically { it },
-                    exit = shrinkVertically(tween(260)) + fadeOut(tween(160)),
+                    exit = shrinkVertically(tween(320)) + slideOutVertically(tween(320)) { it } + fadeOut(tween(220)),
                 ) {
                     val t = current ?: lastMini
                     if (t != null) GlassMini(t, haze) { Shell.tab = "audios"; Shell.openNow++ }

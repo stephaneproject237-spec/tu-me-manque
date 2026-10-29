@@ -28,7 +28,7 @@ fun GlassProgress(progress: Float, indeterminate: Boolean, modifier: Modifier = 
     val t = rememberInfiniteTransition(label = "gpi")
     val sweep by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart), label = "gps")
     val slide by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Restart), label = "gpl")
-    Canvas(modifier.fillMaxWidth().height(14.dp)) {
+    Canvas(modifier.fillMaxWidth().height(18.dp)) {
         val h = size.height
         val r = CornerRadius(h / 2, h / 2)
         // Rail de verre
@@ -41,9 +41,9 @@ fun GlassProgress(progress: Float, indeterminate: Boolean, modifier: Modifier = 
         val w: Float
         val x0: Float
         if (indeterminate) { w = maxW * 0.32f; x0 = inset + (maxW - w) * slide } else { w = (maxW * p).coerceAtLeast(innerH); x0 = inset }
-        val fill = Brush.horizontalGradient(listOf(Color(0xFF5CA8FF), Color(0xFF7C6CFF), Color(0xFF3DDCFF)), startX = x0, endX = x0 + w)
+        val fill = Brush.horizontalGradient(listOf(Color(0xFF0A84FF), Color(0xFF00C8FF), Color(0xFF00F0FF)), startX = x0, endX = x0 + w)
         // Lueur
-        drawRoundRect(Brush.horizontalGradient(listOf(Color(0x555CA8FF), Color(0x333DDCFF)), startX = x0, endX = x0 + w), Offset(x0, inset - 2.dp.toPx()), Size(w, innerH + 4.dp.toPx()), CornerRadius((innerH + 4.dp.toPx()) / 2))
+        drawRoundRect(Brush.horizontalGradient(listOf(Color(0x990A84FF), Color(0x8000E5FF)), startX = x0, endX = x0 + w), Offset(x0 - 2.dp.toPx(), inset - 5.dp.toPx()), Size(w + 4.dp.toPx(), innerH + 10.dp.toPx()), CornerRadius((innerH + 10.dp.toPx()) / 2))
         // Remplissage
         drawRoundRect(fill, Offset(x0, inset), Size(w, innerH), ir)
         // Reflet du haut (verre)

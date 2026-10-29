@@ -370,6 +370,7 @@ object Vp {
         if (!auto) played.clear()
         played.add(v.id)
         miniHidden = false
+        Shell.miniHidden = true   // la barre audio descend ; elle remonte quand on relance une chanson
         localId = null
         lastYt = v
         key = v.id; title = v.title; error = null; errorDetail = ""; ended = false; loading = true
@@ -406,6 +407,7 @@ object Vp {
         curInfo = null; heights = emptyList()
         localId = item.id
         miniHidden = false
+        Shell.miniHidden = true
         key = item.id; title = item.video.title; error = null; ended = false
         Hub.player.pause()
         showControls(ctx)

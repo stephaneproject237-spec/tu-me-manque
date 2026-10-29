@@ -454,7 +454,9 @@ private fun TrackList(
     onDelete: ((List<String>) -> Unit)? = null,
 ) {
     val selecting = selected.isNotEmpty()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
+    val trackListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    ScrollTicks(trackListState)
+    LazyColumn(Modifier.fillMaxSize(), state = trackListState, contentPadding = PaddingValues(top = LocalTopInset.current, bottom = 12.dp + LocalBottomInset.current)) {
         if (header != null) item(key = "header") { header() }
         if (list.isEmpty()) item(key = "empty") {
             Text(empty, color = P.sub, modifier = Modifier.fillMaxWidth().padding(40.dp), textAlign = TextAlign.Center)
