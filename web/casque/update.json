@@ -1,7 +1,7 @@
 {
  "version": "web 1.9",
- "notes": "Choix de la résolution des vidéos, et la vidéo suivante démarre toute seule même écran verrouillé.",
- "versionCode": 56,
- "versionName": "1.56",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-56/casque.apk"
+ "notes": "Fenêtre vidéo fixe et plus de propositions du même thème, vidéos 240p par défaut, vidéos téléchargées privées (hors galerie).",
+ "versionCode": 62,
+ "versionName": "1.62",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-62/casque.apk"
 }
