@@ -1,6 +1,6 @@
 {
- "versionCode": 125,
- "versionName": "1.125",
- "notes": "Présence en ligne à 3 états, reprise automatique des téléchargements pour les amis iPhone si un téléphone perd internet.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-125/casque.apk"
+ "versionCode": 127,
+ "versionName": "1.127",
+ "notes": "Le moteur YouTube se répare et se met à jour tout seul quand YouTube change.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-127/casque.apk"
 }
