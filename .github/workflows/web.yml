@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   pages: write
+  deployments: read
   id-token: write
 
 concurrency:
@@ -29,5 +30,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
+      - name: Débloquer un déploiement resté en attente
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shas="9562685a600384437ddb9a741f4fc02e3355281b $(gh api "repos/${{ github.repository }}/deployments?environment=github-pages&per_page=15" -q '.[].sha' 2>/dev/null)"
+          for sha in $shas; do
+            gh api -X POST "repos/${{ github.repository }}/pages/deployments/$sha/cancel" >/dev/null 2>&1 && echo "annulé : $sha" || true
+          done
+          sleep 5
       - id: deployment
         uses: actions/deploy-pages@v4
