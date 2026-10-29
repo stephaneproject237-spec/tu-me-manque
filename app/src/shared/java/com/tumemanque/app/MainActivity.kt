@@ -323,7 +323,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     }
 
     val onHome = !showSettings && !showSupport && !(showChat && state.partnerName != null)
-    if (BuildConfig.CASQUE && !casqueLogin && onHome && (state.loading || state.needAuth || state.error != null || state.username == null || state.needContact && !skipContact)) {
+    if (BuildConfig.CASQUE && !casqueLogin && onHome && (state.loading || state.needAuth || state.error != null || state.username == null || false)) {
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), Alignment.TopStart) {
             TextButton(onClick = { casqueScreen = "settings" }) { Text("‹ Retour") }
         }
