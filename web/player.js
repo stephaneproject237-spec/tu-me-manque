@@ -1769,16 +1769,18 @@
       const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
       if (sel) {
         const playing = V.yid === sel.id;
-        body += dcBanner();
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>";
         body += '<div class="pc">' +
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
           (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
+        body += dcBanner();
         body += dcLists();
-        body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
-          '<p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
-          '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div>";
+        const fpo = U.fpo === sel.id, mineD = DL.filter((d) => (sel.src === "yt" ? d.yid === sel.id : d.ti === sel.ti));
+        const fsub = mineD.some((d) => d.st !== "done" && d.st !== "fail") ? "Téléchargement en cours…" : mineD.some((d) => d.st === "done") ? "Téléchargé · touche pour d'autres formats" : "Audio · Vidéo · touche pour choisir";
+        body += '<div class="fp' + (fpo ? " open" : "") + '"><div class="fh" data-a="fpt">' + I2.dl + "<span><b>Télécharger</b><small>" + esc(fsub) + "</small></span>" + (fpo && TP.st === "?" ? '<i class="spin s"></i>' : "") + '<em class="fch">' + I.down + "</em></div>" + (fpo ? "" : "") +
+          '<div class="fpb"><p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
+          '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div></div>";
         const rowOf = (o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));
           return '<div class="rr" data-a="ysel" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
@@ -1818,6 +1820,7 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
+      case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; draw(); } return true; }
       case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
       case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
       case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.sg = null; d.gv = null; d.tracks = null; draw(); dcTracks(d, a); return true; }

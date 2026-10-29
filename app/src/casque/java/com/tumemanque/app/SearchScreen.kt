@@ -7,6 +7,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
@@ -299,6 +302,7 @@ fun SearchScreen() {
             }
 
             if (selected != null) {
+                item(key = "info") { PlayerInfo(selected) }
                 val dk = kind
                 if (dk != null && stage != 2) item(key = "disco") {
                     DiscoverCard(
@@ -328,7 +332,6 @@ fun SearchScreen() {
                         },
                     )
                 }
-                item(key = "info") { PlayerInfo(selected) }
                 val al = selAlbum
                 if (al != null && stage == 1) {
                     item(key = "alt") { SectionTitle("ALBUM · ${al.name.uppercase()}", Modifier.padding(top = 4.dp)) }
@@ -440,9 +443,10 @@ private fun PlayerWindow(v: YtVideo) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
-    Column(Modifier.fillMaxWidth()) {
+    val soft = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {
@@ -495,13 +499,28 @@ private fun FormatsPanel(v: YtVideo, onDownload: (DlKind) -> Unit) {
     LaunchedEffect(v.id) { if (info == null) info = runCatching { Yt.info(v.id) }.getOrNull() }
     val dur = (info?.durationSec ?: v.durationSec).coerceAtLeast(0)
     val i = info
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).glass(RoundedCornerShape(26.dp), 0.05f).padding(vertical = 8.dp)) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    var open by remember(v.id) { mutableStateOf(false) }
+    val mine = tasks.filter { it.video.id == v.id && it.status != DlStatus.CANCELED }
+    val sub = when {
+        mine.any { it.active } -> "Téléchargement en cours…"
+        mine.any { it.status == DlStatus.DONE } -> "Téléchargé · touche pour d'autres formats"
+        else -> "Audio · Vidéo · touche pour choisir"
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).glass(RoundedCornerShape(26.dp), 0.05f).animateContentSize().padding(vertical = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) { open = !open }.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             CIcon(Ic.Download, P.blueSoft, 20.dp)
-            Spacer(Modifier.width(8.dp))
-            Text("Télécharger", color = P.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (i == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 1.5.dp, color = P.sub)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Télécharger", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(sub, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (open && i == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 1.5.dp, color = P.sub)
+            CIcon(Ic.ChevronDown, P.sub, 22.dp, Modifier.graphicsLayer { rotationZ = if (open) 180f else 0f })
         }
+        if (open) {
         Text("AUDIO", color = P.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp))
         listOf(DlKind.MP3_HQ, DlKind.MP3_LITE, DlKind.M4A).forEach { k ->
             val size = when (k) {
@@ -518,6 +537,7 @@ private fun FormatsPanel(v: YtVideo, onDownload: (DlKind) -> Unit) {
             FormatRow(k, if (s > 0) "≈ ${fmtBytes(s)}" else "", tasks.firstOrNull { it.video.id == v.id && it.kind == k && it.status != DlStatus.CANCELED }) { onDownload(k) }
         }
         if (i != null && videoKinds.isEmpty()) Text("Pas de version vidéo disponible.", color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+        }
     }
 }
 

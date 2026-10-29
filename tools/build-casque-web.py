@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.4"
-NOTES = "Rubriques et albums en verre liquide (icônes fines, style iOS 26) ; propositions de recherche en texte flottant sur l'écran flouté."
+VERSION = "web 2.5"
+NOTES = "Fenêtre vidéo plus douce (coins arrondis, ombre), infos de la vidéo avant les albums, téléchargement résumé en une ligne qui s'ouvre."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
