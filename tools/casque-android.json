@@ -1,6 +1,6 @@
 {
- "versionCode": 122,
- "versionName": "1.122",
- "notes": "Présence en ligne et répartition des téléchargements entre les amis Android.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-122/casque.apk"
+ "versionCode": 125,
+ "versionName": "1.125",
+ "notes": "Présence en ligne à 3 états, reprise automatique des téléchargements pour les amis iPhone si un téléphone perd internet.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-125/casque.apk"
 }
