@@ -84,6 +84,17 @@ android {
         }
     }
 
+    if (project.hasProperty("abiSplit")) {
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include("arm64-v8a", "armeabi-v7a")
+                isUniversalApk = false
+            }
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

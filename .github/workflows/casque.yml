@@ -11,6 +11,11 @@ on:
       - 'tools/casque-android.json'
       - 'tools/build-casque-web.py'
   workflow_dispatch:
+    inputs:
+      split:
+        description: 'APK séparés 32 bits / 64 bits'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -43,23 +48,27 @@ jobs:
         shell: bash
         run: |
           set +e
-          gradle :app:assembleCasqueDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle :app:assembleCasqueDebug ${{ inputs.split && '-PabiSplit=true' || '' }} --no-daemon --stacktrace 2>&1 | tee build.log
           code=${PIPESTATUS[0]}
           grep -E '^e: ' build.log | head -20 | while read -r l; do echo "::error::$l"; done
           exit $code
 
       - name: Préparer le fichier
-        run: cp app/build/outputs/apk/casque/debug/app-casque-debug.apk casque.apk
+        run: |
+          d=app/build/outputs/apk/casque/debug
+          if [ -f $d/app-casque-debug.apk ]; then cp $d/app-casque-debug.apk casque.apk; fi
+          if [ -f $d/app-casque-arm64-v8a-debug.apk ]; then cp $d/app-casque-arm64-v8a-debug.apk casque-64bits.apk; cp $d/app-casque-armeabi-v7a-debug.apk casque-32bits.apk; fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: casque
-          path: casque.apk
+          path: casque*.apk
+          if-no-files-found: error
 
       - name: Publier l'APK (lien de téléchargement)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: casque-${{ github.run_number }}
           name: Casque ${{ github.run_number }}
-          files: casque.apk
+          files: casque*.apk
           make_latest: false
