@@ -102,30 +102,6 @@ object Dl {
 
     private fun file() = File(app.filesDir, "downloads.json")
 
-    /** Les anciennes vidéos rangées dans la galerie (Films/Casque) sont rapatriées dans l'application. */
-    private fun migrate() {
-        val old = _items.value.filter { it.id.startsWith("content://") }
-        if (old.isEmpty()) return
-        Thread {
-            for (v in old) runCatching {
-                val u = Uri.parse(v.id)
-                val base = File(app.filesDir, "videos").apply { mkdirs() }
-                val ext = "mp4"
-                val dest = File(base, v.video.id + "_" + System.currentTimeMillis() + "." + ext)
-                app.contentResolver.openInputStream(u)?.use { i -> dest.outputStream().use { o -> i.copyTo(o) } } ?: return@runCatching
-                if (dest.length() <= 0L) { dest.delete(); return@runCatching }
-                // On ne bascule que si la copie de la galerie a bien pu être supprimée.
-                val removed = runCatching { app.contentResolver.delete(u, null, null) }.getOrDefault(0)
-                if (removed <= 0) { dest.delete(); return@runCatching }
-                val newId = Uri.fromFile(dest).toString()
-                runCatching { val c = Covers.file(app, v.id); if (c.exists()) c.renameTo(Covers.file(app, newId)) }
-                prefs().edit().putLong("pos_$newId", prefs().getLong("pos_${v.id}", 0L)).remove("pos_${v.id}").apply()
-                _items.update { l -> l.map { o -> if (o.id == v.id) o.copy(id = newId) else o } }
-                save()
-            }
-        }.start()
-    }
-
     fun init(ctx: Context) {
         if (::app.isInitialized) return
         app = ctx.applicationContext
@@ -512,6 +488,30 @@ object Vids {
 
     private fun file() = File(app.filesDir, "videos.json")
     private fun prefs() = app.getSharedPreferences("casque_videos", Context.MODE_PRIVATE)
+
+    /** Les anciennes vidéos rangées dans la galerie (Films/Casque) sont rapatriées dans l'application. */
+    private fun migrate() {
+        val old = _items.value.filter { it.id.startsWith("content://") }
+        if (old.isEmpty()) return
+        Thread {
+            for (v in old) runCatching {
+                val u = Uri.parse(v.id)
+                val base = File(app.filesDir, "videos").apply { mkdirs() }
+                val ext = "mp4"
+                val dest = File(base, v.video.id + "_" + System.currentTimeMillis() + "." + ext)
+                app.contentResolver.openInputStream(u)?.use { i -> dest.outputStream().use { o -> i.copyTo(o) } } ?: return@runCatching
+                if (dest.length() <= 0L) { dest.delete(); return@runCatching }
+                // On ne bascule que si la copie de la galerie a bien pu être supprimée.
+                val removed = runCatching { app.contentResolver.delete(u, null, null) }.getOrDefault(0)
+                if (removed <= 0) { dest.delete(); return@runCatching }
+                val newId = Uri.fromFile(dest).toString()
+                runCatching { val c = Covers.file(app, v.id); if (c.exists()) c.renameTo(Covers.file(app, newId)) }
+                prefs().edit().putLong("pos_$newId", prefs().getLong("pos_${v.id}", 0L)).remove("pos_${v.id}").apply()
+                _items.update { l -> l.map { o -> if (o.id == v.id) o.copy(id = newId) else o } }
+                save()
+            }
+        }.start()
+    }
 
     fun init(ctx: Context) {
         if (::app.isInitialized) return
