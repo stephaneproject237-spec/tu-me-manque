@@ -362,3 +362,8 @@ body.cq-on{overflow:hidden}
 #player .fp .fch{display:flex;color:var(--sub);transition:transform .3s}#player .fp .fch svg{width:22px;height:22px}#player .fp.open .fch{transform:rotate(180deg)}
 #player .fp .fpb{display:none}#player .fp.open .fpb{display:block;animation:fpo .3s ease}
 @keyframes fpo{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* Propositions : le texte commence à la hauteur de la vidéo ; le flou ne couvre que le bas */
+#player .sgb{position:fixed;left:0;right:0;bottom:0;z-index:4;background:rgba(7,9,13,.38);-webkit-backdrop-filter:blur(28px) saturate(1.5);backdrop-filter:blur(28px) saturate(1.5)}
+#player .sgo{position:fixed;left:0;right:0;top:0;bottom:calc(86px + env(safe-area-inset-bottom));z-index:7;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 20px;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none}
+#player .sgo .sg{pointer-events:auto}

@@ -610,7 +610,7 @@
         top.forEach((e) => ch.appendChild(e));
         l.parentNode.insertBefore(ch, l);
         l.style.paddingTop = ch.offsetHeight + 6 + "px";
-        const so = host.querySelector(".sgo"); if (so) so.style.paddingTop = ch.offsetHeight + 10 + "px";
+        placeSgo();
       }
       l.scrollTop = sc;
       chromeShade(l);
@@ -1466,15 +1466,25 @@
     }).join("") +
       (!(SR.sug || []).length && q ? '<div class="sg go" data-a="ysug" data-id="' + esc(q) + '">' + I.search + "<span>Rechercher « " + esc(q) + " »</span></div>" : "");
   }
-  // Les propositions flottent par-dessus l'écran (flouté) : seul leur texte apparaît.
+  // Propositions : le texte commence à la hauteur de la fenêtre vidéo (devant elle, sans la flouter) ; le bas de l'écran reste flouté.
+  function placeSgo() {
+    const o = host.querySelector(".sgo"), b = host.querySelector(".sgb");
+    if (!o || !b) return;
+    const ch = host.querySelector(".chrome"), pst = host.querySelector(".pst");
+    const chB = ch ? ch.getBoundingClientRect().bottom : 130;
+    let top, bl;
+    if (pst && pst.offsetHeight > 0) { const rc = pst.getBoundingClientRect(); top = rc.top + 6; bl = rc.bottom - 14; } else { top = chB + 8; bl = chB; }
+    o.style.top = top + "px"; b.style.top = bl + "px";
+  }
   function drawSug() {
     const l = host.querySelector(".list");
     if (!l || U.sec !== "search" || !SR.focus) return;
     let o = host.querySelector(".sgo");
-    if (!(SR.q.trim() && SR.q.trim() !== SR.done)) { if (o) o.remove(); return; }
+    if (!(SR.q.trim() && SR.q.trim() !== SR.done)) { if (o) o.remove(); const b0 = host.querySelector(".sgb"); if (b0) b0.remove(); return; }
     if (!o) {
+      const b = document.createElement("div"); b.className = "sgb"; l.parentNode.appendChild(b);
       o = document.createElement("div"); o.className = "sgo"; l.parentNode.appendChild(o);
-      const ch = host.querySelector(".chrome"); o.style.paddingTop = (ch ? ch.offsetHeight + 10 : 140) + "px";
+      placeSgo();
     }
     o.innerHTML = sugHtml();
   }
@@ -1790,7 +1800,7 @@
         if (rels.length) body += '<p class="sec2">DANS LA MÊME THÉMATIQUE</p>' + rels.map(rowOf).join("");
       }
     }
-    return big("Rechercher") + bar + pin + '<main class="list">' + body + "</main>" + (showSg ? '<div class="sgo">' + sugHtml() + "</div>" : "");
+    return big("Rechercher") + bar + pin + '<main class="list">' + body + "</main>" + (showSg ? '<div class="sgb"></div><div class="sgo">' + sugHtml() + "</div>" : "");
   }
   function plusSheet(s) {
     if (s.kind === "dlmenu") {
