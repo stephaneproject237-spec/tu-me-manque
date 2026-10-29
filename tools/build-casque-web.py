@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.11"
-NOTES = "La bulle vidéo entre dans l'écran du lecteur quand on la pose dessus ; plus de masquage à gauche dans l'appli."
+VERSION = "web 2.12"
+NOTES = "Fenêtre d'albums plus compacte, coins du lecteur moins arrondis, plus de bulle dans l'appli, retour animé de la vidéo."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

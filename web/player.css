@@ -405,3 +405,17 @@ body.cq-on{overflow:hidden}
 #player .dsc.hasbg::before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(0,0,0,.12))}
 
 #cq-video.mini .vb-hide{display:none!important}
+
+/* v2.12 : plus de bulle dans l'appli, coins moins arrondis, albums proportionnels à l'écran */
+#cq-video.gone{position:fixed;left:-400vw;top:0;width:210px;height:118px;opacity:0;pointer-events:none}
+#cq-video.inline .vb-min{display:none!important}
+#player .pslot,#cq-video.inline{border-radius:0 0 14px 14px}
+#player .dsc{margin:6px 12px;padding:10px 0;border-radius:26px}
+#player .dsh{margin-bottom:8px}#player .dsh b{font-size:17px}#player .dsh b small{font-size:12px;margin-top:1px}
+#player .dsa{flex:0 0 clamp(76px,21vw,92px)}
+#player .dsa img{width:clamp(76px,21vw,92px);height:clamp(76px,21vw,92px);border-radius:20px}
+#player .dsa b{font-size:11px;margin-top:5px;line-height:1.15}#player .dsa small{font-size:10px}
+#player .dsg{flex:0 0 clamp(54px,15vw,66px)}
+#player .dsg .ti{width:clamp(46px,13vw,56px);height:clamp(46px,13vw,56px);border-radius:18px}
+#player .dsg .ti svg{width:24px;height:24px}#player .dsg .ti.n{font-size:22px}
+#player .dsg b{font-size:11px;margin-top:5px}

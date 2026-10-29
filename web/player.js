@@ -1046,9 +1046,11 @@
       const ct = inChrome ? 0 : Math.max(0, lr.top - r.top), cb = Math.max(0, r.bottom - bottomLimit);
       vbox.classList.add("inline");
       vbox.style.cssText = "top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px;" +
-        (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 24px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
+        (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 14px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
       return;
     }
+    // Plus de bulle dans l'appli : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
+    if (!V.bub) { vbox.classList.add("gone"); return; }
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
     const bot = "calc(" + (92 + miniUp) + "px + env(safe-area-inset-bottom))";
@@ -1057,6 +1059,12 @@
     vbox.style.cssText = "bottom:" + bot + ";transform:translate(" + (V.hid ? -(window.innerWidth + 20) : V.dx) + "px," + V.dy + "px)";
   }
   window.addEventListener("resize", () => placeVideo());
+  // Retour dans l'appli : le lecteur « absorbe » la vidéo qui revient et elle continue au même endroit.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !V.key || host.hidden) return;
+    placeVideo();
+    if (vbox.classList.contains("inline") && vbox.animate) vbox.animate([{ transform: "scale(.5)", opacity: 0.3, transformOrigin: "90% 10%" }, { transform: "none", opacity: 1, transformOrigin: "90% 10%" }], { duration: 380, easing: "cubic-bezier(.2,.8,.2,1)" });
+  });
   host.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("list") && V.key) placeVideo(); }, true);
   vbox.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-v]");
