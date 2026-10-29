@@ -97,7 +97,16 @@ class MainActivity : ComponentActivity() {
                 return try { fichiers.launch("audio/*"); true } catch (_: Exception) { choixFichier = null; false }
             }
         }
-        setContentView(web)
+        // Le WebView gère mal sa propre marge : on le place dans un cadre, et c'est le cadre qui laisse la place aux barres.
+        val cadre = android.widget.FrameLayout(this).apply { setBackgroundColor(0xFF0B0B10.toInt()); addView(web) }
+        setContentView(cadre)
+        // Android 15 affiche l'appli sous la barre d'état : on laisse la place à l'heure, à la batterie, à la barre du bas et au clavier.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(cadre) { v, insets ->
+            val b = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())
+            v.setPadding(b.left, b.top, b.right, maxOf(b.bottom, ime.bottom))
+            androidx.core.view.WindowInsetsCompat.CONSUMED
+        }
         web.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
