@@ -182,12 +182,6 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Aider mes amis iPhone", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Un iPhone ne peut pas télécharger de musique YouTube. Quand Free tune est ouvert, ton téléphone peut le faire pour tes amis et leur envoyer le fichier. Cela utilise tes données mobiles ou ton Wi-Fi.",
-                        color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, end = 10.dp),
-                    )
-                    if (Relay.busy) Text("Un téléchargement pour un ami est en cours…", color = P.blueSoft, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                    else if (Relay.helped > 0) Text("${Relay.helped} titre(s) envoyé(s) à tes amis", color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 androidx.compose.material3.Switch(checked = help, onCheckedChange = { help = it; Relay.setEnabled(ctx, it) })
             }
