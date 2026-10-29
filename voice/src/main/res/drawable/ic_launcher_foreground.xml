@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- micro -->
+    <path android:pathData="M54,31a8,8 0,0 1,8 8v15a8,8 0,0 1,-16 0v-15a8,8 0,0 1,8 -8z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="46" android:startY="31"
+                android:endX="62" android:endY="62"
+                android:startColor="#FFFF7AC8" android:endColor="#FF8B5CFF" />
+        </aapt:attr>
+    </path>
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.2" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M41,52a13,13 0,0 0,26 0M54,65v9M47,75h14" />
+    <!-- ondes : la voix qui part -->
+    <path android:strokeColor="#FFFF7AC8" android:strokeWidth="3" android:strokeLineCap="round"
+        android:fillColor="#00000000" android:pathData="M72,42a14,14 0,0 1,0 18" />
+    <path android:strokeColor="#998B5CFF" android:strokeWidth="3" android:strokeLineCap="round"
+        android:fillColor="#00000000" android:pathData="M78,37a22,22 0,0 1,0 28" />
+    <path android:strokeColor="#FF8B5CFF" android:strokeWidth="3" android:strokeLineCap="round"
+        android:fillColor="#00000000" android:pathData="M36,42a14,14 0,0 0,0 18" />
+    <path android:strokeColor="#99FF7AC8" android:strokeWidth="3" android:strokeLineCap="round"
+        android:fillColor="#00000000" android:pathData="M30,37a22,22 0,0 0,0 28" />
+</vector>

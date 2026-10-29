@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - 'voice/**'
+      - 'tools/voice-android.json'
+      - '.github/workflows/voice.yml'
       - 'web/**'
       - 'app/src/tmm/**'
       - 'supabase/**'
