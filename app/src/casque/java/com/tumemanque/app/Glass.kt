@@ -238,7 +238,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
         }
         AnimatedVisibility(
             bars, Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 },
+            enter = fadeIn(tween(300)) + slideInVertically(tween(320)) { it }, exit = fadeOut(tween(220)) + slideOutVertically(tween(300)) { it },
         ) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 10.dp)) {
                 AnimatedVisibility(
@@ -252,7 +252,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
                 GlassTabBar(haze)
             }
         }
-        if (Vp.fullscreen) VideoFullscreen()
+        AnimatedVisibility(Vp.fullscreen, enter = fadeIn(tween(260)), exit = fadeOut(tween(200))) { VideoFullscreen() }
     }
 }
 

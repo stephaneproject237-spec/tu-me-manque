@@ -43,6 +43,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -130,6 +133,8 @@ object Vp {
     var ended by mutableStateOf(false)
         private set
     var fullscreen by mutableStateOf(false)
+    /** Les commandes (et le bandeau du haut) sont affichées : un toucher les cache, un autre les rappelle. */
+    var ctl by mutableStateOf(true)
     /** Réduite en petite fenêtre flottante dans l'appli. */
     var mini by mutableStateOf(false)
     /** Position à l'écran de la fenêtre du lecteur (onglet Rechercher) : on peut y poser la bulle. */
@@ -523,7 +528,7 @@ fun VideoSurface(modifier: Modifier = Modifier) {
 /** Commandes en verre par-dessus la vidéo : lecture, barre de progression, plein écran. */
 @Composable
 fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
-    var visible by remember { mutableStateOf(true) }
+    var visible by Vp::ctl
     var pos by remember { mutableLongStateOf(0L) }
     var dur by remember { mutableLongStateOf(0L) }
     var dragging by remember { mutableStateOf<Float?>(null) }
@@ -617,23 +622,33 @@ fun VideoFullscreen() {
     DisposableEffect(Unit) {
         val w = act?.window
         val ctl = w?.let { WindowCompat.getInsetsController(it, it.decorView) }
+        Vp.ctl = true
         if (Vp.aspect > 1.05f) act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         ctl?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
-            act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            // Comme YouTube : retour au portrait d'abord, puis le capteur reprend la main une fois la rotation terminée.
+            if (act != null && act.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, 900)
+            }
             ctl?.show(WindowInsetsCompat.Type.systemBars())
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black).clickable(remember { MutableInteractionSource() }, indication = null) {}) {
         if (!Vp.inPip) VideoSurface(Modifier.fillMaxSize().align(Alignment.Center))
         VideoControls(big = true) { Vp.fullscreen = false }
-        Row(Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundBtn(Ic.ChevronDown, { Vp.fullscreen = false }, size = 40.dp, iconSize = 26.dp, tint = Color.White)
-            Spacer(Modifier.width(8.dp))
-            RoundBtn(Ic.Close, { Vp.fullscreen = false }, size = 40.dp, iconSize = 20.dp, tint = Color.White)
-            Spacer(Modifier.width(12.dp))
-            Text(Vp.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        AnimatedVisibility(
+            (Vp.ctl || !Vp.playing) && Vp.error == null, Modifier.align(Alignment.TopStart),
+            enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { -it / 2 }, exit = fadeOut(tween(200)) + slideOutVertically(tween(240)) { -it / 2 },
+        ) {
+            Row(Modifier.safeDrawingPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                RoundBtn(Ic.ChevronDown, { Vp.fullscreen = false }, size = 40.dp, iconSize = 26.dp, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                RoundBtn(Ic.Close, { Vp.fullscreen = false }, size = 40.dp, iconSize = 20.dp, tint = Color.White)
+                Spacer(Modifier.width(12.dp))
+                Text(Vp.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
