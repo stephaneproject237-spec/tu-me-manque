@@ -254,6 +254,11 @@ object Backend {
         JSONObject(authed("POST", "/rest/v1/rpc/relay_done", JSONObject().put("p_id", id).put("p_media", media).put("p_size", size).toString())).optString("status") == "ok"
     }.getOrDefault(false)
 
+    /** Free tune : « je suis en ligne » (Android), avec l'état du partage de chansons aux iPhone. */
+    suspend fun heartbeat(share: Boolean) {
+        runCatching { authed("POST", "/rest/v1/rpc/heartbeat", JSONObject().put("p_platform", "android").put("p_share", share).toString()) }
+    }
+
     suspend fun relayProgress(id: Long, pct: Int) {
         runCatching { authed("POST", "/rest/v1/rpc/relay_progress", JSONObject().put("p_id", id).put("p_prog", pct).toString()) }
     }

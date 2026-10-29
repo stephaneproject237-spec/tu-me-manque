@@ -64,13 +64,19 @@ class MainActivity : ComponentActivity() {
             }
         })
 
+        web.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun back() { runOnUiThread { finish() } }
+        }, "NativeAdmin")
+
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
-        else if (!handle(intent)) web.loadUrl(START)
+        else if (!handle(intent)) web.loadUrl(START + "?p=" + (intent?.getStringExtra("page") ?: "app"))
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handle(intent)
+        val page = intent.getStringExtra("page")
+        if (page != null) web.loadUrl(START + "?p=" + page) else handle(intent)
     }
 
     /** Retour de la connexion Google : on redonne le code à la page. */

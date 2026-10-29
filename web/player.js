@@ -1815,6 +1815,14 @@
       pollSoon();
     } catch (e) { DL = DL.filter((x) => x !== d); toast("Demande non envoyée. Vérifie ta connexion."); draw(); }
   }
+  // Présence en ligne (vue par l'administrateur, et pour les amis automatiques) : toutes les 40 secondes quand l'appli est ouverte.
+  function beat() {
+    const A = API();
+    if (document.hidden || !A || !A.casque || !A.casque.ready || !A.casque.ready()) return;
+    A.authed("POST", "/rest/v1/rpc/heartbeat", { p_platform: "ios", p_share: null }).catch(() => {});
+  }
+  setInterval(beat, 40000); setTimeout(beat, 4000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) beat(); });
   let pollT = null, polling = false;
   const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
   const activeDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait" || d.st === "recv" || d.st === "sending");

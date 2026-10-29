@@ -107,7 +107,10 @@ class HomeActivity : ComponentActivity() {
             setPadding(0, dp(2), 0, dp(32))
         })
         root.addView(card("Suivi de l'application", "Utilisateurs, couples, conversations", "📊") {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, MainActivity::class.java).putExtra("page", "app"))
+        })
+        root.addView(card("Clients Free tune", "Comptes iPhone et Android, en ligne, amitiés", "🎧") {
+            startActivity(Intent(this, MainActivity::class.java).putExtra("page", "ft"))
         })
         root.addView(card("Paramètres", "Version et mises à jour", "⚙️") {
             inSettings = true; render()

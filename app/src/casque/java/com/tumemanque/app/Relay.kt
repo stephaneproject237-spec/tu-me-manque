@@ -19,7 +19,7 @@ object Relay {
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("casque_relay", Context.MODE_PRIVATE)
 
     fun enabled(ctx: Context): Boolean = prefs(ctx).getBoolean("help", true)
-    fun setEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("help", on).apply() }
+    fun setEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("help", on).apply(); scope.launch { Backend.heartbeat(on) } }
 
     /** Un téléchargement pour un ami est en cours. */
     var busy by mutableStateOf(false)
@@ -50,8 +50,14 @@ object Relay {
 
     suspend fun loop(ctx: Context) {
         if (!MbEngine.supported) return
+        var lastBeat = 0L
         while (true) {
-            if (enabled(ctx) && Backend.hasSession()) runCatching { step(ctx) }
+            if (Backend.hasSession()) {
+                // Présence en ligne (vue dans l'appli Admin) : toutes les 40 secondes, avec l'état du partage.
+                val now = System.currentTimeMillis()
+                if (now - lastBeat > 40_000) { lastBeat = now; scope.launch { Backend.heartbeat(enabled(ctx)) } }
+                if (enabled(ctx)) runCatching { step(ctx) }
+            }
             delay(4_000)
         }
     }

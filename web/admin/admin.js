@@ -61,6 +61,7 @@
     modal: null,           // { type: "delete" | "history" | "update", user }
     targets: null,         // nombre de personnes à prévenir par application et appareil
     busy: false,
+    ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
   };
 
   const call = (name, args) => authed("POST", "/rest/v1/rpc/" + name, args || {});
@@ -68,6 +69,8 @@
   // ---------- Connexion ----------
   async function init() {
     const q = new URLSearchParams(location.search);
+    const pg = q.get("p");
+    try { if (pg) localStorage.setItem("tmm_admin_page", pg); S.ftMode = (pg || localStorage.getItem("tmm_admin_page")) === "ft"; } catch (e) { S.ftMode = pg === "ft"; }
     const code = q.get("code"), err = q.get("error_description");
     if (code || err) {
       try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignoré */ }
@@ -89,7 +92,7 @@
     S.email = s.email || "";
     try {
       const r = await call("admin_whoami");
-      if (r && r.admin) { S.stage = "app"; S.err = null; render(); await loadAll(); startPolling(); }
+      if (r && r.admin) { S.stage = "app"; S.err = null; render(); if (S.ftMode) await loadFt(); else await loadAll(); startPolling(); }
       else { S.stage = "denied"; render(); }
     } catch (e) {
       if (e.message === "NO_SESSION") { S.stage = "login"; S.err = null; return render(); }
@@ -125,7 +128,8 @@
     clearInterval(pollT);
     pollT = setInterval(async () => {
       if (document.hidden || S.stage !== "app" || S.modal) return;
-      if (S.thread) await openThread(S.thread.id, S.thread.name, true);
+      if (S.ftMode) await loadFt();
+      else if (S.thread) await openThread(S.thread.id, S.thread.name, true);
       else await loadAll();
     }, 5000);
   }
@@ -189,6 +193,65 @@
     }
   }
 
+
+  // ---------- Clients Free tune ----------
+  async function loadFt() {
+    try {
+      S.ft = await call("admin_ft_clients"); S.err = null;
+    } catch (e) {
+      S.err = "Chargement impossible : " + (e.message || e) + " (as-tu collé le code SQL « clients » dans Supabase ?)";
+    }
+    if (S.modal && S.modal.type === "ftfriends") renderModal();
+    renderContent();
+  }
+  const ago = (t) => {
+    if (!t) return "jamais vu";
+    const m = Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
+    return m < 1 ? "à l'instant" : m < 60 ? "vu il y a " + m + " min" : m < 1440 ? "vu il y a " + Math.round(m / 60) + " h" : "vu il y a " + Math.round(m / 1440) + " j";
+  };
+  function ftCard(u, byId) {
+    const sel = !!S.sel[u.id];
+    const nf = (u.friends || []).length;
+    const share = u.platform === "android"
+      ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
+    return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
+      <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${u.online ? "on" : ""}" title="${u.online ? "En ligne" : "Hors ligne"}"></span>
+        <span class="name grow">@${esc(u.username)}</span>${share}</div>
+      <div class="row" style="margin-top:4px"><span class="k grow">${esc(u.email || "—")} · ${u.online ? "en ligne" : esc(ago(u.last_seen))}</span>
+        <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div></div>`;
+  }
+  function ftHtml() {
+    if (!S.ft) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
+    const q = S.fq.trim().toLowerCase().replace(/^@/, "");
+    const all = S.ft.users || [];
+    const list = q ? all.filter((u) => [u.username, u.email].some((x) => x && String(x).toLowerCase().includes(q))) : all;
+    const sortU = (a, b) => (b.online - a.online) || String(a.username).localeCompare(String(b.username), "fr");
+    const ios = list.filter((u) => u.platform !== "android").sort(sortU), and = list.filter((u) => u.platform === "android").sort(sortU);
+    const nI = all.filter((u) => u.platform !== "android" && S.sel[u.id]).length, nA = all.filter((u) => u.platform === "android" && S.sel[u.id]).length;
+    const st = S.ft.settings || {};
+    const sw = (k, on, t, d) => `<div class="row" style="margin:10px 0"><div class="grow"><div class="name" style="font-size:15px">${t}</div><div class="k">${d}</div></div>
+      <button class="swt ${on ? "on" : ""}" data-a="ftset" data-k="${k}" data-v="${on ? 0 : 1}" aria-label="${t}"><i></i></button></div>`;
+    const online = all.filter((u) => u.online);
+    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") +
+      `<div class="card glass"><div class="k">${all.length} comptes · <span class="ond on"></span> ${online.length} en ligne (${online.filter((u) => u.platform === "android").length} Android, ${online.filter((u) => u.platform !== "android").length} iPhone)</div>
+        ${sw("auto_friends", !!st.auto_friends, "🤝 Amis automatiques", "Tous les comptes Android en ligne deviennent amis avec tous les iPhone en ligne.")}
+        ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}</div>
+      <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les.</p>
+        <div class="row"><span class="chip">🍎 ${nI} iPhone</span><span class="chip">🤖 ${nA} Android</span>
+        <span class="grow"></span><button class="s" data-a="ftclear" ${nI + nA ? "" : "disabled"}>Effacer</button></div>
+        <div class="row" style="margin-top:8px"><button class="p grow" data-a="ftlink" ${nI && nA && !S.busy ? "" : "disabled"}>🔗 Lier la sélection</button><button class="d grow" data-a="ftunlink" ${nI && nA && !S.busy ? "" : "disabled"}>✂️ Délier</button></div></div>
+      <input class="q" id="fq" placeholder="Rechercher un pseudo ou un e-mail…" value="${esc(S.fq)}" autocomplete="off">
+      <h2>🍎 Comptes iPhone (${ios.length})</h2>${ios.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte iPhone.</p>'}
+      <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}`;
+  }
+  async function ftDo(fn, a, b, ok) {
+    if (S.busy) return;
+    S.busy = true; renderContent();
+    try { const n = await call(fn, { p_a: a, p_b: b }); S.busy = false; await loadFt(); return n; }
+    catch (e) { S.busy = false; renderContent(); alert("Impossible : " + (e.message || e)); }
+  }
+  const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? u.platform === "android" : u.platform !== "android")).map((u) => u.id);
+
   // ---------- Affichage ----------
   function render() {
     if (S.stage === "loading") { root.innerHTML = '<div class="center"><div class="spin"></div></div>'; return; }
@@ -203,6 +266,12 @@
       root.innerHTML = `<div class="center"><div style="font-size:56px">⛔</div><h2 style="margin:0">Accès refusé</h2>
         <p class="muted" style="padding:0">${esc(S.email)} n'est pas autorisé.${S.err ? "<br>" + esc(S.err) : ""}</p>
         <button class="s" data-a="logout">Changer de compte</button></div>`;
+      return;
+    }
+    if (S.ftMode) {
+      root.innerHTML = `<header><button data-a="ftback" aria-label="Retour">‹</button><h1>🎧 Clients Free tune</h1><button data-a="refresh" aria-label="Actualiser">↻</button></header>
+        <main id="content"></main><div id="modal"></div>`;
+      renderContent();
       return;
     }
     root.innerHTML = `<header><h1>🛠️ Admin</h1><button data-a="refresh" aria-label="Actualiser">↻</button><button data-a="logout">Quitter</button></header>
@@ -225,6 +294,14 @@
 
   function renderContent() {
     if (S.stage !== "app") return;
+    if (S.ftMode) {
+      const c0 = document.getElementById("content");
+      if (!c0) return;
+      const keep = document.activeElement && document.activeElement.id === "fq";
+      c0.innerHTML = ftHtml();
+      if (keep) { const i = document.getElementById("fq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+      return;
+    }
     renderNav();
     const c = document.getElementById("content");
     if (!c) return;
@@ -388,6 +465,16 @@
     if (!el) return;
     const m = S.modal;
     if (!m) { el.innerHTML = ""; return; }
+    if (m.type === "ftfriends") {
+      const me = S.ft && S.ft.users.find((x) => x.id === m.id);
+      if (!me) { el.innerHTML = ""; return; }
+      const fr = (me.friends || []).map((id) => S.ft.users.find((x) => x.id === id)).filter(Boolean);
+      el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amis de @${esc(me.username)}</h2>
+        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.online ? "on" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : "🍎"} @${esc(f.username)}</b><div class="k">${f.online ? "en ligne" : esc(ago(f.last_seen))}</div></span>
+          <button class="d" data-a="ftrm" data-id="${esc(f.id)}" style="padding:6px 12px">Retirer</button></div>`).join("") || '<p class="muted">Aucun ami.</p>'}
+        <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Fermer</button></div></div></div>`;
+      return;
+    }
     const u = m.user;
     const name = u.username ? "@" + u.username : "ce compte";
     if (m.type === "update") {
@@ -430,6 +517,7 @@
   // ---------- Événements ----------
   root.addEventListener("input", (ev) => {
     if (ev.target.id === "q") { S.q = ev.target.value; S.focusQ = true; renderContent(); }
+    if (ev.target.id === "fq") { S.fq = ev.target.value; renderContent(); }
   });
   root.addEventListener("keydown", (ev) => {
     if (ev.target.id === "t-in" && ev.key === "Enter" && !ev.shiftKey && window.matchMedia("(pointer: fine)").matches) { ev.preventDefault(); sendThread(); }
@@ -442,8 +530,20 @@
     S.focusQ = false;
     switch (a) {
       case "login": login(); break;
+      case "ftback": if (window.NativeAdmin) window.NativeAdmin.back(); break;
+      case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
+      case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
+      case "ftclear": S.sel = {}; renderContent(); break;
+      case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); if (!A.length || !I.length) break; const n = await ftDo("admin_ft_link", I, A); if (n != null) { S.sel = {}; renderContent(); } break; }
+      case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); if (!A.length || !I.length || !confirm("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", I, A); if (n != null) { S.sel = {}; renderContent(); } break; }
+      case "ftrm": { const m = S.modal; if (!m || !confirm("Retirer cette amitié ?\nLa conversation est conservée.")) break; await ftDo("admin_ft_unlink", [m.id], [id]); break; }
+      case "ftset": {
+        try { const r = await call("admin_ft_setting", { p_key: t.dataset.k, p_val: t.dataset.v === "1" }); await loadFt(); if (r && r.linked) alert(r.linked + " amitié(s) créée(s)."); }
+        catch (e) { alert("Impossible : " + (e.message || e)); }
+        break;
+      }
       case "logout": store.clear(); clearInterval(pollT); S.stage = "login"; S.thread = null; S.loaded = false; render(); break;
-      case "refresh": loadAll(); break;
+      case "refresh": if (S.ftMode) loadFt(); else loadAll(); break;
       case "sort": S.sort = t.dataset.k; try { localStorage.setItem("tmm_sort", S.sort); } catch (e) {} renderContent(); break;
       case "tab": S.tab = t.dataset.t; renderContent(); break;
       case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }
