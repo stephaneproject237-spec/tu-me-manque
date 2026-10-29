@@ -1,7 +1,7 @@
 {
  "version": "web 2.9",
- "notes": "Saisons des séries, résultats récents d'abord, albums réductibles, animations fluides, vibrations au défilement, « Restaurer mes médias ».",
- "versionCode": 83,
- "versionName": "1.83",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-83/casque.apk"
+ "notes": "Infos fixes sous la vidéo, interrupteur de lecture automatique, barre d'albums en verre liquide avec les pochettes.",
+ "versionCode": 87,
+ "versionName": "1.87",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-87/casque.apk"
 }
