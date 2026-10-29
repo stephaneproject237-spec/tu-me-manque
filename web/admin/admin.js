@@ -218,7 +218,7 @@
     const android = u.platform === "android";
     const lights = android
       ? `<div class="row" style="gap:6px;margin-top:6px">
-          <span class="lt ${st === "app" ? "a" : ""}">🟢 Dans Free tune</span><span class="lt ${st === "net" ? "n" : ""}">🔵 Sur internet</span><span class="lt ${st === "off" ? "o" : ""}">⚪ Hors ligne</span></div>`
+          <span class="lt ${st === "app" ? "a" : ""}">Dans Free tune</span><span class="lt ${st === "net" ? "a" : ""}">Sur internet</span><span class="lt ${st === "off" ? "a" : ""}">Hors ligne</span></div>`
       : "";
     const share = android
       ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
