@@ -430,3 +430,10 @@ body.cq-on{overflow:hidden}
 /* v2.13 : légère surbrillance au toucher d'une chanson */
 @keyframes tapg{0%{background:rgba(127,176,255,.28)}100%{background:rgba(127,176,255,0)}}
 #player .tapg{animation:tapg .55s ease-out;border-radius:12px}
+
+/* v2.14 : barre de téléchargement plus fine, un seul sens (gauche → droite), sans boucle */
+#player .dbar{height:8px;padding:1.5px;border-radius:8px;margin-top:10px}
+#player .dbar i{border-radius:6px;animation:none!important;transition:width .5s cubic-bezier(.3,.7,.2,1)}
+#player .dbar i::after{display:none!important}
+#player .dbar i::before{height:40%;border-radius:6px}
+#player .dbar.ind i{animation:none!important;width:0!important}

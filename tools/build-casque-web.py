@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.13"
-NOTES = "Vibration et surbrillance au toucher d'une chanson, albums repliés et sans lecture automatique, téléchargement sans messages."
+VERSION = "web 2.14"
+NOTES = "Barre de téléchargement plus fine, dans un seul sens, proportionnelle au pourcentage."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
