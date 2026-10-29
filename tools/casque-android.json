@@ -1,6 +1,6 @@
 {
- "versionCode": 88,
- "versionName": "1.88",
- "notes": "Résultats : nombre de vues et date de publication.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-88/casque.apk"
+ "versionCode": 113,
+ "versionName": "1.113",
+ "notes": "Téléchargements : lecteur vidéo, lecture continue, suivant/précédent ; plein écran amélioré ; appli plus légère et plus rapide.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-113/casque.apk"
 }
