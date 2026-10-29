@@ -7,6 +7,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.animateContentSize
@@ -197,6 +203,10 @@ fun SearchScreen() {
 
     val showSuggest = focused && query.isNotBlank() && query != submitted
 
+    val winShown = selected != null && !(loading && results.isEmpty())
+    var vTop by remember { mutableFloatStateOf(-1f) }
+    var hBottom by remember { mutableFloatStateOf(0f) }
+    Box(Modifier.fillMaxSize()) {
     GlassScaffold(header = {
         LargeTitle("Rechercher")
         // ------------------------------------------------------------------ barre de recherche
@@ -229,7 +239,8 @@ fun SearchScreen() {
 
         // La fenêtre de lecture reste sous la barre de recherche, au même endroit qu'avant :
         // le reste (infos, téléchargements, résultats) défile dessous, en verre flou.
-        if (selected != null && !showSuggest && !(loading && results.isEmpty())) PlayerWindow(selected)
+        if (selected != null && winShown) PlayerWindow(selected) { vTop = it }
+        Spacer(Modifier.fillMaxWidth().height(0.dp).onGloballyPositioned { hBottom = it.positionInRoot().y })
     }) {
         // ------------------------------------------------------------------ contenu
         LazyColumn(
@@ -398,14 +409,13 @@ fun SearchScreen() {
                 }
             }
         }
-        // Propositions : le texte seul, flottant sur l'écran flouté.
-        if (showSuggest) {
-            Column(
-                Modifier.fillMaxSize().background(Color(0x5A07090D))
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { }
-                    .verticalScroll(rememberScrollState()).imePadding()
-                    .padding(top = 8.dp + LocalTopInset.current, bottom = 24.dp),
-            ) {
+    }
+    // Propositions : le texte démarre à la hauteur de la vidéo (devant elle, sans la flouter) ; le bas de l'écran reste flouté.
+    if (showSuggest) {
+        val dens = LocalDensity.current
+        val textTop = with(dens) { (if (winShown && vTop >= 0f) vTop + 6.dp.toPx() else hBottom + 8.dp.toPx()).toDp() }
+        Box(Modifier.fillMaxSize().offset { IntOffset(0, (hBottom - 12.dp.toPx()).toInt().coerceAtLeast(0)) }.background(Color(0x5A07090D)).clickable(remember { MutableInteractionSource() }, indication = null) { })
+        Column(Modifier.fillMaxSize().padding(top = textTop).verticalScroll(rememberScrollState()).imePadding().padding(bottom = bottom + 12.dp)) {
                 suggestions.forEach { s ->
                     Row(
                         Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) { run(s.text) }.padding(start = 24.dp, end = 12.dp, top = 13.dp, bottom = 13.dp),
@@ -432,21 +442,21 @@ fun SearchScreen() {
                     CIcon(Ic.Search, P.blueSoft, 20.dp); Spacer(Modifier.width(16.dp))
                     Text("Rechercher « $query »", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Medium)
                 }
-            }
         }
+    }
     }
 }
 
 /** La fenêtre de lecture : elle reste en haut de l'écran pendant qu'on fait défiler le reste. */
 @Composable
-private fun PlayerWindow(v: YtVideo) {
+private fun PlayerWindow(v: YtVideo, onTop: (Float) -> Unit = {}) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val loaded = Vp.key == v.id
     val soft = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).onGloballyPositioned { onTop(it.positionInRoot().y) }.shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (loaded && !Vp.fullscreen && !Vp.mini && !Vp.inPip) {
