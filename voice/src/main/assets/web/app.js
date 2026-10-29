@@ -168,7 +168,9 @@ function rendu() {
   const haut = window.scrollY;
   const courant = pile[pile.length - 1];
   $("#retour").hidden = pile.length < 2;
-  $("#reglages").hidden = courant.v !== "accueil";
+  const onglet = courant.v === "reglages" && pile.length === 1 ? "reglages" : "accueil";
+  document.querySelectorAll("#nav [data-onglet]").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === onglet));
+  const pt = $("#nav .nav-point"); if (pt) pt.hidden = !!(S.kaggle && S.kaggle.configure);
   const vues = { accueil: vueAccueil, voix: vueVoix, reglages: vueReglages, youtube: vueYoutube };
   vue.innerHTML = (vues[courant.v] || vueAccueil)(courant);
   if (courant.anime) { vue.classList.remove("vue-entree"); void vue.offsetWidth; vue.classList.add("vue-entree"); courant.anime = false; }
@@ -182,11 +184,19 @@ window.tmvRetour = function () {
   if (Rec.actif) { Rec.arreter(); return true; }
   if (pile[pile.length - 1].v === "youtube" && YTV.extraction) { toast("Extraction en cours, patientez ou annulez."); return true; }
   if (pile[pile.length - 1].v === "youtube" && YTV.choisie) { YTV.fermerChoix(); return true; }
+  if (pile.length === 1 && pile[0].v === "reglages") { ongletBas("accueil"); return true; }
   if (pile.length > 1) { pile.pop(); pile[pile.length - 1].anime = true; rendu(); return true; }
   return false;
 };
 $("#retour").onclick = () => window.tmvRetour();
-$("#reglages").onclick = () => aller("reglages");
+// Barre du bas : « Mes voix » et « Réglages »
+function ongletBas(o) {
+  if (pile.length === 1 && pile[0].v === o) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  pile = [{ v: o, anime: true }];
+  window.scrollTo(0, 0);
+  rendu();
+}
+$("#nav").onclick = (e) => { const b = e.target.closest("[data-onglet]"); if (b) ongletBas(b.dataset.onglet); };
 
 // rafraîchit les « il y a … » sans tout redessiner
 function majChronos() {
@@ -487,7 +497,7 @@ vue.addEventListener("click", (e) => {
   const v = c.id ? voixDe(c.id) : null;
   const d = b.dataset;
   switch (d.act) {
-    case "reglages": aller("reglages"); break;
+    case "reglages": ongletBas("reglages"); break;
     case "nouvelle": feuilleNouvelle(); break;
     case "ouvrir": aller("voix", { id: d.id }); break;
     case "phraseSuivante":
