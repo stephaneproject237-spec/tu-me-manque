@@ -104,6 +104,18 @@ fun SearchScreen() {
         }.getOrDefault(emptyList())
     }
     // Propositions du même thème que la vidéo choisie, ajoutées sous les résultats.
+    // Découverte : un artiste → ses albums ; un film → des genres.
+    var kind by remember { mutableStateOf<DiscoKind?>(null) }
+    var stage by remember { mutableIntStateOf(0) }
+    var albums by remember { mutableStateOf<List<DiscoAlbum>?>(null) }
+    var selAlbum by remember { mutableStateOf<DiscoAlbum?>(null) }
+    var albumTracks by remember { mutableStateOf<List<DiscoTrack>?>(null) }
+    var genre by remember { mutableStateOf<DiscoGenre?>(null) }
+    var genreVids by remember { mutableStateOf<List<YtVideo>?>(null) }
+    LaunchedEffect(submitted) {
+        kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; genre = null; genreVids = null
+        if (submitted.isNotBlank()) kind = Disco.detect(submitted)
+    }
     var related by remember { mutableStateOf(listOf<YtVideo>()) }
     var extraSel by remember { mutableStateOf<YtVideo?>(null) }
     val selected = results.firstOrNull { it.id == selectedId } ?: related.firstOrNull { it.id == selectedId }
@@ -294,10 +306,66 @@ fun SearchScreen() {
             }
 
             if (selected != null) {
+                val dk = kind
+                if (dk != null && stage != 2) item(key = "disco") {
+                    DiscoverCard(
+                        dk, stage, albums, selAlbum?.id, genre?.name,
+                        onYes = {
+                            stage = 1
+                            if (dk is DiscoKind.Artist && albums == null) scope.launch { albums = Disco.albums(dk.id) }
+                        },
+                        onNo = { stage = 2; selAlbum = null; albumTracks = null; genre = null; genreVids = null },
+                        onAlbum = { a ->
+                            selAlbum = a; albumTracks = null
+                            scope.launch { albumTracks = Disco.tracks(a.id) }
+                        },
+                        onGenre = { g ->
+                            genre = g; genreVids = null
+                            scope.launch { genreVids = runCatching { Yt.search(g.query, 25) }.getOrDefault(emptyList()) }
+                        },
+                    )
+                }
                 stickyHeader(key = "player") {
                     Box(Modifier.fillMaxWidth().background(P.bg)) { PlayerWindow(selected) }
                 }
                 item(key = "info") { PlayerInfo(selected) }
+                val al = selAlbum
+                if (al != null && stage == 1) {
+                    item(key = "alt") { SectionTitle("ALBUM · ${al.name.uppercase()}", Modifier.padding(top = 4.dp)) }
+                    val tr = albumTracks
+                    if (tr == null) item(key = "alw") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = P.blueSoft)
+                        }
+                    } else items(tr, key = { "tk${al.id}_${it.n}_${it.title}" }) { t ->
+                        TrackRow(t) {
+                            val artist = (kind as? DiscoKind.Artist)?.name ?: ""
+                            scope.launch {
+                                val v = runCatching { Yt.search("$artist ${t.title}", 3) }.getOrNull()?.firstOrNull() ?: return@launch
+                                Vp.stop()
+                                extraSel = v; selectedId = v.id
+                                listState.animateScrollToItem(0)
+                                Vp.playYt(ctx, v)
+                            }
+                        }
+                    }
+                }
+                val gn = genre
+                if (gn != null && stage == 1) {
+                    item(key = "gnt") { SectionTitle("FILMS · ${gn.name.uppercase()}", Modifier.padding(top = 4.dp)) }
+                    val gv = genreVids
+                    if (gv == null) item(key = "gnw") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = P.blueSoft)
+                        }
+                    } else items(gv, key = { "gv${it.id}" }) { v ->
+                        ResultRow(v) {
+                            Vp.stop()
+                            selectedId = v.id; extraSel = v
+                            scope.launch { listState.animateScrollToItem(0) }
+                        }
+                    }
+                }
                 item(key = "formats") {
                     FormatsPanel(selected) { kind ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
