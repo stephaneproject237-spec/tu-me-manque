@@ -147,6 +147,26 @@ object Vp {
     /** Vidéos proposées juste avant (résultats de la recherche) : la suivante part en premier. */
     var queue: List<YtVideo> = emptyList()
     private val played = LinkedHashSet<String>()
+    private val history = ArrayList<YtVideo>()
+    private var back = false
+
+    /** Suivant / précédent existent pour ce qui joue (vidéo YouTube, ou fichier lancé depuis Téléchargements). */
+    val canStep: Boolean get() = key != null && (localId == null || DlPlay.active)
+
+    fun next() {
+        val c = appCtx ?: return
+        if (localId != null) { if (DlPlay.active) DlPlay.step(c, 1) } else playNextRelated()
+    }
+
+    /** Un appui reprend la vidéo au début ; un deuxième (ou si on vient de démarrer) revient à la précédente. */
+    fun previous() {
+        val c = appCtx ?: return
+        if (position() > 3000) { seekTo(0); return }
+        if (localId != null) { if (DlPlay.active) DlPlay.step(c, -1) else seekTo(0); return }
+        val prev = history.removeLastOrNull() ?: run { seekTo(0); return }
+        back = true
+        scope.launch { playYt(c, prev, auto = true) }
+    }
     /** Résolution choisie pour les vidéos YouTube (240 par défaut) et celles que la vidéo en cours propose. */
     var quality by mutableIntStateOf(240)
         private set
@@ -304,6 +324,7 @@ object Vp {
                 val n = pending ?: return
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || mediaItem?.mediaId != n.id) return
                 played.add(n.id)
+                lastYt?.let { history.add(it) }
                 lastYt = n; key = n.id; title = n.title; localId = null
                 error = null; errorDetail = ""; ended = false
                 val inf = pendingInfo
@@ -317,7 +338,7 @@ object Vp {
             override fun onPlaybackStateChanged(state: Int) {
                 loading = state == Player.STATE_BUFFERING
                 ended = state == Player.STATE_ENDED
-                if (state == Player.STATE_ENDED) { saveLocal(); if (autoplay && isYt) playNextRelated() }
+                if (state == Player.STATE_ENDED) { saveLocal(); if (localId != null) DlPlay.onEnded(true) else if (autoplay && isYt) playNextRelated() }
             }
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
@@ -365,7 +386,10 @@ object Vp {
     /** Lit une vidéo YouTube (sans la télécharger). */
     suspend fun playYt(ctx: Context, v: YtVideo, auto: Boolean = false) {
         if (!auto) Feel.tap()
+        DlPlay.release()
         val p = player(ctx)
+        if (!back) lastYt?.let { if (it.id != v.id) history.add(it) }
+        back = false
         saveLocal()
         if (!auto) played.clear()
         played.add(v.id)
@@ -401,6 +425,7 @@ object Vp {
     /** Lit une vidéo téléchargée, là où on s'était arrêté. */
     fun playLocal(ctx: Context, item: VideoItem) {
         Feel.tap()
+        DlPlay.release()
         val p = player(ctx)
         saveLocal()
         dropPending()
@@ -459,15 +484,15 @@ private class VideoFwd(p: Player) : ForwardingPlayer(p) {
     )
     override fun getAvailableCommands(): Player.Commands {
         val b = super.getAvailableCommands().buildUpon()
-        if (Vp.isYt) cmds.forEach { b.add(it) } else b.add(Player.COMMAND_SEEK_TO_PREVIOUS).add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        if (Vp.canStep) cmds.forEach { b.add(it) } else b.add(Player.COMMAND_SEEK_TO_PREVIOUS).add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
         return b.build()
     }
     override fun isCommandAvailable(command: Int): Boolean = availableCommands.contains(command)
-    override fun seekToNext() { Vp.playNextRelated() }
-    override fun seekToNextMediaItem() { Vp.playNextRelated() }
-    override fun seekToPrevious() { Vp.seekTo(0) }
-    override fun seekToPreviousMediaItem() { Vp.seekTo(0) }
-    override fun hasNextMediaItem(): Boolean = Vp.isYt
+    override fun seekToNext() { Vp.next() }
+    override fun seekToNextMediaItem() { Vp.next() }
+    override fun seekToPrevious() { Vp.previous() }
+    override fun seekToPreviousMediaItem() { Vp.previous() }
+    override fun hasNextMediaItem(): Boolean = Vp.canStep
     override fun hasPreviousMediaItem(): Boolean = true
 }
 
@@ -526,7 +551,8 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
     }
     AnimatedVisibility(visible || !Vp.playing, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color(0x11000000), Color(0x88000000))))) {
-            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (big) 40.dp else 26.dp)) {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (big) 40.dp else if (Vp.canStep) 10.dp else 26.dp)) {
+                if (Vp.canStep) RoundBtn(Ic.Prev, { Feel.tap(); Vp.previous(); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 40.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
                 RoundBtn(Ic.Replay10, { Vp.seekBy(-10_000); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 44.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
                 Box(contentAlignment = Alignment.Center) {
                     RoundBtn(
@@ -536,6 +562,7 @@ fun BoxScope.VideoControls(big: Boolean, onFullscreen: () -> Unit) {
                     if (Vp.loading) CircularProgressIndicator(Modifier.size(if (big) 76.dp else 62.dp), color = Color.White, strokeWidth = 2.dp)
                 }
                 RoundBtn(Ic.Forward10, { Vp.seekBy(10_000); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 44.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
+                if (Vp.canStep) RoundBtn(Ic.Next, { Feel.tap(); Vp.next(); touch = System.currentTimeMillis() }, size = if (big) 54.dp else 40.dp, iconSize = if (big) 30.dp else 24.dp, tint = Color.White)
             }
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = if (big) 14.dp else 4.dp),

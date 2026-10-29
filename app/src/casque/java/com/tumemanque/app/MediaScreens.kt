@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -64,13 +66,23 @@ fun DownloadsScreen() {
     val bottom = LocalBottomInset.current
     val active = tasks.filter { it.active }
     val done = tasks.filter { !it.active && it.status != DlStatus.CANCELED }
+    var boxTop by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
 
     GlassScaffold(header = {
         LargeTitle("Téléchargements") {
             if (done.isNotEmpty()) GlassChip("Effacer", null, P.blueSoft) { Dl.clearFinished() }
         }
     }) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp + LocalTopInset.current, bottom = bottom + 12.dp)) {
+      androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().androidx_onPos { boxTop = it }) {
+        val winH = maxWidth * 9f / 16f
+        val extra by androidx.compose.animation.core.animateDpAsState(
+            if (DlPlay.videoOpen) winH + 8.dp else 0.dp,
+            androidx.compose.animation.core.tween(460, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "dlwin",
+        )
+        val topPx = with(androidx.compose.ui.platform.LocalDensity.current) { LocalTopInset.current.toPx() }
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        ScrollTicks(listState)
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = 4.dp + LocalTopInset.current + extra, bottom = bottom + 12.dp)) {
             if (tasks.none { it.status != DlStatus.CANCELED }) {
                 item {
                     EmptyState(
@@ -89,6 +101,8 @@ fun DownloadsScreen() {
                 items(done, key = { it.id }) { t -> DownloadRow(t) }
             }
         }
+        DlWindow(boxTop + topPx, Modifier.align(Alignment.TopCenter).padding(top = LocalTopInset.current))
+      }
     }
 }
 
@@ -100,9 +114,11 @@ private fun DownloadRow(t: DlTask) {
     var menu by remember { mutableStateOf(false) }
     var pick by remember { mutableStateOf(false) }
     var del by remember { mutableStateOf(false) }
+    var rowY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp).glass(RoundedCornerShape(20.dp), 0.05f)
-            .combinedClickable(onClick = { if (ok) openResult(ctx, t) }, onLongClick = { if (ok) menu = true }).padding(10.dp),
+            .clip(RoundedCornerShape(20.dp)).androidx_rowY { rowY = it }
+            .tapGlow(onLong = { if (ok) menu = true }, onClick = { if (ok) DlPlay.start(ctx, t, rowY) }).padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(88.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(P.card2)) {
@@ -130,14 +146,14 @@ private fun DownloadRow(t: DlTask) {
             when {
                 t.active -> RoundBtn(Ic.Close, { Dl.cancel(t.id) }, size = 36.dp, iconSize = 18.dp)
                 t.status == DlStatus.FAILED -> RoundBtn(Ic.Refresh, { Dl.retry(ctx, t.id) }, size = 36.dp, iconSize = 18.dp, tint = P.blueSoft)
-                ok -> RoundBtn(Ic.Play, { openResult(ctx, t) }, size = 36.dp, iconSize = 20.dp, fill = P.blue, tint = Color.White)
+                ok -> RoundBtn(Ic.Play, { DlPlay.start(ctx, t, rowY) }, size = 36.dp, iconSize = 20.dp, fill = P.blue, tint = Color.White)
                 else -> RoundBtn(Ic.Delete, { Dl.remove(t.id) }, size = 36.dp, iconSize = 18.dp, tint = P.sub)
             }
             if (ok) {
                 Box {
                     RoundBtn(Ic.More, { menu = true }, size = 34.dp, iconSize = 18.dp, fill = Color.Transparent, tint = P.sub)
                     DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
-                        DropdownMenuItem(text = { Text(if (t.kind.video) "Regarder" else "Écouter", color = P.text) }, onClick = { menu = false; openResult(ctx, t) })
+                        DropdownMenuItem(text = { Text(if (t.kind.video) "Regarder" else "Écouter", color = P.text) }, onClick = { menu = false; DlPlay.start(ctx, t, rowY) })
                         DropdownMenuItem(text = { Text("Envoyer hors de Free tune…", color = P.text) }, onClick = {
                             menu = false
                             t.resultId?.let { if (t.kind.video) Share.videos(ctx, listOf(it)) else Share.tracks(ctx, listOf(it)) }
@@ -303,3 +319,6 @@ private fun VideoTile(v: VideoItem, selected: Boolean, selecting: Boolean, onCli
         }
     }
 }
+
+private fun Modifier.androidx_onPos(f: (Float) -> Unit): Modifier = this.then(Modifier.onGloballyPositioned { f(it.positionInRoot().y) })
+private fun Modifier.androidx_rowY(f: (Float) -> Unit): Modifier = this.then(Modifier.onGloballyPositioned { f(it.positionInRoot().y) })

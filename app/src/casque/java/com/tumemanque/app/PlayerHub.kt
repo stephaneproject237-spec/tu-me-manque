@@ -176,6 +176,7 @@ object Hub {
             override fun onRepeatModeChanged(m: Int) { repeat = m; prefs().edit().putInt("repeat", m).apply() }
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_ENDED) DlPlay.onEnded(false)
                 if (state == Player.STATE_READY) durationMs = player.duration.coerceAtLeast(0)
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachFx(audioSessionId) }
@@ -220,6 +221,7 @@ object Hub {
     fun play(list: List<Track>, start: Int = 0, shuffleOn: Boolean? = null) {
         Feel.tap()
         if (list.isEmpty()) return
+        DlPlay.release()
         Shell.miniHidden = false
         ensureService()
         if (shuffleOn != null) player.shuffleModeEnabled = shuffleOn
