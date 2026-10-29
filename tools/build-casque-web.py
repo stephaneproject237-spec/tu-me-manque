@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.15"
-NOTES = "Barre de téléchargement encore plus fine, bleu néon léger et uniforme."
+VERSION = "web 2.16"
+NOTES = "Téléchargements : lecture continue dans l'ordre, lecteur vidéo en haut de la page, précédent/suivant ; plein écran : un toucher cache tout ; écran allumé pendant la vidéo."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 

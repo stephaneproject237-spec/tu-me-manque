@@ -442,3 +442,15 @@ body.cq-on{overflow:hidden}
 #player .dbar{height:5px;padding:.8px;border-radius:5px;margin-top:8px}
 #player .dbar i{background:#2E9BFF!important;box-shadow:0 0 6px rgba(46,155,255,.45)!important;border-radius:4px}
 #player .dbar i::before{display:none!important}
+/* Téléchargements : lecteur vidéo en haut de la page (comme Android), précédent / suivant liés à la liste */
+#player .dlwin{margin:0 0 10px}
+#player .pslot.dlslot{width:100%;aspect-ratio:16/9;background:#000;border-radius:0 0 14px 14px}
+#player .dlstep{display:flex;align-items:center;gap:6px;padding:6px 8px 0}
+#player .dlstep b{flex:1;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+/* Plein écran : un toucher cache le bandeau, un autre le rappelle ; apparition en fondu */
+#cq-video.full{animation:cqfull .26s ease both}
+@keyframes cqfull{from{opacity:0}to{opacity:1}}
+#cq-video.full .vb-bar{transition:opacity .22s ease,transform .3s ease}
+#cq-video.full.noctl .vb-bar{opacity:0;transform:translateY(-100%);pointer-events:none}
+#cq-video.full .vb-media{transition:top .3s ease}
+#cq-video.full.noctl .vb-media{top:env(safe-area-inset-top)}

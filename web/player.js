@@ -288,6 +288,7 @@
   }
   async function playList(ids, start, opts) {
     feelTick(true);
+    dlRelease();
     if (!ids.length) return;
     const first = ids[start || 0];
     if (Q.shuffle || (opts && opts.shuffle)) {
@@ -300,6 +301,7 @@
     draw();
   }
   async function step(d, auto) {
+    if (DLP.active && cur() && cur().id === DLP.cur) { dlStep(d); return; }
     if (!Q.order.length) return;
     let n = Q.pos + d;
     if (n >= Q.order.length) { if (Q.repeat === "all" || !auto) n = 0; else { audio.pause(); audio.currentTime = 0; draw(); return; } }
@@ -873,7 +875,43 @@
   vbox.id = "cq-video";
   vbox.hidden = true;
   document.body.appendChild(vbox);
-  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0, hid: false, bub: false, auto: lsGet("casque_auto") === "1", played: [] };
+  const V = { key: null, yid: null, title: "", el: null, full: false, url: null, dx: 0, dy: 0, hid: false, bub: false, auto: lsGet("casque_auto") === "1", played: [], hist: [], dl: false, back: false };
+  // Lecture depuis Téléchargements (comme Android) : un fichier lance le suivant (ordre de téléchargement) quand il se termine.
+  const DLP = { active: false, cur: null, internal: false };
+  function dlPlayable() {
+    return DL.filter((d) => d.st === "done" && d.tid && byId(d.tid)).sort((a, b) => (a.at || 0) - (b.at || 0)).map((d) => byId(d.tid));
+  }
+  function dlStart(t, row) { DLP.active = true; dlGo(t, row); }
+  function dlGo(t, row) {
+    DLP.cur = t.id; DLP.internal = true;
+    try {
+      if (t.video) { audio.pause(); playFile(t, { dl: true, row }); }
+      else { if (V.key) stopVideo(); playList([t.id], 0); }
+    } finally { DLP.internal = false; }
+  }
+  function dlStep(d) {
+    const l = dlPlayable();
+    const i = l.findIndex((x) => x.id === DLP.cur);
+    const n = i < 0 ? 0 : i + d;
+    if (n >= 0 && n < l.length) dlGo(l[n]); else if (d > 0) { DLP.active = false; if (!V.key) { audio.pause(); draw(); } }
+  }
+  function dlRelease() { if (!DLP.internal) DLP.active = false; }
+  // Suivant / précédent existent pour une vidéo YouTube, ou un fichier lancé depuis Téléchargements.
+  const canStep = () => !!V.key && (!!V.yid || DLP.active);
+  function vNext() { if (V.yid) nextRelated(true); else if (DLP.active) dlStep(1); }
+  function vPrev() {
+    const e = bgOn ? bgA : V.el;
+    if (e && e.currentTime > 3) { e.currentTime = 0; return; }
+    if (!V.yid) { if (DLP.active) dlStep(-1); else if (e) e.currentTime = 0; return; }
+    const p = V.hist.pop();
+    if (!p) { if (e) e.currentTime = 0; return; }
+    V.back = true; const wasFull = V.full;
+    playYt(p).then(() => { V.full = wasFull; placeVideo(); if (U.sec === "search") draw(); });
+  }
+  // L'écran reste allumé pendant qu'une vidéo joue.
+  let wake = null;
+  function wakeOn() { try { if (!wake && navigator.wakeLock) navigator.wakeLock.request("screen").then((w) => { wake = w; w.addEventListener("release", () => { wake = null; }); }).catch(() => {}); } catch (e) { /* ignoré */ } }
+  function wakeOff() { try { if (wake) wake.release(); } catch (e) { /* ignoré */ } wake = null; }
   // Languette sur le bord gauche : la bulle poussée à gauche est cachée, le son continue.
   const vtab = document.createElement("button");
   vtab.id = "cq-vtab"; vtab.hidden = true; vtab.setAttribute("aria-label", "Rappeler la vidéo");
@@ -904,7 +942,7 @@
     vbox.innerHTML = '<div class="vb-media">' + inner + "</div>" +
       '<div class="vb-ctl"><button data-v="close" class="tl" aria-label="Fermer">' + I.close + '</button><button data-v="full" class="tr" aria-label="Plein écran">' + I2.full + "</button>" +
       '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button></div>" +
-      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b><button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>" +
+      '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b>' + (canStep() ? '<button data-v="prev" aria-label="Précédent">' + I.prev + '</button><button data-v="next" aria-label="Suivant">' + I.next + "</button>" : "") + '<button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>" +
       '<div class="vb-grip" aria-hidden="true"></div>' +
       '<button data-v="bub" class="vb-min" aria-label="Réduire en bulle">' + I.down + '</button>' +
       '<button data-v="hide" class="vb-hide" aria-label="Cacher la bulle">' + I.down + "</button>";
@@ -913,7 +951,12 @@
   async function playYt(o) {
     feelTick(true);
     if (V.key === "yt:" + o.id) { V.full = false; V.bub = false; placeVideo(); return; }
+    dlRelease();
+    const prevYt = V.yid ? { id: V.yid, ti: V.title, src: "yt" } : null, back = V.back, hist = V.hist;
+    V.back = false;
     stopVideo();
+    V.hist = hist;
+    if (!back && prevYt && prevYt.id !== o.id) { V.hist.push(prevYt); if (V.hist.length > 30) V.hist.shift(); }
     audio.pause();
     V.key = "yt:" + o.id; V.yid = o.id; V.title = o.ti; V.full = false; V.hid = false;
     if (V.played.indexOf(o.id) < 0) V.played.push(o.id);
@@ -948,14 +991,26 @@
     const st = d.event === "onStateChange" ? d.info : d.event === "infoDelivery" && d.info ? d.info.playerState : undefined;
     if (st === 0 && V.auto) nextRelated(false);
   });
-  function playFile(t) {
+  function playFile(t, o) {
+    if (!(o && o.dl)) dlRelease();
     stopVideo();
     audio.pause();
-    V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = true; V.hid = false;
+    const dl = !!(o && o.dl) && U.sec === "dl";
+    V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = !dl; V.dl = dl; V.hid = false;
     videoShell('<video playsinline controls autoplay autopictureinpicture></video>');
     V.el = vbox.querySelector("video");
     bindVideoEl();
-    placeVideo();
+    if (dl) {
+      draw();   // la page fait de la place en haut pour le lecteur
+      placeVideo();
+      const slot = host.querySelector(".pslot.dlslot");
+      const rr = o.row && o.row.getBoundingClientRect ? o.row.getBoundingClientRect() : null;
+      if (slot && rr && vbox.animate) {
+        const sr = slot.getBoundingClientRect();
+        vbox.animate([{ transform: "translateY(" + (rr.top - sr.top) + "px) scale(.82)", opacity: 0, transformOrigin: "50% 0" },
+          { transform: "none", opacity: 1, transformOrigin: "50% 0" }], { duration: 460, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }
+    } else placeVideo();
     getOne("blobs", t.id).then((r) => {
       if (!r || !V.el || V.key !== "file:" + t.id) { if (!r) toast("Fichier introuvable."); return; }
       V.url = URL.createObjectURL(r.blob.type === "video/mp4" ? r.blob : new Blob([r.blob], { type: "video/mp4" }));
@@ -972,7 +1027,9 @@
     v.addEventListener("play", () => { lastPlay = Date.now(); audio.pause(); upd(); bgPrime(); videoSession(); });
     v.addEventListener("pause", () => { upd(); if (document.hidden && V.key) toBackground(true); });
     v.addEventListener("timeupdate", () => { if (!v.paused) lastPlay = Date.now(); });
-    v.addEventListener("ended", () => { if (V.auto && V.yid) nextRelated(false); });
+    v.addEventListener("ended", () => { wakeOff(); if (V.yid) { if (V.auto) nextRelated(false); } else if (DLP.active) dlStep(1); });
+    v.addEventListener("playing", wakeOn);
+    v.addEventListener("pause", wakeOff);
   }
   // Vidéo suivante du même thème : la suivante des résultats, sinon une recherche sur le titre.
   let relBusy = false;
@@ -993,6 +1050,7 @@
       // On garde le même lecteur : iOS refuse qu'un nouveau lecteur démarre seul, mais laisse celui qui a déjà été lancé par un geste.
       const fr = vbox.querySelector("iframe"), tag = "yt:" + n.id;
       if (fr || V.el) {
+        V.hist.push({ id: cur, ti: title, src: "yt" }); if (V.hist.length > 30) V.hist.shift();
         V.key = tag; V.yid = n.id; V.title = n.ti; if (V.played.indexOf(n.id) < 0) V.played.push(n.id);
         const tl = vbox.querySelector(".vb-bar b"); if (tl) tl.textContent = n.ti;
         if (fr) {
@@ -1024,7 +1082,10 @@
     bgOn = false; try { bgA.pause(); bgA.removeAttribute("src"); } catch (e) { /* ignoré */ }
     if (V.el) { try { V.el.pause(); V.el.removeAttribute("src"); V.el.load(); } catch (e) { /* ignoré */ } }
     if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
-    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0; V.hid = false; V.bub = false;
+    const wasDl = V.dl;
+    wakeOff();
+    V.key = null; V.yid = null; V.el = null; V.full = false; V.dx = 0; V.dy = 0; V.hid = false; V.bub = false; V.dl = false; V.hist = [];
+    if (wasDl && U.sec === "dl" && !DLP.internal) setTimeout(draw, 0);
     vbox.innerHTML = ""; vbox.hidden = true; vbox.className = ""; vbox.removeAttribute("style");
     vtab.hidden = true;
     audioHandlers();
@@ -1037,8 +1098,10 @@
     const ifr = vbox.classList.contains("ifr");
     vbox.className = ifr ? "ifr" : "";
     vbox.removeAttribute("style");
-    if (V.full) { vbox.classList.add("full"); return; }
-    const slot = !V.bub && !U.np && U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]') : null;
+    if (V.full) { vbox.classList.add("full"); if (vbox.dataset.noctl) vbox.classList.add("noctl"); return; }
+    delete vbox.dataset.noctl;
+    const slot = V.bub || U.np ? null : U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]')
+      : U.sec === "dl" && V.dl ? host.querySelector(".pslot.dlslot") : null;
     if (slot) {
       const r = slot.getBoundingClientRect();
       const chr = host.querySelector(".chrome");
@@ -1071,10 +1134,16 @@
   host.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("list") && V.key) placeVideo(); }, true);
   vbox.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-v]");
-    if (!b) { if (vbox.classList.contains("mini")) vbox.classList.toggle("ctl"); return; }
+    if (!b) {
+      if (vbox.classList.contains("mini")) vbox.classList.toggle("ctl");
+      else if (V.full) { const on = !vbox.classList.contains("noctl"); vbox.classList.toggle("noctl", on); if (on) vbox.dataset.noctl = "1"; else delete vbox.dataset.noctl; }
+      return;
+    }
     ev.stopPropagation();
     const k = b.dataset.v, v = V.el;
     if (k === "close") stopVideo();
+    else if (k === "prev") vPrev();
+    else if (k === "next") vNext();
     else if (k === "min") { V.full = false; placeVideo(); }
     else if (k === "full") { V.full = true; V.bub = false; vbox.classList.remove("ctl"); placeVideo(); }
     else if (k === "pp" && v) { if (v.paused) v.play().catch(() => {}); else v.pause(); }
@@ -1127,8 +1196,8 @@
       const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* ignoré */ } };
       set("play", () => (bgOn ? bgA : V.el) && (bgOn ? bgA : V.el).play().catch(() => {}));
       set("pause", () => { if (bgOn) bgA.pause(); else if (V.el) V.el.pause(); });
-      set("previoustrack", () => { if (bgOn) bgA.currentTime = 0; else if (V.el) V.el.currentTime = 0; });
-      set("nexttrack", V.yid ? () => nextRelated(true) : null);
+      set("previoustrack", () => vPrev());
+      set("nexttrack", canStep() ? () => vNext() : null);
       set("seekto", (d) => { if (bgOn) bgA.currentTime = d.seekTime; else if (V.el) V.el.currentTime = d.seekTime; });
       set("seekbackward", () => { const e = bgOn ? bgA : V.el; if (e) e.currentTime = Math.max(0, e.currentTime - 10); });
       set("seekforward", () => { const e = bgOn ? bgA : V.el; if (e) e.currentTime = e.currentTime + 10; });
@@ -1923,7 +1992,9 @@
     if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Un ami qui a Free tune sur Android la télécharge pour toi, puis elle apparaît ici, dans Audios ou Vidéos.", "Rechercher");
     if (act.length) body += '<p class="sec2">EN COURS · ' + act.length + "</p>" + act.map(dlRow).join("");
     if (done.length) body += '<p class="sec2">TERMINÉS</p>' + done.map(dlRow).join("");
-    return big("Téléchargements", done.length ? '<button class="chip" data-a="dlclear">Effacer</button>' : "") + '<main class="list">' + body + "</main>";
+    const win = V.key && V.dl ? '<div class="dlwin"><div class="pslot dlslot"></div>' +
+      '<div class="dlstep"><button class="ib" data-a="dlprev" aria-label="Précédent">' + I.prev + '</button><b>' + esc(V.title) + '</b><button class="ib" data-a="dlnext" aria-label="Suivant">' + I.next + "</button></div></div>" : "";
+    return big("Téléchargements", done.length ? '<button class="chip" data-a="dlclear">Effacer</button>' : "") + '<main class="list">' + win + body + "</main>";
   }
   // Formats : audio « al » léger, « a » standard, « ah » haute qualité ; vidéo « vl » 360p, « v » 480p, « vh » 720p.
   const isV = (f) => String(f || "").charAt(0) === "v";
@@ -2001,7 +2072,17 @@
       case "vrow": { const t = byId(id); if (t) playFile(t); return true; }
       case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) playFile(t); return true; }
       case "m_share": shareTrack(id); return true;
-      case "dlopen": { const t = byId(id); U.sheet = null; if (!t) { draw(); return true; } if (t.video) { draw(); playFile(t); } else playList([t.id], 0); return true; }
+      case "dlopen": {
+        const t = byId(id); U.sheet = null; if (!t) { draw(); return true; }
+        const row = el && el.closest ? el.closest(".dq") : null;
+        feelTick(true);
+        if (row && row.animate) row.animate([{ background: "rgba(10,132,255,.22)" }, { background: "transparent" }], { duration: 420 });
+        if (!t.video) draw();
+        dlStart(t, row);
+        return true;
+      }
+      case "dlprev": vPrev(); return true;
+      case "dlnext": vNext(); return true;
       case "dlmenu": prepShare(id); sheet({ kind: "dlmenu", id }); return true;
       case "dlrmt": DL = DL.filter((d) => d.tid !== id); saveDl(); U.sheet = null; draw(); return true;
       case "dlrm": DL = DL.filter((d) => String(d.mid) !== String(id)); saveDl(); draw(); return true;
