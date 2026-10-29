@@ -45,7 +45,8 @@ object YtVoice {
             if (pret) return
             YoutubeDL.init(app)
             FFmpeg.init(app)
-            if (!moteurIntact()) moteur.write { reparer() }
+            val abime = !moteurIntact()
+            if (abime) moteur.write { reparer() }
             pret = true
         }
         // YouTube change souvent : on met yt-dlp à jour une fois par jour (sans gêner une recherche en cours).
@@ -55,11 +56,23 @@ object YtVoice {
         }
     }
 
-    private fun mettreAJour() {
-        moteur.write {
-            runCatching { YoutubeDL.updateYoutubeDL(app, YoutubeDL.UpdateChannel.STABLE) }
-            if (!moteurIntact()) reparer()
-        }
+    @Volatile private var dernierEssai = 0L
+
+    /** Met yt-dlp à jour : version stable, puis version du jour si la stable n'apporte rien (YouTube y est corrigé en premier). */
+    private fun mettreAJour(nuit: Boolean = false): Boolean = moteur.write {
+        val r = runCatching { YoutubeDL.updateYoutubeDL(app, YoutubeDL.UpdateChannel.STABLE) }.getOrNull()
+        var ok = r == YoutubeDL.UpdateStatus.DONE
+        if (nuit && !ok) ok = runCatching { YoutubeDL.updateYoutubeDL(app, YoutubeDL.UpdateChannel.NIGHTLY) }.getOrNull() == YoutubeDL.UpdateStatus.DONE
+        if (!moteurIntact()) { reparer(); ok = false }
+        else prefs().edit().putLong("maj", System.currentTimeMillis()).apply()
+        ok
+    }
+
+    /** L'erreur ressemble-t-elle à un moteur dépassé (et pas à un simple problème de connexion) ? */
+    private fun moteurDepasse(m: String): Boolean {
+        if (Regex("unknownhost|unable to resolve host|network is unreachable|timed out|no space left|connection reset|failed to connect", RegexOption.IGNORE_CASE).containsMatchIn(m)) return false
+        return Regex("sign in to confirm|not a bot|http error 4\\d\\d|unable to extract|nsig|signature|player response|" +
+            "unable to download (webpage|json)|failed to extract|requested format is not available|ERROR:", RegexOption.IGNORE_CASE).containsMatchIn(m)
     }
 
     private fun dossierMoteur() = File(File(app.noBackupFilesDir, YoutubeDL.baseName), YoutubeDL.ytdlpDirName)
@@ -81,14 +94,24 @@ object YtVoice {
     private fun moteurAbime(m: String?) = m != null && (m.contains("bad local file header", true) ||
         m.contains("zipimport", true) || m.contains("BadZipFile", true) || m.contains("ImportError", true) || m.contains("No module named", true))
 
-    /** Lance une commande yt-dlp ; si le moteur est abîmé, il est réparé puis la commande est relancée une fois. */
+    /**
+     * Lance une commande yt-dlp. Si le moteur est abîmé, il est réparé puis mis à jour ; s'il est dépassé
+     * (YouTube a changé), il est mis à jour tout de suite. Puis la commande est relancée une fois.
+     */
     private fun executer(req: () -> YoutubeDLRequest, pid: String?, cb: ((Float, Long, String) -> Unit)?): String {
+        val m: String
         try {
             return moteur.read { YoutubeDL.execute(req(), pid, cb).out }
         } catch (ex: Exception) {
-            if (!moteurAbime(ex.message)) throw ex
+            m = (ex.message ?: "") + " " + (ex.cause?.message ?: "")
+            if (ex is YoutubeDL.CanceledException || m.contains("destroy", true)) throw ex
+            val abime = moteurAbime(m)
+            if (!abime && !moteurDepasse(m)) throw ex
+            if (!abime && System.currentTimeMillis() - dernierEssai < 10 * 60_000L) throw ex   // déjà mis à jour il y a peu
+            dernierEssai = System.currentTimeMillis()
+            if (abime) moteur.write { reparer() }
+            mettreAJour(nuit = !abime)
         }
-        moteur.write { reparer() }
         return moteur.read { YoutubeDL.execute(req(), pid, cb).out }
     }
 
@@ -132,9 +155,10 @@ object YtVoice {
                 val m = ex.message ?: ""
                 fini(null, when {
                     moteurAbime(m) -> "Le moteur YouTube a été réparé. Relancez la recherche."
-                    m.contains("Sign in", true) || m.contains("bot", true) -> "YouTube bloque temporairement. Réessayez dans quelques minutes."
+                    m.contains("Sign in to confirm", true) || m.contains("not a bot", true) ->
+                        "YouTube demande une vérification. Réessayez dans quelques minutes, ou changez de réseau (Wi-Fi / données)."
                     m.contains("resolve", true) || m.contains("network", true) || m.contains("timed out", true) -> "Pas de connexion à YouTube. Vérifiez internet."
-                    else -> "Recherche impossible : " + (m.lines().lastOrNull { it.isNotBlank() } ?: "erreur")
+                    else -> "Recherche impossible : " + detail(m)
                 })
             }
         }
@@ -153,16 +177,19 @@ object YtVoice {
             try {
                 preparer()
                 executer({
-                    val req = base(YoutubeDLRequest("https://www.youtube.com/watch?v=$videoId"))
+                    // Comme Free tune : on télécharge la piste audio entière (méthode la plus fiable avec YouTube),
+                    // puis FFmpeg ne garde que le passage choisi, en mono.
+                    val coupe = if (fin > debut) "-ss $debut -t ${fin - debut} " else ""
+                    base(YoutubeDLRequest("https://www.youtube.com/watch?v=$videoId"))
                         .addOption("--no-playlist")
-                        .addOption("-f", "ba[ext=m4a]/ba/b")
-                        .addOption("-x").addOption("--audio-format", "opus").addOption("--audio-quality", "96K")
-                        .addOption("--postprocessor-args", "ExtractAudio:-ac 1")
+                        .addOption("--no-mtime")
+                        .addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+                        .addOption("-x").addOption("--audio-format", "mp3").addOption("--audio-quality", "128K")
+                        .addOption("--postprocessor-args", "ExtractAudio:${coupe}-ac 1")
                         .addOption("-o", tmp.absolutePath + "/audio.%(ext)s")
-                    if (fin > debut) req.addOption("--download-sections", "*$debut-$fin")
-                    req
                 }, "extrait") { p, _, _ -> progression(p.toInt().coerceIn(0, 99)) }
-                val f = tmp.listFiles()?.filter { it.length() > 2000 && !it.name.endsWith(".part") }?.maxByOrNull { it.length() }
+                val f = tmp.listFiles()?.filter { it.extension == "mp3" && it.length() > 2000 }?.maxByOrNull { it.length() }
+                    ?: tmp.listFiles()?.filter { it.length() > 2000 && !it.name.endsWith(".part") }?.maxByOrNull { it.length() }
                     ?: throw IllegalStateException("aucun audio reçu")
                 val ms = (fin - debut).coerceAtLeast(0) * 1000L
                 val dest = File(Store.dossierEnr(voixId), "enr_${System.currentTimeMillis()}_${ms}_yt.${f.extension}")
@@ -174,9 +201,12 @@ object YtVoice {
                 val m = ex.message ?: ""
                 fini(null, when {
                     m.contains("destroy", true) -> "Extraction annulée."
-                    m.contains("Sign in", true) || m.contains("bot", true) -> "YouTube bloque temporairement. Réessayez dans quelques minutes."
-                    m.contains("Private", true) || m.contains("unavailable", true) -> "Cette vidéo n'est pas disponible."
-                    else -> "Extraction impossible : " + (m.lines().lastOrNull { it.isNotBlank() } ?: "erreur")
+                    m.contains("Sign in to confirm", true) || m.contains("not a bot", true) ->
+                        "YouTube demande une vérification. Réessayez dans quelques minutes, ou passez du Wi-Fi aux données mobiles (ou l'inverse)."
+                    m.contains("Private video", true) || m.contains("Video unavailable", true) -> "Cette vidéo n'est pas disponible."
+                    m.contains("confirm your age", true) -> "Vidéo réservée aux adultes : YouTube refuse de la donner sans compte."
+                    m.contains("resolve", true) || m.contains("timed out", true) || m.contains("network", true) -> "Pas de connexion à YouTube. Vérifiez internet."
+                    else -> "Extraction impossible : " + detail(m)
                 })
             } finally {
                 tmp.deleteRecursively()
@@ -184,6 +214,11 @@ object YtVoice {
             }
         }
     }
+
+    /** La ligne d'erreur utile de yt-dlp (pour comprendre ce qui bloque). */
+    private fun detail(m: String): String =
+        (m.lines().lastOrNull { it.contains("ERROR", true) } ?: m.lines().lastOrNull { it.isNotBlank() } ?: "erreur")
+            .removePrefix("ERROR:").trim().take(220)
 
     fun annuler() { runCatching { YoutubeDL.destroyProcessById("extrait") } }
 }
