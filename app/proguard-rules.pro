@@ -1,0 +1,8 @@
+-dontobfuscate
+-dontwarn **
+-keep class com.yausername.** { *; }
+-keep class com.fasterxml.jackson.** { *; }
+-keep class org.apache.commons.compress.** { *; }
+-keep class com.tumemanque.app.** { *; }
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod

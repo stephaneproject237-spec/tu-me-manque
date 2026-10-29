@@ -70,6 +70,18 @@ android {
     // Les bibliothèques natives du moteur doivent être extraites à l'installation.
     packaging {
         jniLibs { useLegacyPackaging = true }
+        resources {
+            excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/LICENSE*", "/META-INF/NOTICE*", "/META-INF/DEPENDENCIES", "/META-INF/*.kotlin_module", "/kotlin/**", "/DebugProbesKt.bin")
+        }
+    }
+
+    // Réduction du code (R8) et des ressources : APK plus léger, démarrage plus rapide.
+    buildTypes {
+        getByName("debug") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
     }
 
     buildFeatures {

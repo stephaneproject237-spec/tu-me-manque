@@ -203,7 +203,9 @@ private val TABS_MAIN = listOf(
 @Composable
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
-    remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); MediaSync.backfill(ctx); Feel.init(ctx); true }
+    remember { Feel.init(ctx); Dl.init(ctx); Vids.init(ctx); true }
+    // Le reste attend que la première image soit affichée : démarrage plus rapide.
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); Yt.warmUp(ctx); MediaSync.backfill(ctx) }
     // Amis iPhone : ce téléphone télécharge pour eux quand personne d'autre ne l'a fait.
     LaunchedEffect(Unit) { Relay.loop(ctx.applicationContext) }
     val allTracks by Lib.tracks.collectAsState()
