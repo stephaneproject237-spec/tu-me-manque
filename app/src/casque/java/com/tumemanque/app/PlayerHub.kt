@@ -282,9 +282,13 @@ object Hub {
         if (player.isPlaying) player.pause() else { Shell.miniHidden = false; player.prepare(); player.play() }
     }
 
-    fun next() { if (player.hasNextMediaItem()) player.seekToNextMediaItem() else if (player.mediaItemCount > 0) { player.seekTo(0, 0) } }
+    fun next() {
+        if (DlPlay.active) { DlPlay.appCtx?.let { DlPlay.step(it, 1); return } }
+        if (player.hasNextMediaItem()) player.seekToNextMediaItem() else if (player.mediaItemCount > 0) { player.seekTo(0, 0) }
+    }
 
     fun previous() {
+        if (DlPlay.active && player.currentPosition <= 3000) { DlPlay.appCtx?.let { DlPlay.step(it, -1); return } }
         if (player.currentPosition > 3000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem()
     }
 

@@ -101,7 +101,7 @@ fun DownloadsScreen() {
                 items(done, key = { it.id }) { t -> DownloadRow(t) }
             }
         }
-        DlWindow(boxTop + topPx, Modifier.align(Alignment.TopCenter).padding(top = LocalTopInset.current))
+        androidx.compose.runtime.SideEffect { DlPlay.topPx = boxTop + topPx }
       }
     }
 }

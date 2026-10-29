@@ -203,6 +203,9 @@ private val TABS_MAIN = listOf(
 @Composable
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
+    // L'écran reste allumé pendant qu'une vidéo joue.
+    val rootView = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect { rootView.keepScreenOn = Vp.key != null && Vp.playing }
     remember { DlPlay.appCtx = ctx.applicationContext; Feel.init(ctx); Dl.init(ctx); Vids.init(ctx); true }
     // Le reste attend que la première image soit affichée : démarrage plus rapide.
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); Yt.warmUp(ctx); MediaSync.backfill(ctx) }
@@ -252,6 +255,7 @@ fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
                 GlassTabBar(haze)
             }
         }
+        if (Shell.tab == "downloads" && !Vp.fullscreen) DlWindow()
         AnimatedVisibility(Vp.fullscreen, enter = fadeIn(tween(260)), exit = fadeOut(tween(200))) { VideoFullscreen() }
     }
 }

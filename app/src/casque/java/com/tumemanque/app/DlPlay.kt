@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +48,8 @@ object DlPlay {
         private set
     /** Hauteur (dans la page) de la ligne touchée : le lecteur part de là. */
     var fromY by mutableFloatStateOf(0f)
+    /** Haut de la zone de liste (en pixels, dans l'écran) : le lecteur s'y pose. */
+    var topPx by mutableFloatStateOf(0f)
     /** Ce lancement vient de nous : il ne coupe pas la lecture continue. */
     var internal = false
         private set
@@ -115,7 +118,7 @@ object DlPlay {
 
 /** Le lecteur de la page Téléchargements : mêmes proportions que celui de la recherche, il glisse depuis la ligne touchée. */
 @Composable
-fun DlWindow(top: Float, modifier: Modifier = Modifier) {
+fun DlWindow(modifier: Modifier = Modifier) {
     val p = remember { Animatable(0f) }
     var mounted by remember { mutableStateOf(false) }
     LaunchedEffect(DlPlay.videoOpen) {
@@ -126,9 +129,9 @@ fun DlWindow(top: Float, modifier: Modifier = Modifier) {
     if (!mounted) return
     val soft = RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
     Box(
-        modifier.fillMaxWidth().graphicsLayer {
+        modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, DlPlay.topPx.toInt()) }.graphicsLayer {
             val k = 0.82f + 0.18f * p.value
-            translationY = (1f - p.value) * (DlPlay.fromY - top)
+            translationY = (1f - p.value) * (DlPlay.fromY - DlPlay.topPx)
             scaleX = k; scaleY = k; alpha = p.value
             transformOrigin = TransformOrigin(0.5f, 0f)
         }.aspectRatio(16f / 9f).shadow(16.dp, soft, ambientColor = Color.Black, spotColor = Color.Black).clip(soft).background(Color.Black),
