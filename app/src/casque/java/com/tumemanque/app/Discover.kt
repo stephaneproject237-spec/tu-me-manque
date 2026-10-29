@@ -1,5 +1,6 @@
 package com.tumemanque.app
 
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.graphicsLayer
