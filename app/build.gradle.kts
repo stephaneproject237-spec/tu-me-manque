@@ -33,7 +33,7 @@ android {
             buildConfigField("String", "OAUTH_SCHEME", "\"tumemanque\"")
             manifestPlaceholders["scheme"] = "tumemanque"
             // Le bot @music embarque Python + yt-dlp + FFmpeg : téléphones ARM uniquement.
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            if (!project.hasProperty("abiSplit")) ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
         // « Casque » : application parallèle (lecteur audio + messagerie en noir / gris / bleu).
         create("casque") {
@@ -47,7 +47,7 @@ android {
             manifestPlaceholders["scheme"] = "casque"
             // Le moteur de téléchargement (Python + yt-dlp + FFmpeg) demande Android 7 minimum.
             minSdk = 24
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            if (!project.hasProperty("abiSplit")) ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
 
