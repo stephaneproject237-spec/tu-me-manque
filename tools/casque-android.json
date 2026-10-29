@@ -1,6 +1,6 @@
 {
- "versionCode": 78,
- "versionName": "1.78",
- "notes": "Sous un artiste, seulement ses albums (plus de « Et aussi »).",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-78/casque.apk"
+ "versionCode": 80,
+ "versionName": "1.80",
+ "notes": "Carte « Aider mes amis iPhone » réduite à son bouton ; sous un artiste, seulement ses albums.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-80/casque.apk"
 }
