@@ -46,11 +46,25 @@ small{display:block;margin-top:22px;color:#6F7C93}
   var inv = document.getElementById("inv");
   if (p) { inv.hidden = false; inv.innerHTML = "<b>@" + p + "</b> t'invite à rejoindre Free tune 🎧"; }
   var apk = "";
-  // La version proposée est toujours la dernière publiée.
-  fetch("../update.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (u) {
-    apk = u.apk || "";
-    if (u.versionName) document.getElementById("ver").textContent = "Version Android " + u.versionName;
-  }).catch(function () {});
+  // La version proposée est toujours la dernière publiée sur GitHub (puis, à défaut, celle annoncée dans update.json).
+  var verEl = document.getElementById("ver"), andEl = document.getElementById("and");
+  function show(v, size) { verEl.textContent = "Version Android " + v + (size ? " · " + size : ""); andEl.textContent = "Télécharger Free tune " + v + " pour Android"; }
+  function fallback() {
+    fetch("../update.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (u) {
+      apk = u.apk || ""; if (u.versionName) show(u.versionName);
+    }).catch(function () {});
+  }
+  fetch("https://api.github.com/repos/stephaneproject237-spec/tu-me-manque/releases?per_page=15", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (l) {
+    var best = null, n = -1;
+    (l || []).forEach(function (r) {
+      var m2 = /^casque-(\d+)$/.exec(r.tag_name || ""); if (!m2 || r.draft) return;
+      var a = (r.assets || []).filter(function (x) { return /\.apk$/.test(x.name); })[0];
+      if (a && +m2[1] > n) { n = +m2[1]; best = { a: a, n: n }; }
+    });
+    if (!best) throw 0;
+    apk = best.a.browser_download_url;
+    show("1." + best.n, best.a.size ? Math.round(best.a.size / 1048576) + " Mo" : "");
+  }).catch(fallback);
   function tag() {
     if (!p) return;
     try { localStorage.setItem("casque_p", p); } catch (e) {}
