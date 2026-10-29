@@ -1,6 +1,6 @@
 {
- "versionCode": 4,
- "versionName": "1.4",
- "notes": "Réglages dans une barre en bas de l'écran.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-4/take-my-voice.apk"
+ "versionCode": 5,
+ "versionName": "1.5",
+ "notes": "Extraction YouTube corrigée : moteur mis à jour automatiquement, messages d'erreur précis.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/voice-5/take-my-voice.apk"
 }
