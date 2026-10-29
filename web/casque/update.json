@@ -1,7 +1,7 @@
 {
- "version": "web 2.1",
- "notes": "Fenêtre vidéo fixe sous la barre de recherche, albums d'un artiste et genres de films dans la recherche.",
- "versionCode": 66,
- "versionName": "1.66",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-66/casque.apk"
+ "version": "web 2.2",
+ "notes": "Albums lus automatiquement avec lecture continue, suggestions de recherche (artiste le plus proche puis titres), barre audio plus facile à ranger.",
+ "versionCode": 69,
+ "versionName": "1.69",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-69/casque.apk"
 }

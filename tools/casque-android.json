@@ -1,6 +1,6 @@
 {
- "versionCode": 66,
- "versionName": "1.66",
- "notes": "Fenêtre vidéo fixe sous la barre de recherche, albums d'un artiste et genres de films dans la recherche.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-66/casque.apk"
+ "versionCode": 69,
+ "versionName": "1.69",
+ "notes": "Albums lus automatiquement avec lecture continue, suggestions de recherche (artiste le plus proche puis titres), barre audio plus facile à ranger.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-69/casque.apk"
 }
