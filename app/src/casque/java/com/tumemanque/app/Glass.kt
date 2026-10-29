@@ -203,7 +203,7 @@ private val TABS_MAIN = listOf(
 @Composable
 fun CasqueShell(onSettings: () -> Unit, hasUpdate: Boolean) {
     val ctx = LocalContext.current
-    remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); true }
+    remember { Yt.warmUp(ctx); Dl.init(ctx); Vids.init(ctx); MediaSync.backfill(ctx); true }
     // Amis iPhone : ce téléphone télécharge pour eux quand personne d'autre ne l'a fait.
     LaunchedEffect(Unit) { Relay.loop(ctx.applicationContext) }
     val allTracks by Lib.tracks.collectAsState()

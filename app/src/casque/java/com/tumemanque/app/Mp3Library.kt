@@ -519,6 +519,7 @@ object Lib {
             arr.put(JSONObject().put("id", it.id).put("name", it.name).put("ids", JSONArray(it.ids)))
         }
         prefs().edit().putString("playlists", arr.toString()).apply()
+        runCatching { MediaSync.pushPlaylists() }
     }
 
     fun createPlaylist(name: String, ids: List<String> = emptyList()): String {

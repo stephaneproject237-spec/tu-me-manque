@@ -313,6 +313,7 @@ object Dl {
                 Vids.add(VideoItem(resultId, t0.video, dur, size, System.currentTimeMillis(), t0.kind.label))
             }
             edit(id) { it.copy(status = DlStatus.DONE, progress = 1f, phase = "Terminé", resultId = resultId, size = size) }
+            runCatching { MediaSync.onDone(app, t0.video, t0.kind, resultId, size) }
         } catch (e: YoutubeDL.CanceledException) {
             edit(id) { it.copy(status = DlStatus.CANCELED, phase = "Annulé") }
         } catch (e: Throwable) {

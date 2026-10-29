@@ -218,6 +218,60 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
         }
         Spacer(Modifier.height(14.dp))
 
+        // ------------------------------------------------------------ vibrations + restauration
+        SettingsCard {
+            var ticks by remember { mutableStateOf(Feel.enabled(ctx)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Vibrations au défilement", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("De petits clics, comme un engrenage, quand tu fais défiler les résultats.", color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                androidx.compose.material3.Switch(checked = ticks, onCheckedChange = { ticks = it; Feel.setEnabled(ctx, it) })
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        SettingsCard {
+            var sum by remember { mutableStateOf<MediaSummary?>(null) }
+            var asking by remember { mutableStateOf(false) }
+            var busy by remember { mutableStateOf(false) }
+            var info by remember { mutableStateOf("") }
+            Text("Restaurer mes médias", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Tout ce que tu télécharges est noté dans ton compte. Sur un nouveau téléphone, retrouve tes musiques, tes vidéos et tes playlists.",
+                color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+            if (info.isNotEmpty()) Text(info, color = P.blueSoft, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp))
+            BlueButton(if (busy) "Un instant…" else "Restaurer mes médias", Modifier.fillMaxWidth(), Ic.Download) {
+                if (busy) return@BlueButton
+                busy = true; info = ""
+                scope.launch {
+                    val r = MediaSync.summary()
+                    busy = false
+                    if (r == null) info = "Impossible de joindre ton compte pour l'instant."
+                    else if (r.count == 0) info = "Aucun média dans ton compte pour le moment."
+                    else { sum = r; asking = true }
+                }
+            }
+            val r = sum
+            if (asking && r != null) {
+                AlertDialog(
+                    onDismissRequest = { asking = false },
+                    containerColor = P.card,
+                    title = { Text("Restaurer mes médias", color = P.text) },
+                    text = { Text("${r.count} médias (${r.audio} audio, ${r.video} vidéo) · environ ${fmtBytes(r.bytes)}.\nLes télécharger de nouveau sur ce téléphone et restaurer tes playlists ?", color = P.sub) },
+                    confirmButton = {
+                        TextButton({
+                            asking = false
+                            info = "Restauration lancée : suis-la dans les téléchargements."
+                            MediaSync.restore(ctx)
+                        }) { Text("Oui, télécharger", color = P.blueSoft) }
+                    },
+                    dismissButton = { TextButton({ asking = false }) { Text("Non", color = P.sub) } },
+                )
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+
         // ------------------------------------------------------------ parrainage
         SettingsCard {
             Text("Envoyer l'application", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)

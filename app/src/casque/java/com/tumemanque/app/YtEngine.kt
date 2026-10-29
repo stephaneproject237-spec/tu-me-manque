@@ -164,6 +164,64 @@ object Yt {
         }
     }
 
+    private fun parseVideos(out: String): List<YtVideo> {
+        val entries = JSONObject(out).optJSONArray("entries") ?: JSONArray()
+        return (0 until entries.length()).mapNotNull { i ->
+            val o = entries.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optString("id")
+            if (id.length != 11) return@mapNotNull null
+            if (o.optString("live_status") == "is_live") return@mapNotNull null
+            YtVideo(
+                id = id,
+                title = o.optString("title").ifBlank { "Sans titre" },
+                channel = o.optString("channel").ifBlank { o.optString("uploader") }.removeSuffix(" - Topic"),
+                durationSec = o.optDouble("duration", 0.0).toInt(),
+                views = o.optLong("view_count", 0L),
+            )
+        }
+    }
+
+    /** Recherche triée du plus récent au plus ancien (si YouTube ne répond pas ainsi, la recherche normale prend le relais). */
+    suspend fun searchRecent(query: String, count: Int = 24): List<YtVideo> = withContext(Dispatchers.IO) {
+        ensure()
+        val seq = searchSeq.incrementAndGet()
+        val pid = "search$seq"
+        runCatching { YoutubeDL.destroyProcessById("search${seq - 1}") }
+        val url = "https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8") + "&sp=CAISAhAB"
+        val r = runCatching {
+            val req = base(YoutubeDLRequest(url)).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", count.toString())
+            parseVideos(YoutubeDL.execute(req, pid, null).out)
+        }.getOrDefault(emptyList())
+        if (r.size >= 4) r else search(query, count)
+    }
+
+    data class YtPlaylist(val id: String, val title: String, val count: Int, val channel: String)
+
+    /** Playlists YouTube qui portent ce nom (saisons d'une série, par exemple). */
+    suspend fun playlists(query: String): List<YtPlaylist> = withContext(Dispatchers.IO) {
+        ensure()
+        val url = "https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8") + "&sp=EgIQAw%253D%253D"
+        runCatching {
+            val req = base(YoutubeDLRequest(url)).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", "20")
+            val entries = JSONObject(YoutubeDL.execute(req, "plsearch", null).out).optJSONArray("entries") ?: JSONArray()
+            (0 until entries.length()).mapNotNull { i ->
+                val o = entries.optJSONObject(i) ?: return@mapNotNull null
+                val u = o.optString("url")
+                val id = o.optString("id").ifBlank { Regex("list=([\\w-]+)").find(u)?.groupValues?.get(1) ?: "" }
+                if (id.length < 12) return@mapNotNull null
+                YtPlaylist(id, o.optString("title"), o.optInt("playlist_count", o.optInt("n_entries", 0)), o.optString("channel").ifBlank { o.optString("uploader") })
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun playlistVideos(id: String): List<YtVideo> = withContext(Dispatchers.IO) {
+        ensure()
+        runCatching {
+            val req = base(YoutubeDLRequest("https://www.youtube.com/playlist?list=$id")).addOption("--flat-playlist").addOption("--dump-single-json").addOption("--playlist-end", "80")
+            parseVideos(YoutubeDL.execute(req, "plvideos", null).out)
+        }.getOrDefault(emptyList())
+    }
+
     fun cachedInfo(id: String): YtInfo? = synchronized(infoCache) {
         infoCache[id]?.takeIf { System.currentTimeMillis() - it.first < 3 * 3600_000L }?.second
     }

@@ -111,6 +111,7 @@ fun SearchScreen() {
     var history by remember { mutableStateOf(Yt.history()) }
     var token by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
+    ScrollTicks(listState)
     val focusReq = remember { FocusRequester() }
 
     val results: List<YtVideo> = remember(resultsJson) {
@@ -129,12 +130,24 @@ fun SearchScreen() {
     var albumQueue by remember { mutableStateOf<List<YtVideo>?>(null) }
     var genre by remember { mutableStateOf<DiscoGenre?>(null) }
     var genreVids by remember { mutableStateOf<List<YtVideo>?>(null) }
+    var collapsed by remember { mutableStateOf(false) }
+    var seasons by remember { mutableStateOf<List<Yt.YtPlaylist>>(emptyList()) }
+    var selSeason by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(submitted) {
         kind = null; stage = 0; albums = null; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null
+        collapsed = false; seasons = emptyList(); selSeason = null
         if (submitted.isNotBlank()) {
             val k = Disco.detect(submitted)
             kind = k; stage = 1
             if (k is DiscoKind.Artist) albums = Disco.albums(k.id)
+            else if (k is DiscoKind.Topic && Regex("^(Série|Dessin animé)").containsMatchIn(k.title)) {
+                // Une série : y a-t-il des playlists « saison » sur YouTube ?
+                val words = submitted.lowercase().split(Regex("\\s+")).filter { it.length > 2 }
+                val found = Yt.playlists("$submitted saison")
+                    .filter { seasonNumber(it.title) < 999 && words.all { w -> it.title.lowercase().contains(w) } }
+                    .distinctBy { seasonNumber(it.title) }.sortedBy { seasonNumber(it.title) }
+                if (found.size >= 2) seasons = found
+            }
         }
     }
     var related by remember { mutableStateOf(listOf<YtVideo>()) }
@@ -152,7 +165,7 @@ fun SearchScreen() {
         loading = true; error = null
         scope.launch {
             try {
-                val r = Yt.search(t)
+                val r = Yt.searchRecent(t)
                 if (my != token) return@launch
                 resultsJson = JSONArray(r.map { it.toJson() }).toString()
                 selectedId = r.firstOrNull()?.id
@@ -318,7 +331,12 @@ fun SearchScreen() {
                 if (dk != null && stage != 2) item(key = "disco") {
                     DiscoverCard(
                         dk, albums, selAlbum?.id, genre?.name,
-                        onClose = { stage = 2; selAlbum = null; albumTracks = null; albumQueue = null; genre = null; genreVids = null },
+                        collapsed = collapsed, onToggle = { collapsed = !collapsed },
+                        seasons = seasons, selSeason = selSeason,
+                        onSeason = { se ->
+                            selSeason = se.id; genre = DiscoGenre("", seasonLabel(se.title), ""); genreVids = null; selAlbum = null; albumTracks = null; albumQueue = null
+                            scope.launch { genreVids = Yt.playlistVideos(se.id) }
+                        },
                         onAlbum = { a ->
                             selAlbum = a; albumTracks = null; albumQueue = null; genre = null; genreVids = null
                             scope.launch {
@@ -338,7 +356,7 @@ fun SearchScreen() {
                             }
                         },
                         onGenre = { g ->
-                            genre = g; genreVids = null; selAlbum = null; albumTracks = null; albumQueue = null
+                            selSeason = null; genre = g; genreVids = null; selAlbum = null; albumTracks = null; albumQueue = null
                             scope.launch { genreVids = runCatching { Yt.search(g.query, 25) }.getOrDefault(emptyList()) }
                         },
                     )
@@ -516,7 +534,7 @@ private fun FormatsPanel(v: YtVideo, onDownload: (DlKind) -> Unit) {
         mine.any { it.status == DlStatus.DONE } -> "Téléchargé · touche pour d'autres formats"
         else -> "Audio · Vidéo · touche pour choisir"
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).glass(RoundedCornerShape(26.dp), 0.05f).animateContentSize().padding(vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).glass(RoundedCornerShape(26.dp), 0.05f).animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f)).padding(vertical = 4.dp)) {
         Row(
             Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) { open = !open }.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -528,7 +546,8 @@ private fun FormatsPanel(v: YtVideo, onDownload: (DlKind) -> Unit) {
                 Text(sub, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (open && i == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 1.5.dp, color = P.sub)
-            CIcon(Ic.ChevronDown, P.sub, 22.dp, Modifier.graphicsLayer { rotationZ = if (open) 180f else 0f })
+            val chev by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, androidx.compose.animation.core.tween(280), label = "chev")
+            CIcon(Ic.ChevronDown, P.sub, 22.dp, Modifier.graphicsLayer { rotationZ = chev })
         }
         if (open) {
         Text("AUDIO", color = P.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp))

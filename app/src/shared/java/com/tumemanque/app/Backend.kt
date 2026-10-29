@@ -218,6 +218,10 @@ object Backend {
     suspend fun gameCall(name: String, args: JSONObject = JSONObject()): JSONObject? =
         runCatching { JSONObject(authed("POST", "/rest/v1/rpc/$name", args.toString())) }.getOrNull()
 
+    /** Appel d'une fonction : renvoie le texte JSON brut (objet ou tableau), ou null si ça a échoué. */
+    suspend fun rpcText(name: String, args: JSONObject = JSONObject()): String? =
+        runCatching { authed("POST", "/rest/v1/rpc/$name", args.toString()) }.getOrNull()
+
     suspend fun saveToken() {
         saveToken(FirebaseMessaging.getInstance().token.await())
     }

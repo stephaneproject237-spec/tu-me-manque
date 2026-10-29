@@ -1,5 +1,6 @@
 package com.tumemanque.app
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -327,20 +328,50 @@ object Disco {
 @Composable
 fun DiscoverCard(
     kind: DiscoKind, albums: List<DiscoAlbum>?, selAlbum: Long?, selGenre: String?,
-    onClose: () -> Unit, onAlbum: (DiscoAlbum) -> Unit, onGenre: (DiscoGenre) -> Unit,
+    collapsed: Boolean, onToggle: () -> Unit, onAlbum: (DiscoAlbum) -> Unit, onGenre: (DiscoGenre) -> Unit,
+    seasons: List<Yt.YtPlaylist> = emptyList(), selSeason: String? = null, onSeason: (Yt.YtPlaylist) -> Unit = {},
 ) {
     val parts = if (kind is DiscoKind.Artist) listOf("Albums", kind.name) else (kind as DiscoKind.Topic).title.split(" · ", limit = 2)
+    val shape30 = RoundedCornerShape(30.dp)
+    val sub = if (parts.size > 1) parts[1] else parts[0]
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).glass(RoundedCornerShape(30.dp), 0.12f).padding(top = 16.dp, bottom = 16.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).glass(shape30, 0.12f)
+            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f))
+            .padding(top = if (collapsed) 4.dp else 16.dp, bottom = if (collapsed) 4.dp else 16.dp),
     ) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.Top) {
+        Row(
+            Modifier.fillMaxWidth().then(if (collapsed) Modifier.pressable { onToggle() } else Modifier).padding(start = 20.dp, end = 12.dp, top = if (collapsed) 10.dp else 0.dp, bottom = if (collapsed) 10.dp else 0.dp),
+            verticalAlignment = if (collapsed) Alignment.CenterVertically else Alignment.Top,
+        ) {
             Column(Modifier.weight(1f)) {
-                Text(parts[0], color = P.text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (parts.size > 1) Text(parts[1], color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                if (collapsed) {
+                    Text(if (kind is DiscoKind.Artist) "Voir tous les albums de $sub" else "Voir toutes les rubriques · $sub", color = P.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else {
+                    Text(parts[0], color = P.text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (parts.size > 1) Text(parts[1], color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
             }
-            RoundBtn(Ic.Close, { onClose() }, size = 32.dp, iconSize = 16.dp, fill = Color(0x22FFFFFF))
+            val rot by androidx.compose.animation.core.animateFloatAsState(if (collapsed) 0f else 180f, androidx.compose.animation.core.tween(280), label = "chev")
+            Box(Modifier.size(32.dp).graphicsLayer { rotationZ = rot }.clip(CircleShape).background(Color(0x22FFFFFF)).pressable { onToggle() }, contentAlignment = Alignment.Center) {
+                CIcon(Ic.ChevronDown, P.text, 16.dp)
+            }
         }
+        if (collapsed) return@Column
         Spacer(Modifier.height(14.dp))
+        if (seasons.isNotEmpty()) {
+            Text("Saisons", color = P.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 20.dp, bottom = 4.dp))
+            LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(seasons, key = { it.id }) { se ->
+                    val on = selSeason == se.id
+                    Box(
+                        Modifier.clip(RoundedCornerShape(50)).background(if (on) P.blue else Color(0x22FFFFFF))
+                            .border(0.8.dp, if (on) P.blueSoft else Color(0x33FFFFFF), RoundedCornerShape(50))
+                            .pressable { onSeason(se) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    ) { Text(seasonLabel(se.title), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         if (kind is DiscoKind.Artist) {
             when {
                 albums == null -> Box(Modifier.fillMaxWidth().height(124.dp), contentAlignment = Alignment.Center) {
@@ -413,3 +444,11 @@ fun TrackRow(t: DiscoTrack, onClick: () -> Unit) {
         CIcon(Ic.Play, P.blueSoft, 20.dp)
     }
 }
+
+/** « Breaking Bad - Saison 2 (VF) » → « Saison 2 » */
+fun seasonLabel(t: String): String {
+    Regex("(saison|season|s)\\s*0?(\\d{1,2})", RegexOption.IGNORE_CASE).find(t)?.let { return "Saison " + it.groupValues[2] }
+    return t.take(24)
+}
+
+fun seasonNumber(t: String): Int = Regex("(saison|season)\\s*0?(\\d{1,2})", RegexOption.IGNORE_CASE).find(t)?.groupValues?.get(2)?.toIntOrNull() ?: 999
