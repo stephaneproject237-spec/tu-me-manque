@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.18"
-NOTES = "Recherche : léger flou remis sous la vidéo, défilement vertical seulement."
+VERSION = "web 2.19"
+NOTES = "Recherche : léger flou sous le lecteur jusqu'aux informations de la vidéo."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
