@@ -303,3 +303,22 @@ body.cq-on{overflow:hidden}
 /* Écran Rechercher : la fenêtre de lecture reste en haut, le reste défile dessous. */
 #player .pst{position:sticky;top:-6px;z-index:4;padding:8px 16px 6px;background:var(--bg)}
 #player .pc{padding-top:2px}
+
+/* Découverte : albums d'un artiste, genres de films (verre liquide) */
+#player .dsc{margin:8px 16px;padding:14px 0;border-radius:24px;background:var(--gl);border:.8px solid var(--rim);-webkit-backdrop-filter:blur(22px) saturate(1.7);backdrop-filter:blur(22px) saturate(1.7);box-shadow:0 8px 28px rgba(0,0,0,.22)}
+#player .dsc>b{display:block;padding:0 16px;font-size:17px}
+#player .dsc>p{margin:2px 0 12px;padding:0 16px;color:var(--sub);font-size:14px}
+#player .dsb{display:flex;gap:10px;padding:0 16px}#player .dsb .cpill{flex:1;justify-content:center;padding:11px 14px;background:rgba(255,255,255,.10)}#player .dsb .cpill.on{background:rgba(47,123,255,.30)}
+#player .dsh{display:flex;align-items:center;padding:0 6px 0 16px;margin-bottom:8px}#player .dsh b{flex:1;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#player .dsh .ib{width:34px;height:34px}#player .dsh .ib svg{width:16px;height:16px}
+#player .dsr{display:flex;gap:12px;overflow-x:auto;padding:0 16px 2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}#player .dsr::-webkit-scrollbar{display:none}
+#player .dsa{flex:0 0 112px;text-align:center}#player .dsa img{width:112px;height:112px;border-radius:18px;object-fit:cover;background:var(--card2);display:block}
+#player .dsa.on img{outline:2px solid var(--bls);outline-offset:-2px}
+#player .dsa b,#player .dsg b{display:block;margin-top:6px;font-size:12px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#player .dsa.on b,#player .dsg.on b{color:var(--bls)}#player .dsa small{color:var(--sub);font-size:11px}
+#player .dsg{flex:0 0 78px;text-align:center}
+#player .dsg span{display:flex;width:68px;height:68px;margin:0 auto;border-radius:50%;align-items:center;justify-content:center;font-size:30px;background:var(--gl);border:.8px solid var(--rim)}
+#player .dsg.on span{background:rgba(47,123,255,.30);border-color:var(--bls)}
+#player .dsl{display:flex;justify-content:center;padding:18px}#player .dsn{padding:6px 16px;color:var(--sub);font-size:14px}
+#player .tkr{display:flex;align-items:center;gap:10px;padding:11px 20px}#player .tkr span{width:26px;color:var(--sub);font-size:14px}
+#player .tkr b{flex:1;font-size:15px;font-weight:500}#player .tkr small{color:var(--sub);font-size:12px}#player .tkr svg{width:20px;height:20px;color:var(--bls)}

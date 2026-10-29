@@ -1221,6 +1221,104 @@
     saveSr();
     if (U.sec === "search" && !host.hidden) draw();
   }
+  // ---------- Découverte : un artiste → ses albums ; un film → des genres ----------
+  const GENRES = [["💥", "Action", "film action complet en français"], ["🧭", "Aventure", "film aventure complet en français"], ["🎨", "Animé", "film animation complet en français"],
+    ["😂", "Comédie", "film comédie complet en français"], ["🎭", "Drame", "film drame complet en français"], ["👻", "Horreur", "film horreur complet en français"],
+    ["🚀", "Science-fiction", "film science fiction complet en français"], ["🕵️", "Thriller", "film thriller complet en français"], ["💕", "Romance", "film romance complet en français"],
+    ["🔍", "Policier", "film policier complet en français"], ["🧙", "Fantastique", "film fantastique complet en français"], ["🎥", "Documentaire", "documentaire complet en français"],
+    ["🌍", "Africain", "film africain nollywood complet"]];
+  const dnorm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  function lev(a, b) {
+    if (a === b) return 0;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  const itj = (u) => withTimeout(fetch(u).then((r) => r.json()), 9000);
+  async function detectKind(q) {
+    const t = String(q || "").trim(), nq = dnorm(t);
+    if (nq.length < 3) return null;
+    if (/\b(films?|movies?|cin[eé]ma|s[eé]ries?)\b/i.test(t)) return { kind: "film" };
+    try {
+      const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=musicArtist&limit=5");
+      for (const o of (j && j.results) || []) {
+        const nn = dnorm(o.artistName);
+        if (o.artistId && (nn === nq || (nq.length >= 5 && lev(nn, nq) <= 1) || (nq.length >= 4 && nn.indexOf(nq) === 0 && nn.length - nq.length <= 3))) return { kind: "artist", id: o.artistId, name: o.artistName };
+      }
+    } catch (e) { /* ignoré */ }
+    try {
+      const j = await itj("https://itunes.apple.com/search?term=" + encodeURIComponent(t) + "&entity=movie&limit=3");
+      for (const o of (j && j.results) || []) if (dnorm(o.trackName) === nq) return { kind: "film" };
+    } catch (e) { /* ignoré */ }
+    return null;
+  }
+  async function dcAlbums(d) {
+    try {
+      const j = await itj("https://itunes.apple.com/lookup?id=" + d.id + "&entity=album&limit=80");
+      const seen = new Set(), out = [];
+      for (const o of ((j && j.results) || []).filter((x) => x.wrapperType === "collection")) {
+        const name = o.collectionName || "";
+        if (!name || / - Single$/.test(name)) continue;
+        const key = dnorm(name.replace(/\(.*?\)|\[.*?\]/g, ""));
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ id: o.collectionId, name, art: String(o.artworkUrl100 || "").replace("100x100", "400x400"), year: String(o.releaseDate || "").slice(0, 4), rd: o.releaseDate || "" });
+      }
+      d.albums = out.sort((a, b) => (a.rd < b.rd ? 1 : -1));
+    } catch (e) { d.albums = []; }
+    if (SR.dc === d) draw();
+  }
+  async function dcTracks(d, a) {
+    try {
+      const j = await itj("https://itunes.apple.com/lookup?id=" + a.id + "&entity=song&limit=200");
+      d.tracks = ((j && j.results) || []).filter((x) => x.wrapperType === "track").sort((x, y) => (x.discNumber || 1) - (y.discNumber || 1) || (x.trackNumber || 0) - (y.trackNumber || 0))
+        .map((x) => ({ n: x.trackNumber || 0, ti: x.trackName, ms: x.trackTimeMillis || 0 }));
+    } catch (e) { d.tracks = []; }
+    if (SR.dc === d && d.sa === a.id) draw();
+  }
+  function dcBanner() {
+    const d = SR.dc;
+    if (!d || d.stage === 2) return "";
+    const art = d.kind === "artist";
+    if (d.stage === 0) {
+      return '<div class="dsc"><b>' + (art ? "🎵 " + esc(d.name) : "🎬 Tu cherches un film ?") + "</b><p>" + (art ? "Veux-tu écouter ses albums ?" : "Veux-tu voir des films par genre ?") + '</p>' +
+        '<div class="dsb"><button class="cpill on" data-a="dcyes">Oui</button><button class="cpill" data-a="dcno">Non merci</button></div></div>';
+    }
+    let row = "";
+    if (art) {
+      if (!d.albums) row = '<div class="dsl"><i class="spin s"></i></div>';
+      else if (!d.albums.length) row = '<p class="dsn">Aucun album trouvé pour cet artiste.</p>';
+      else row = '<div class="dsr">' + d.albums.map((a) => '<div class="dsa' + (d.sa === a.id ? " on" : "") + '" data-a="dcalb" data-id="' + a.id + '"><img src="' + esc(a.art) + '" loading="lazy" alt=""><b>' + esc(a.name) + "</b><small>" + esc(a.year) + "</small></div>").join("") + "</div>";
+    } else {
+      row = '<div class="dsr">' + GENRES.map((g, i) => '<div class="dsg' + (d.sg === i ? " on" : "") + '" data-a="dcgen" data-id="' + i + '"><span>' + g[0] + "</span><b>" + esc(g[1]) + "</b></div>").join("") + "</div>";
+    }
+    return '<div class="dsc"><div class="dsh"><b>' + (art ? "Albums · " + esc(d.name) : "Films · choisis un genre") + '</b><button class="ib" data-a="dcno" aria-label="Fermer">' + I.close + "</button></div>" + row + "</div>";
+  }
+  function vidRow(o, act) {
+    return '<div class="rr" data-a="' + act + '" data-id="' + esc(o.id) + '"><div class="rth">' + thumbImg(o) + (o.d ? '<span class="vd">' + fmt(o.d) + "</span>" : "") + "</div>" +
+      '<div class="tm"><b>' + esc(o.ti) + "</b><small>" + esc(o.ch) + "</small></div></div>";
+  }
+  function dcLists() {
+    const d = SR.dc;
+    if (!d || d.stage !== 1) return "";
+    let h = "";
+    if (d.kind === "artist" && d.sa != null) {
+      const a = (d.albums || []).find((x) => x.id === d.sa);
+      h += '<p class="sec2">ALBUM · ' + esc(String((a && a.name) || "").toUpperCase()) + "</p>";
+      if (!d.tracks) h += '<div class="dsl"><i class="spin s"></i></div>';
+      else h += d.tracks.map((t, i) => '<div class="tkr" data-a="dctrack" data-id="' + i + '"><span>' + t.n + "</span><b>" + esc(t.ti) + "</b>" + (t.ms ? "<small>" + fmt(Math.round(t.ms / 1000)) + "</small>" : "") + I.play + "</div>").join("");
+    }
+    if (d.kind === "film" && d.sg != null) {
+      h += '<p class="sec2">FILMS · ' + esc(GENRES[d.sg][1].toUpperCase()) + "</p>";
+      if (!d.gv) h += '<div class="dsl"><i class="spin s"></i></div>';
+      else h += d.gv.map((o) => vidRow(o, "dcvid")).join("");
+    }
+    return h;
+  }
   let srTok = 0;
   async function doSearch(q) {
     q = String(q || SR.q).trim();
@@ -1242,6 +1340,8 @@
     const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
     draw();
     SR.relFor = null; if (items[0]) loadRelated(items[0]);
+    SR.dc = null;
+    detectKind(q).then((k) => { if (k && my === srTok) { SR.dc = Object.assign({ stage: 0 }, k); if (U.sec === "search" && !host.hidden) draw(); } }).catch(() => {});
   }
   // Suggestions pendant la frappe (comme sur Android).
   let sugT = null;
@@ -1557,11 +1657,13 @@
       const sel = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
       if (sel) {
         const playing = V.yid === sel.id;
+        body += dcBanner();
         body += '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div></div>" +
           '<div class="pc">' +
           "<h2>" + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small>" +
           (sel.src === "yt" ? '<button class="cpill auto' + (V.auto ? " on" : "") + '" data-a="yauto">' + I.repeat + " Lecture continue</button>" : "") + "</div>";
+        body += dcLists();
         body += '<div class="fp"><div class="fh">' + I2.dl + "<b>Télécharger</b>" + (TP.st === "?" ? '<i class="spin s"></i>' : "") + "</div>" +
           '<p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
           '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div>";
@@ -1604,6 +1706,31 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
+      case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
+      case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
+      case "dcalb": { const d = SR.dc; if (!d) return true; const a = (d.albums || []).find((x) => String(x.id) === String(id)); if (!a) return true; d.sa = a.id; d.tracks = null; draw(); dcTracks(d, a); return true; }
+      case "dcgen": {
+        const d = SR.dc; if (!d) return true;
+        d.sg = Number(id); d.gv = null; draw();
+        const mine = d.sg;
+        ytSearch(GENRES[mine][2]).catch(() => []).then((l) => { if (SR.dc === d && d.sg === mine) { d.gv = l.slice(0, 25); draw(); } });
+        return true;
+      }
+      case "dctrack": {
+        const d = SR.dc; const t = d && d.tracks && d.tracks[Number(id)]; if (!t) return true;
+        ytSearch(d.name + " " + t.ti).catch(() => []).then((l) => {
+          const o = l[0]; if (!o) { toast("Titre introuvable pour le moment."); return; }
+          if (!SR.items.some((x) => x.id === o.id)) SR.items.push(Object.assign(o, { rel: true }));
+          plusClick("ysel", o.id); playYt(o); draw();
+        });
+        return true;
+      }
+      case "dcvid": {
+        const d = SR.dc; const o = d && d.gv && d.gv.find((x) => x.id === id); if (!o) return true;
+        if (!SR.items.some((x) => x.id === o.id)) SR.items.push(Object.assign(o, { rel: true }));
+        plusClick("ysel", o.id);
+        return true;
+      }
       case "yplay": {
         const o = SR.items.find((x) => x.id === SR.sel) || SR.items[0];
         if (!o) return true;
