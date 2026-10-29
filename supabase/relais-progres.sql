@@ -3,7 +3,7 @@
 
 alter table public.c_relay add column if not exists prog int not null default 0;
 
--- Le téléphone Android qui télécharge donne son avancement (0 à 100).
+-- Le téléphone Android qui télécharge donne son avancement : 0 à 67 (téléchargement puis envoi) ; l'iPhone ajoute la réception (67 à 100).
 create or replace function public.c_relay_progress(p_id bigint, p_prog int)
 returns json language plpgsql security definer set search_path = public as $$
 begin

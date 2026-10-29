@@ -1983,8 +1983,8 @@
   // Avancement total (0 à 100) d'une demande faite à un ami Android : chez lui (jusqu'à 90 %), puis réception sur l'iPhone ; -1 = on ne sait pas encore.
   function dlPct(d) {
     if (d.app === "rel") {
-      if (d.st === "recv") return Math.round(90 + (d.p || 0) * 10);
-      if (d.st === "wait" && d.pr > 0) return Math.min(90, d.pr);
+      if (d.st === "recv") return Math.round(67 + (d.p || 0) * 33);
+      if (d.st === "wait" && d.pr > 0) return Math.min(67, d.pr);
       return -1;
     }
     return d.st === "recv" ? Math.round((d.p || 0) * 100) : -1;
@@ -1993,11 +1993,11 @@
     const kind = isV(d.f) ? "MP4" : "MP3";
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
-      if (d.st === "fail") return "Aucun ami Android n'a pu la télécharger";
-      if (d.st === "recv") return "Réception · " + dlPct(d) + " %";
-      if (d.st === "wait") return d.pr > 0 ? "Téléchargement chez @" + (d.fr || "ton ami") + " · " + dlPct(d) + " %" : "@" + (d.fr || "Un ami") + " s'en occupe…";
+      if (d.st === "fail") return "Téléchargement impossible";
+      if (d.st === "recv") return kind + " · " + dlPct(d) + " %";
+      if (d.st === "wait") return d.pr > 0 ? kind + " · " + dlPct(d) + " %" : kind + " · en préparation…";
       if (d.st === "sending") return "";
-      return Date.now() - d.at > 180000 ? "En attente : un ami doit ouvrir Free tune sur son Android" : "";
+      return "";
     }
     if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
     if (d.st === "fail") return "Échec du téléchargement sur le téléphone de @" + d.fr;

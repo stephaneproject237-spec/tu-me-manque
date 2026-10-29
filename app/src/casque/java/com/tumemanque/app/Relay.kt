@@ -75,18 +75,18 @@ object Relay {
             val q = j.optString("q").ifEmpty { song.title }
             song = MbEngine.search(ctx, q).firstOrNull() ?: throw Exception("introuvable")
         }
-        // L'iPhone voit l'avancement : 0 à 85 % pendant le téléchargement, 90 % pendant l'envoi.
+        // La barre de l'iPhone est coupée en trois tiers égaux : 1) ce téléchargement, 2) l'envoi du fichier, 3) la réception sur l'iPhone.
         var lastPct = -10
         var lastAt = 0L
-        val report: (Float) -> Unit = { p ->
-            val pct = (p * 85f).toInt().coerceIn(0, 85)
+        fun push(pct: Int) {
             val now = System.currentTimeMillis()
             if (pct - lastPct >= 3 && now - lastAt > 1500) { lastPct = pct; lastAt = now; scope.launch { Backend.relayProgress(id, pct) } }
         }
+        val report: (Float) -> Unit = { p -> push((p * 33f).toInt().coerceIn(0, 33)) }
         val f = if (video) MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fmt), report) else MbEngine.download(ctx, song, MbEngine.audioKbps(fmt), report)
-        Backend.relayProgress(id, 90)
+        Backend.relayProgress(id, 33)
         try {
-            val media = Backend.uploadFile(f, if (video) "mp4" else "mp3", if (video) "video/mp4" else "audio/mpeg")
+            val media = Backend.uploadFile(f, if (video) "mp4" else "mp3", if (video) "video/mp4" else "audio/mpeg") { p -> push(33 + (p * 34f).toInt().coerceIn(0, 34)) }
             if (!Backend.relayDone(id, media, f.length())) throw Exception("déjà traitée")
         } finally {
             runCatching { f.delete() }

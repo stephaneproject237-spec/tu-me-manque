@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 2.20"
-NOTES = "Téléchargement via un ami Android : la barre suit l'avancement réel sur son téléphone."
+VERSION = "web 2.21"
+NOTES = "Barre de téléchargement en trois tiers : téléchargement, envoi, réception."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
