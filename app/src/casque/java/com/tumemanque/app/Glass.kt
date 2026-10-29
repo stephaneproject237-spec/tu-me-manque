@@ -354,6 +354,7 @@ private fun GlassMini(t: Track, haze: HazeState, onOpen: () -> Unit) {
                     Text(t.title, color = P.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(t.artist, color = P.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                RoundBtn(Ic.Prev, { Hub.previous() }, size = 40.dp, iconSize = 24.dp, fill = Color.Transparent)
                 RoundBtn(if (Hub.playing) Ic.Pause else Ic.Play, { Hub.toggle() }, size = 42.dp, iconSize = 26.dp, fill = Color.Transparent)
                 RoundBtn(Ic.Next, { Hub.next() }, size = 42.dp, iconSize = 24.dp, fill = Color.Transparent)
             }
