@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <script>(function(){function s(m){var d=document.getElementById('cq-err');if(!d){d=document.createElement('pre');d.id='cq-err';d.style.cssText='position:fixed;z-index:99999;left:8px;right:8px;top:60px;background:#400;color:#fff;padding:10px;font:12px monospace;white-space:pre-wrap;border-radius:8px';(document.body||document.documentElement).appendChild(d)}d.textContent+=m+'\n'}addEventListener('error',function(e){s((e.message||'erreur')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno)});addEventListener('unhandledrejection',function(e){s('promesse: '+(e.reason&&e.reason.message||e.reason))})})();</script>
+  <script>(function(){function s(m){var d=document.getElementById('cq-err');if(!d){d=document.createElement('pre');d.id='cq-err';d.style.cssText='position:fixed;z-index:99999;left:8px;right:8px;top:60px;background:#400;color:#fff;padding:10px;font:12px monospace;white-space:pre-wrap;border-radius:8px';(document.body||document.documentElement).appendChild(d)}d.textContent+=m+'\n'}addEventListener('error',function(e){if(!e.filename&&!e.lineno&&/^Script error/.test(e.message||''))return;s((e.message||'erreur')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno)});addEventListener('unhandledrejection',function(e){s('promesse: '+(e.reason&&e.reason.message||e.reason))})})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Free tune</title>
   <meta name="theme-color" content="#0C0D0E">
@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="preconnect" href="https://ahwxssgcwqzkxitpfvxy.supabase.co" crossorigin>
-  <link rel="stylesheet" href="dist/app.min.css?v=3a4c5168">
+  <link rel="stylesheet" href="dist/app.min.css?v=d75daf5f">
   <style>
     :root { --rose: #1F73E0; --rose-clair: #CDE2FD; --gris: #757575; --texte: #212121; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -141,7 +141,7 @@
   <div id="chat" hidden></div>
   <div id="player" hidden></div>
   <div id="support" hidden></div>
-  <script src="dist/app.min.js?v=3a4c5168" defer></script>
+  <script src="dist/app.min.js?v=d75daf5f" defer></script>
   <script>
     // Si le réseau est trop lent, on le dit au lieu de laisser un écran vide.
     setTimeout(function () {

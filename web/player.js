@@ -1230,8 +1230,8 @@
     sugT = setTimeout(() => {
       const cb = "cqSug" + Date.now();
       const s = document.createElement("script");
-      window[cb] = (j) => { delete window[cb]; s.remove(); if (SR.q === q) { SR.sug = ((j && j[1]) || []).map((x) => (Array.isArray(x) ? x[0] : x)).slice(0, 8); drawSug(); } };
-      s.onerror = () => { delete window[cb]; s.remove(); };
+      window[cb] = (j) => { window[cb] = () => {}; s.remove(); if (SR.q === q) { SR.sug = ((j && j[1]) || []).map((x) => (Array.isArray(x) ? x[0] : x)).slice(0, 8); drawSug(); } };
+      s.onerror = () => { window[cb] = () => {}; s.remove(); };
       s.src = "https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&hl=fr&q=" + encodeURIComponent(q) + "&callback=" + cb;
       document.head.appendChild(s);
     }, 220);

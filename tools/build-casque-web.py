@@ -8,8 +8,8 @@ import skin
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = os.path.join(ROOT, "web")
 OUT = os.path.join(W, "casque")
-VERSION = "web 1.6"
-NOTES = "Envoyer l'application à tes amis, parrain."
+VERSION = "web 1.7"
+NOTES = "Correction d'une erreur d'affichage."
 ES = os.environ.get("ESBUILD") or shutil.which("esbuild") or "/opt/npm-tools/node_modules/.bin/esbuild"
 
 
@@ -63,7 +63,7 @@ def main():
     diag = ("<script>(function(){function s(m){var d=document.getElementById('cq-err');if(!d){d=document.createElement('pre');d.id='cq-err';"
             "d.style.cssText='position:fixed;z-index:99999;left:8px;right:8px;top:60px;background:#400;color:#fff;padding:10px;font:12px monospace;white-space:pre-wrap;border-radius:8px';"
             "(document.body||document.documentElement).appendChild(d)}d.textContent+=m+'\\n'}"
-            "addEventListener('error',function(e){s((e.message||'erreur')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno)});"
+            "addEventListener('error',function(e){if(!e.filename&&!e.lineno&&/^Script error/.test(e.message||''))return;s((e.message||'erreur')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno)});"
             "addEventListener('unhandledrejection',function(e){s('promesse: '+(e.reason&&e.reason.message||e.reason))})})();</script>")
     ix = ix.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  ' + diag, 1)
     ix = ix.replace("rgba(110,80,220,.26)", "rgba(47,123,255,.22)")
