@@ -254,6 +254,10 @@ object Backend {
         JSONObject(authed("POST", "/rest/v1/rpc/relay_done", JSONObject().put("p_id", id).put("p_media", media).put("p_size", size).toString())).optString("status") == "ok"
     }.getOrDefault(false)
 
+    suspend fun relayProgress(id: Long, pct: Int) {
+        runCatching { authed("POST", "/rest/v1/rpc/relay_progress", JSONObject().put("p_id", id).put("p_prog", pct).toString()) }
+    }
+
     suspend fun relayFail(id: Long) {
         runCatching { authed("POST", "/rest/v1/rpc/relay_fail", JSONObject().put("p_id", id).toString()) }
     }

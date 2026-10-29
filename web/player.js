@@ -1830,6 +1830,7 @@
           const d = rel.find((x) => Number(x.mid) === r.id);
           if (!d) continue;
           if (r.by) d.fr = r.by;
+          if (r.prog > (d.pr || 0)) d.pr = r.prog;
           if (r.status === "taken" && d.st === "sent") d.st = "wait";
           else if (r.status === "fail") d.st = "fail";
           else if (r.status === "done" && r.media && d.st !== "recv" && d.st !== "done") {
@@ -1838,7 +1839,7 @@
               const blob = await fetchProg(mediaUrl(r.media), (p) => {
                 d.p = p;
                 host.querySelectorAll('[data-dl="' + d.mid + '"]').forEach((row) => {
-                  const i = row.querySelector(".dbar i"); if (i) i.style.width = Math.round(p * 100) + "%";
+                  const i = row.querySelector(".dbar i"); if (i) i.style.width = Math.max(0, dlPct(d)) + "%";
                   const s2 = row.querySelector("small"); if (s2) s2.textContent = dlStatus(d);
                 });
               });
@@ -1889,7 +1890,7 @@
       }
     } catch (e) { /* réessai plus tard */ }
     polling = false;
-    pollSoon(12000);
+    pollSoon(DL.some((d) => d.app === "rel" && d.st === "wait") ? 3000 : 12000);
   }
   function fetchProg(url, onProg) {
     return new Promise((ok, ko) => {
@@ -1979,13 +1980,22 @@
           '<div class="vm"><div><b>' + esc(t.title) + "</b><small>" + esc(t.artist) + ' · MP4</small></div><button class="ib sm2" data-a="menu" data-id="' + t.id + '">' + I.more + "</button></div></div>";
       }).join("") + "</div></main>";
   }
+  // Avancement total (0 à 100) d'une demande faite à un ami Android : chez lui (jusqu'à 90 %), puis réception sur l'iPhone ; -1 = on ne sait pas encore.
+  function dlPct(d) {
+    if (d.app === "rel") {
+      if (d.st === "recv") return Math.round(90 + (d.p || 0) * 10);
+      if (d.st === "wait" && d.pr > 0) return Math.min(90, d.pr);
+      return -1;
+    }
+    return d.st === "recv" ? Math.round((d.p || 0) * 100) : -1;
+  }
   function dlStatus(d) {
     const kind = isV(d.f) ? "MP4" : "MP3";
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Aucun ami Android n'a pu la télécharger";
-      if (d.st === "recv") return Math.round((d.p || 0) * 100) + " %";
-      if (d.st === "wait") return "";
+      if (d.st === "recv") return "Réception · " + dlPct(d) + " %";
+      if (d.st === "wait") return d.pr > 0 ? "Téléchargement chez @" + (d.fr || "ton ami") + " · " + dlPct(d) + " %" : "@" + (d.fr || "Un ami") + " s'en occupe…";
       if (d.st === "sending") return "";
       return Date.now() - d.at > 180000 ? "En attente : un ami doit ouvrir Free tune sur son Android" : "";
     }
@@ -2005,7 +2015,7 @@
           : '<button class="ib rb t" data-a="dlrm" data-id="' + d.mid + '">' + I.trash + "</button>";
     return '<div class="dq" data-dl="' + d.mid + '"' + (ok ? ' data-a="dlopen" data-id="' + d.tid + '"' : "") + '><div class="dr"><div class="dth">' + thumbImg({ th: d.th, yid: d.yid, ti: d.ti, ch: d.ch }) + '<span class="' + (isV(d.f) ? "v" : "") + '">' + (d.f === "v" ? "MP4" : "MP3") + "</span></div>" +
       '<div class="tm"><b>' + esc(d.ti) + '</b><small class="' + d.st + '">' + esc(dlStatus(d)) + "</small></div>" + btn + "</div>" +
-      (act ? '<div class="dbar' + (d.st === "recv" && d.p ? "" : " ind") + '"><i style="width:' + (d.st === "recv" ? Math.round((d.p || 0) * 100) : 30) + '%"></i></div>' : "") + "</div>";
+      (act ? '<div class="dbar' + (dlPct(d) >= 0 ? "" : " ind") + '"><i style="width:' + (dlPct(d) >= 0 ? dlPct(d) : 30) + '%"></i></div>' : "") + "</div>";
   }
   function dlView() {
     const act = DL.filter((d) => ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0);
@@ -2030,7 +2040,7 @@
     const done = d && d.st === "done" && d.tid && byId(d.tid);
     const sz = o.d ? "≈ " + ((o.d * FMT[f][2]) / 1048576).toFixed(1) + " Mo" : "";
     const sub = !d ? FMT[f][1] : done ? (isV(f) ? "Téléchargé · dans Vidéos" : "Téléchargé · dans Audios") : d.st === "fail" ? "Échec · touche pour réessayer" : dlStatus(d).replace(/^MP[34] · /, "");
-    const right = act ? '<span class="ring' + (d.st === "recv" && d.p ? "" : " ind") + '" style="--p:' + Math.round((d.p || 0) * 100) + '"><i></i></span>'
+    const right = act ? '<span class="ring' + (dlPct(d) >= 0 ? "" : " ind") + '" style="--p:' + Math.max(0, dlPct(d)) + '"><i></i></span>'
       : done ? '<span class="okb">' + I.play + "</span>" : '<span class="dlb">' + I2.dl + "</span>";
     return '<div class="fr" data-a="yget" data-id="' + f + '"><span class="fi' + (isV(f) ? " v" : "") + '">' + (isV(f) ? I2.film : I.note) + "</span>" +
       '<div class="tm"><b>' + FMT[f][0] + (sz ? " <em>" + sz + "</em>" : "") + '</b><small class="' + (done ? "done" : d && d.st === "fail" ? "fail" : "") + '">' + esc(sub) + "</small></div>" + right + "</div>";

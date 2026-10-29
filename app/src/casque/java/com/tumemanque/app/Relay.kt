@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -28,6 +29,7 @@ object Relay {
         private set
 
     private val lock = Mutex()
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     /** Réveillé par une notification silencieuse : traite toutes les demandes en attente puis s'arrête. */
     suspend fun drain(ctx: Context) {
@@ -73,7 +75,16 @@ object Relay {
             val q = j.optString("q").ifEmpty { song.title }
             song = MbEngine.search(ctx, q).firstOrNull() ?: throw Exception("introuvable")
         }
-        val f = if (video) MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fmt)) { } else MbEngine.download(ctx, song, MbEngine.audioKbps(fmt)) { }
+        // L'iPhone voit l'avancement : 0 à 85 % pendant le téléchargement, 90 % pendant l'envoi.
+        var lastPct = -10
+        var lastAt = 0L
+        val report: (Float) -> Unit = { p ->
+            val pct = (p * 85f).toInt().coerceIn(0, 85)
+            val now = System.currentTimeMillis()
+            if (pct - lastPct >= 3 && now - lastAt > 1500) { lastPct = pct; lastAt = now; scope.launch { Backend.relayProgress(id, pct) } }
+        }
+        val f = if (video) MbEngine.downloadVideo(ctx, song, MbEngine.videoHeight(fmt), report) else MbEngine.download(ctx, song, MbEngine.audioKbps(fmt), report)
+        Backend.relayProgress(id, 90)
         try {
             val media = Backend.uploadFile(f, if (video) "mp4" else "mp3", if (video) "video/mp4" else "audio/mpeg")
             if (!Backend.relayDone(id, media, f.length())) throw Exception("déjà traitée")
