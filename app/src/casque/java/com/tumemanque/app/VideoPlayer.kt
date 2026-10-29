@@ -142,12 +142,12 @@ object Vp {
     /** Vidéos proposées juste avant (résultats de la recherche) : la suivante part en premier. */
     var queue: List<YtVideo> = emptyList()
     private val played = LinkedHashSet<String>()
-    /** Résolution choisie pour les vidéos YouTube (360 par défaut) et celles que la vidéo en cours propose. */
-    var quality by mutableIntStateOf(360)
+    /** Résolution choisie pour les vidéos YouTube (240 par défaut) et celles que la vidéo en cours propose. */
+    var quality by mutableIntStateOf(240)
         private set
     var heights by mutableStateOf<List<Int>>(emptyList())
         private set
-    var curH by mutableIntStateOf(360)
+    var curH by mutableIntStateOf(240)
         private set
     private var curInfo: YtInfo? = null
     /** La vidéo suivante, déjà préparée : elle démarre toute seule, même écran verrouillé. */
@@ -164,7 +164,7 @@ object Vp {
     fun loadPrefs(ctx: Context) {
         val sp = ctx.applicationContext.getSharedPreferences("casque_vp", Context.MODE_PRIVATE)
         autoplay = sp.getBoolean("autoplay", false)
-        quality = sp.getInt("quality", 360)
+        quality = sp.getInt("quality", 240)
     }
 
     fun setAutoplay(ctx: Context, on: Boolean) {
