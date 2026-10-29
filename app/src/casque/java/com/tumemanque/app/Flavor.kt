@@ -214,7 +214,7 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
                 if (Yt.updating) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = P.blue)
             }
             Text(
-                "Les audios sont enregistrés dans Musique/Casque, les vidéos dans Films/Casque. Si une recherche ou un téléchargement ne marche plus, mets le moteur à jour : YouTube change souvent.",
+                "Les audios sont enregistrés dans Musique/Casque, les vidéos restent dans l'application (elles n'apparaissent pas dans la galerie). Si une recherche ou un téléchargement ne marche plus, mets le moteur à jour : YouTube change souvent.",
                 color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
             )
             BlueButton(if (Yt.updating) "Mise à jour…" else "Mettre à jour le moteur", Modifier.fillMaxWidth(), Ic.Update, outlined = true) {
