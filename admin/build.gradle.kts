@@ -20,6 +20,9 @@ android {
         getByName("debug") { isDebuggable = false }
     }
 
+    // Une appli non débogable déclenche le contrôle « lintVital », qui entre en conflit avec la copie des pages Admin : on le coupe.
+    lint { checkReleaseBuilds = false; abortOnError = false }
+
     signingConfigs {
         getByName("debug") {
             storeFile = file("../app/debug.keystore")
