@@ -47,45 +47,7 @@ class UpdateViewModel : ViewModel() {
     private var apkFile: File? = null
     private var started = false
 
-    private fun fetchOne(url: String): UpdateInfo? {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        try {
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            conn.useCaches = false
-            if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
-            val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-            val code = j.optInt("versionCode", 0)
-            val apk = j.optString("apk", "")
-            if (code <= 0 || !apk.startsWith("https://github.com/stephaneproject237-spec/tu-me-manque/")) return null
-            return UpdateInfo(code, j.optString("versionName", "1.$code"), j.optString("notes", ""), apk)
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    /** Interroge plusieurs adresses en même temps (au cas où l'une serait bloquée sur ce réseau) : la première qui répond gagne. */
-    private suspend fun fetch(): UpdateInfo? = coroutineScope {
-        val t = System.currentTimeMillis()
-        val sources = listOf(
-            Config.WEB_URL + "update.json?t=$t",
-            "https://raw.githubusercontent.com/stephaneproject237-spec/tu-me-manque/main/${BuildConfig.UPDATE_JSON}?t=$t",
-        )
-        val result = CompletableDeferred<UpdateInfo?>()
-        val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
-        val jobs = sources.map { url ->
-            launch(Dispatchers.IO) {
-                try {
-                    result.complete(fetchOne(url))
-                } catch (e: Exception) {
-                    val host = url.substringAfter("://").substringBefore("/")
-                    errors.add("$host : ${e.javaClass.simpleName}${e.message?.let { m -> " ($m)".take(60) } ?: ""}")
-                    if (errors.size == sources.size) result.completeExceptionally(IOException(errors.joinToString("\n")))
-                }
-            }
-        }
-        try { result.await() } finally { jobs.forEach { it.cancel() } }
-    }
+    private suspend fun fetch(): UpdateInfo? = UpdateSource.fetch()
 
     /** Vérifie s'il existe une version plus récente que celle installée. */
     fun check(force: Boolean = true, context: Context? = null) {
@@ -98,7 +60,12 @@ class UpdateViewModel : ViewModel() {
                 val info = withContext(Dispatchers.IO) { fetch() }
                 val newer = if (info != null && info.code > BuildConfig.VERSION_CODE) info else null
                 _state.update { it.copy(checking = false, checked = true, available = newer, error = false, errorDetail = "", ready = if (newer == null) false else it.ready) }
-                if (newer != null && context != null && !_state.value.downloading && !_state.value.ready) resume(context.applicationContext, newer)
+                if (newer != null && context != null) {
+                    val app = context.applicationContext
+                    if (!_state.value.downloading && !_state.value.ready) resume(app, newer)
+                    // Nouvelle version : le téléchargement démarre tout seul, sans rien demander.
+                    if (!_state.value.downloading && !_state.value.ready) update(app)
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(checking = false, checked = true, error = true, errorDetail = e.message ?: e.javaClass.simpleName) }
             }
@@ -114,7 +81,7 @@ class UpdateViewModel : ViewModel() {
         if (pr.getInt("code", 0) != newer.code) return
         val f = File(pr.getString("file", "") ?: "")
         val id = pr.getLong("id", -1)
-        if (f.exists() && f.length() > 1_000_000 && statusOf(app, id) != DownloadManager.STATUS_RUNNING) {
+        if (f.exists() && f.length() > 1_000_000 && statusOf(app, id) == DownloadManager.STATUS_SUCCESSFUL) {
             apkFile = f; _state.update { it.copy(downloading = false, ready = true) }
         } else if (id >= 0 && statusOf(app, id).let { it == DownloadManager.STATUS_RUNNING || it == DownloadManager.STATUS_PENDING || it == DownloadManager.STATUS_PAUSED }) {
             apkFile = f; _state.update { it.copy(downloading = true) }; track(app, id)
@@ -143,8 +110,8 @@ class UpdateViewModel : ViewModel() {
                 }
                 when (st) {
                     DownloadManager.STATUS_SUCCESSFUL -> {
+                        // Terminé : la fenêtre « Installer la mise à jour » s'affiche (à l'ouverture de l'appli).
                         _state.update { it.copy(downloading = false, ready = true, progress = 1f) }
-                        runCatching { install(app) }
                         return@launch
                     }
                     DownloadManager.STATUS_FAILED, -1 -> {
@@ -164,20 +131,7 @@ class UpdateViewModel : ViewModel() {
         if (_state.value.downloading) return
         val app = context.applicationContext
         try {
-            val dm = app.getSystemService(DownloadManager::class.java)
-            val old = prefs(app).getLong("id", -1)
-            if (old >= 0) runCatching { dm.remove(old) }
-            val dir = dlDir(app)
-            dir.listFiles()?.forEach { it.delete() }
-            val f = File(dir, "${BuildConfig.APK_PREFIX}-${info.code}.apk")
-            val req = DownloadManager.Request(Uri.parse(info.apk))
-                .setTitle("Tu me manques ${info.name}")
-                .setDescription("Téléchargement de la mise à jour")
-                .setDestinationUri(Uri.fromFile(f))
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-                .setAllowedOverMetered(true).setAllowedOverRoaming(true)
-            val id = dm.enqueue(req)
-            prefs(app).edit().putLong("id", id).putString("file", f.path).putInt("code", info.code).apply()
+            val (id, f) = AutoUpdate.enqueue(app, info)
             apkFile = f
             _state.update { it.copy(downloading = true, progress = 0f, error = false, ready = false, needPermission = false) }
             track(app, id)
@@ -199,11 +153,7 @@ class UpdateViewModel : ViewModel() {
             return
         }
         _state.update { it.copy(needPermission = false) }
-        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", f)
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        // Installation directe : sans écran de confirmation quand Android le permet (sinon, l'écran habituel).
+        if (!Installer.install(context, f)) Installer.viewFallback(context, f)
     }
 }

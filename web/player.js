@@ -1822,6 +1822,55 @@
     A.authed("POST", "/rest/v1/rpc/heartbeat", { p_platform: "ios", p_share: null }).catch(() => {});
   }
   setInterval(beat, 20000); setTimeout(beat, 2000);
+
+  // =====================================================================
+  // Mise à jour automatique : dès qu'une nouvelle version est publiée, ses fichiers sont téléchargés en arrière-plan.
+  // Quand c'est prêt, une fenêtre propose une seule option : « Installer la mise à jour » (la page se relance toute seule).
+  // =====================================================================
+  const UP = { busy: false, info: null };
+  function showUpdatePrompt() {
+    if (!UP.info || document.getElementById("upd-pop")) return;
+    if (!document.getElementById("upd-css")) {
+      const st = document.createElement("style"); st.id = "upd-css";
+      st.textContent = "#upd-pop{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}" +
+        "#upd-pop .c{width:100%;max-width:340px;background:#171a21;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:24px 20px 20px;text-align:center;color:#eef1f6;font-family:inherit}" +
+        "#upd-pop h3{margin:0 0 8px;font-size:20px}#upd-pop p{margin:0 0 6px;font-size:15px;color:#aab2c0;line-height:1.4}" +
+        "#upd-pop button{margin-top:16px;width:100%;border:0;border-radius:999px;padding:15px;font:inherit;font-weight:700;font-size:16px;color:#fff;background:linear-gradient(135deg,#5ea0ff,#1f6fe0)}";
+      document.head.appendChild(st);
+    }
+    const d = document.createElement("div"); d.id = "upd-pop";
+    d.innerHTML = '<div class="c"><h3>Mise à jour prête</h3><p>La version ' + esc(String(UP.info.version || "").replace(/^web /, "")) + " est téléchargée.</p>" +
+      (UP.info.notes ? "<p>" + esc(UP.info.notes) + "</p>" : "") + '<button id="upd-go">Installer la mise à jour</button></div>';
+    document.body.appendChild(d);
+    d.querySelector("#upd-go").onclick = async () => {
+      d.querySelector("#upd-go").textContent = "Installation…";
+      try {
+        const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k)));
+        const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((x) => x.unregister()));
+      } catch (e) { /* ignoré */ }
+      location.reload();
+    };
+  }
+  async function autoUpdate() {
+    if (UP.busy) return;
+    if (UP.info) { showUpdatePrompt(); return; }
+    UP.busy = true;
+    try {
+      const r = await fetch("update.json?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (j && j.version && j.version !== CFG.VERSION) {
+        // Téléchargement silencieux des nouveaux fichiers : au moment de relancer, tout est déjà prêt.
+        const h = await (await fetch("./?t=" + Date.now(), { cache: "no-store" })).text();
+        const m = h.match(/dist\/app\.min\.js\?v=[0-9a-f]+/);
+        if (m) await (await fetch(m[0], { cache: "reload" })).arrayBuffer();
+        UP.info = j;
+        showUpdatePrompt();
+      }
+    } catch (e) { /* pas de réseau : on réessaiera */ }
+    UP.busy = false;
+  }
+  setTimeout(autoUpdate, 3000); setInterval(autoUpdate, 300000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) autoUpdate(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) beat(); });
   let pollT = null, polling = false;
   const pendingDl = () => DL.filter((d) => d.st === "sent" || d.st === "wait");
