@@ -317,12 +317,14 @@
     const share = android
       ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
     const jobs = Number(u.jobs) ? `<span class="chip">⏳ ${u.jobs} en cours</span>` : "";
-    const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span>`;
+    const dlN = Number(u.dl) || 0, helpN = Number(u.dl_helped) || 0;
+    const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span> <span class="chip">⬇️ ${dlN} téléchargement${dlN > 1 ? "s" : ""}</span>` +
+      (helpN ? ` <span class="chip">🤝 ${helpN} pour des amis</span>` : "");
     const where = st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
       <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
         <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
-      <div class="row" style="margin-top:6px">${ver}</div>
+      <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${ver}</div>
       ${lights}
       <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
         <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div></div>`;
