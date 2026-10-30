@@ -10,7 +10,10 @@ begin
   if not public.is_admin() then raise exception 'forbidden'; end if;
   with ok as (
     select p.user_id, p.amount, p.phone, coalesce(p.done_at, p.created_at) as at
-    from public.c_payments p where p.status = 'successful'
+    from public.c_payments p
+    where p.status = 'successful'
+      -- numéros de test du mode démo Campay : le paiement passe, mais n'est pas compté dans le chiffre d'affaires
+      and coalesce(p.phone, '') not in ('699999999', '677777770', '677777777', '699999990')
   ), who as (
     select s.user_id, s.paid_until, pr.username, u.email
     from public.c_subs s
