@@ -54,7 +54,7 @@ small{display:block;margin-top:22px;color:#6F7C93}
       apk = u.apk || ""; if (u.versionName) show(u.versionName);
     }).catch(function () {});
   }
-  fetch("https://api.github.com/repos/stephaneproject237-spec/tu-me-manque/releases?per_page=15", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (l) {
+  fetch("https://api.github.com/repos/stephaneproject237-spec/tu-me-manque/releases?per_page=100", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (l) {
     var best = null, n = -1;
     (l || []).forEach(function (r) {
       var m2 = /^casque-(\d+)$/.exec(r.tag_name || ""); if (!m2 || r.draft) return;
