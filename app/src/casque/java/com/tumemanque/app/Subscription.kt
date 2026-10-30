@@ -89,25 +89,33 @@ object Sub {
         paidUntil = parse(j.optString("paid_until"))
         trialEnd = parse(j.optString("trial_end"))
         trialLeft = j.optInt("trial_left", 3)
-        if (state == "expired") paywall = if (trialLeft <= 0 && paidUntil == null) "dl" else "expired"
+        if (state == "expired") {
+            paywall = if (trialLeft <= 0 && paidUntil == null) "dl" else "expired"
+            // L'écran de paiement ne se ferme qu'en payant : la lecture est aussi mise en pause.
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                runCatching { Hub.player.pause() }
+                runCatching { Vp.pause() }
+            }
+        }
     }
 
-    /** Avant chaque téléchargement : compte l'essai, ou ouvre l'écran de paiement. */
+    /** Avant chaque téléchargement : vérifie le droit (essai ou abonnement) sans rien décompter, sinon ouvre l'écran de paiement.
+     *  L'essai n'est décompté qu'à la fin d'un téléchargement réussi (voir [done]). */
     fun download(ctx: android.content.Context, scope: CoroutineScope, go: () -> Unit) {
         scope.launch {
-            val j = runCatching { JSONObject(Backend.callRaw("POST", "/rest/v1/rpc/use_download", "{}")) }.getOrNull()
+            val j = runCatching { JSONObject(Backend.callRaw("POST", "/rest/v1/rpc/sub_can", "{}")) }.getOrNull()
             when (j?.optString("status")) {
-                "pay" -> { paywall = "dl"; state = "expired" }
-                "ok" -> {
-                    go()
-                    if (j.optString("state") == "trial") {
-                        trialLeft = j.optInt("trial_left", 0)
-                        Toast.makeText(ctx, if (trialLeft > 0) "Essai gratuit : encore $trialLeft téléchargement(s)" else "C'était ton dernier téléchargement gratuit", Toast.LENGTH_SHORT).show()
-                    }
-                }
+                "pay" -> { paywall = if (paidUntil != null) "expired" else "dl"; state = "expired" }
+                "ok" -> go()
                 else -> go() // serveur pas encore prêt : on ne bloque pas
             }
         }
+    }
+
+    /** Un téléchargement vient de se terminer avec succès : décompte l'essai gratuit. */
+    suspend fun done() {
+        runCatching { Backend.callRaw("POST", "/rest/v1/rpc/sub_done", "{}") }
+        refresh()
     }
 
     suspend fun pay(phone: String): JSONObject =

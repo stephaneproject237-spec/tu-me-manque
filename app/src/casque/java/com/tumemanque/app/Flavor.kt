@@ -78,7 +78,7 @@ fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, us
             Paywall()
         }
     }
-    LaunchedEffect(Unit) { while (true) { Sub.refresh(); kotlinx.coroutines.delay(10 * 60_000L) } }
+    LaunchedEffect(Unit) { while (true) { Sub.refresh(); kotlinx.coroutines.delay(60_000L) } }
 }
 
 @Composable

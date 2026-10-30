@@ -1964,7 +1964,8 @@
     } else if (PW.step === "ok") {
       body = '<div class="box c"><div style="font-size:42px">✅</div><b>Merci ! Ton abonnement est actif</b><p>jusqu\'au ' + esc(pwDate(PW.until)) + '</p><button class="bt" id="pw-done">Continuer</button></div>';
     }
-    d.innerHTML = '<button class="x" id="pw-x" aria-label="Fermer">✕</button><div class="lg">🎧</div><h2>Free tune Premium</h2><p class="sub">' + sub + "</p>" +
+    const blocking = d.dataset.b === "1" && PW.step !== "ok";
+    d.innerHTML = (blocking ? '<div style="height:38px"></div>' : '<button class="x" id="pw-x" aria-label="Fermer">✕</button>') + '<div class="lg">🎧</div><h2>Free tune Premium</h2><p class="sub">' + sub + "</p>" +
       '<div class="box"><div class="pr">500<small> FCFA / mois</small></div><ul><li>Téléchargements illimités, en audio et en vidéo</li><li>Lecture hors connexion, playlists</li><li>Valable 30 jours sur ton compte (Android et iPhone)</li><li>Sans renouvellement automatique : tu paies quand tu veux</li></ul></div>' +
       body + '<div class="ft">Paiement sécurisé par Mobile Money. <a href="https://stephaneproject237-spec.github.io/tu-me-manque/legal/conditions.html" target="_blank" rel="noopener">Conditions générales</a></div>';
     const x = d.querySelector("#pw-x"); if (x) x.onclick = closePaywall;
@@ -1976,10 +1977,10 @@
     const dn = d.querySelector("#pw-done"); if (dn) dn.onclick = () => { const r = PW.retry; closePaywall(); if (r) r(); };
   }
   function closePaywall() { clearTimeout(PW.t); PW.ref = null; if (PW.el) { PW.el.remove(); PW.el = null; } }
-  function openPaywall(reason, retry) {
+  function openPaywall(reason, retry, blocking) {
     pwCss(); closePaywall();
     PW.step = "form"; PW.msg = ""; PW.url = ""; PW.ussd = ""; PW.retry = retry || null;
-    const d = document.createElement("div"); d.id = "pw"; d.dataset.r = reason || "dl";
+    const d = document.createElement("div"); d.id = "pw"; d.dataset.r = reason || "dl"; d.dataset.b = blocking ? "1" : "";
     document.body.appendChild(d); PW.el = d; pwDraw();
   }
   async function payGo(phone) {
@@ -2012,6 +2013,23 @@
     PW.t = setTimeout(() => pwPoll(n + 1), 4000);
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && PW.ref) pwPoll(0); });
+
+  // Abonnement expiré (essai fini ou abonnement terminé) : l'écran de paiement bloque toute l'appli et ne se ferme qu'en payant.
+  async function subGuard() {
+    const A = API();
+    if (document.hidden || !A || !A.casque || !A.casque.ready || !A.casque.ready()) return;
+    if (PW.el && PW.el.dataset.b === "1" && PW.step !== "ok") return;
+    let j = null;
+    try { j = await A.authed("POST", "/rest/v1/rpc/sub_status", {}); } catch (e) { return; }
+    if (!j || j.status !== "ok") return;
+    if (j.state === "expired") {
+      if (PW.el && PW.el.dataset.b === "1") return;
+      document.querySelectorAll("audio,video").forEach((m) => { try { m.pause(); } catch (e) { /* ignoré */ } });
+      openPaywall(Number(j.trial_left) <= 0 && !j.paid_until ? "dl" : "expired", null, true);
+    }
+  }
+  setInterval(subGuard, 60000); setTimeout(subGuard, 3500);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) subGuard(); });
   async function sendDl(o, f) {
     const A = API();
     if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connexion en cours, réessaie dans un instant."); return; }
@@ -2025,14 +2043,13 @@
     } catch (e) { rel = null; }
     if (rel && rel.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
     if (rel && rel.status === "ok") {
-      if (rel.state === "trial") toast(Number(rel.trial_left) > 0 ? "Essai gratuit : encore " + rel.trial_left + " téléchargement(s)" : "C'était ton dernier téléchargement gratuit");
       DL.unshift({ mid: rel.id, app: "rel", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: rel.helpers || 0, at: Date.now(), st: "sent", p: 0 });
       saveDl(); draw(); pollSoon(2500);
       return;
     }
-    // 2) Sinon : le partenaire Android de « Tu me manques » (même abonnement : on compte l'essai ici).
+    // 2) Sinon : le partenaire Android de « Tu me manques » (même abonnement ; l'essai est décompté quand le fichier est reçu).
     try {
-      const ud = await A.authed("POST", "/rest/v1/rpc/use_download", {});
+      const ud = await A.authed("POST", "/rest/v1/rpc/sub_can", {});
       if (ud && ud.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
     } catch (e) { /* serveur pas prêt : on ne bloque pas */ }
     if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Ajoute d'abord un ami qui a Free tune sur Android."); draw(); return; } }
@@ -2177,6 +2194,7 @@
             });
             const t = await importBlob(blob, { title: sg.t || d.ti, artist: sg.a || d.ch, art: sg.th || d.th, video: m.kind === "video", d: (m.meta && m.meta.d) || 0, yid: d.yid });
             d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
+            if (app === "tmm") API().authed("POST", "/rest/v1/rpc/sub_done", {}).catch(() => {});
             toast((t.video ? "Vidéo" : "Chanson") + " ajoutée : « " + t.title + " »");
             if (navigator.vibrate) navigator.vibrate(30);
           } catch (e) { d.st = "wait"; }

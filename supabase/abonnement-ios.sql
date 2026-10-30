@@ -1,8 +1,59 @@
--- Free tune iPhone : abonnement (essai gratuit puis 500 FCFA / 30 jours) contrôlé côté serveur à chaque demande de téléchargement.
+-- Free tune : abonnement (essai gratuit 24 h / 3 téléchargements terminés, puis 500 FCFA / 30 jours), Android ET iPhone.
+-- Un téléchargement ne compte que lorsqu'il est TERMINÉ avec succès. Les comptes administrateur ne sont jamais bloqués.
 -- À coller dans Supabase > SQL Editor > + New query > Run. Peut être relancé sans danger.
+
+create or replace function public.c_sub_status()
+returns json language plpgsql security definer set search_path = public as $$
+declare s public.c_subs;
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  insert into public.c_subs (user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select * into s from public.c_subs where user_id = auth.uid();
+  if public.is_admin() then
+    return json_build_object('status', 'ok', 'state', 'active', 'paid_until', s.paid_until, 'trial_end', s.trial_start + interval '1 day', 'trial_left', 3, 'now', now());
+  end if;
+  return json_build_object(
+    'status', 'ok',
+    'state', case when s.paid_until is not null and s.paid_until > now() then 'active'
+                  when now() < s.trial_start + interval '1 day' and s.trial_dl < 3 then 'trial'
+                  else 'expired' end,
+    'paid_until', s.paid_until,
+    'trial_end', s.trial_start + interval '1 day',
+    'trial_left', greatest(0, 3 - s.trial_dl),
+    'now', now()
+  );
+end $$;
+
+-- Avant un téléchargement : a-t-on le droit ? (ne décompte rien)
+create or replace function public.c_sub_can()
+returns json language plpgsql security definer set search_path = public as $$
+declare s public.c_subs;
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  if public.is_admin() then return json_build_object('status', 'ok', 'state', 'active'); end if;
+  insert into public.c_subs (user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select * into s from public.c_subs where user_id = auth.uid();
+  if s.paid_until is not null and s.paid_until > now() then return json_build_object('status', 'ok', 'state', 'active'); end if;
+  if now() < s.trial_start + interval '1 day' and s.trial_dl < 3 then return json_build_object('status', 'ok', 'state', 'trial', 'trial_left', 3 - s.trial_dl); end if;
+  return json_build_object('status', 'pay');
+end $$;
+
+-- Un téléchargement vient de se terminer avec succès : décompte l'essai gratuit.
+create or replace function public.c_sub_done()
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  update public.c_subs set trial_dl = least(trial_dl + 1, 3), updated_at = now()
+    where user_id = auth.uid() and not (paid_until is not null and paid_until > now()) and now() < trial_start + interval '1 day';
+  return json_build_object('status', 'ok');
+end $$;
+
+revoke all on function public.c_sub_status(), public.c_sub_can(), public.c_sub_done() from public, anon;
+grant execute on function public.c_sub_status(), public.c_sub_can(), public.c_sub_done() to authenticated;
+
 create or replace function public.c_relay_create(p_yid text, p_q text, p_ti text, p_ch text, p_d int, p_art text, p_fmt text)
 returns json language plpgsql security definer set search_path = public, extensions as $$
-declare me uuid := auth.uid(); n int; rid bigint; notified boolean; tgt uuid; ids uuid[]; sb public.c_subs; v_state text := 'active'; v_left int := 0;
+declare me uuid := auth.uid(); n int; rid bigint; notified boolean; tgt uuid; ids uuid[]; sb public.c_subs; inflight int;
         v_yid text := nullif(btrim(coalesce(p_yid, '')), '');
         v_q text := left(btrim(coalesce(p_q, '')), 120);
         v_fmt text := coalesce(nullif(btrim(coalesce(p_fmt, '')), ''), 'a');
@@ -29,16 +80,16 @@ begin
       and ((v_yid is not null and yid = v_yid) or (v_yid is null and q = v_q))
     order by id desc limit 1;
   if rid is not null then return json_build_object('status', 'ok', 'id', rid, 'helpers', n); end if;
-  -- Abonnement : actif, ou essai gratuit (24 h, 3 téléchargements) ; sinon il faut payer. Compté ici, côté serveur : l'iPhone ne peut pas le contourner.
-  insert into public.c_subs (user_id) values (me) on conflict (user_id) do nothing;
-  select * into sb from public.c_subs where user_id = me for update;
-  if sb.paid_until is not null and sb.paid_until > now() then
-    v_state := 'active';
-  elsif now() < sb.trial_start + interval '1 day' and sb.trial_dl < 3 then
-    update public.c_subs set trial_dl = trial_dl + 1, updated_at = now() where user_id = me;
-    v_state := 'trial'; v_left := 2 - sb.trial_dl;
-  else
-    return json_build_object('status', 'pay');
+  -- Abonnement : actif, ou essai gratuit (24 h, 3 téléchargements TERMINÉS). L'essai n'est décompté qu'à la fin d'un téléchargement réussi (voir c_relay_done).
+  if not public.is_admin() then
+    insert into public.c_subs (user_id) values (me) on conflict (user_id) do nothing;
+    select * into sb from public.c_subs where user_id = me;
+    if not (sb.paid_until is not null and sb.paid_until > now()) then
+      select count(*) into inflight from public.c_relay where from_id = me and status in ('open', 'taken');
+      if not (now() < sb.trial_start + interval '1 day' and sb.trial_dl + inflight < 3) then
+        return json_build_object('status', 'pay');
+      end if;
+    end if;
   end if;
   if public.c__setting('random_dispatch', true) then tgt := public.c__pick_server(me, '{}'); end if;
   notified := exists (select 1 from public.c_relay where from_id = me and status in ('open', 'taken') and created_at > now() - interval '40 seconds' and target_id is null);
@@ -54,5 +105,25 @@ begin
     perform public.c__fcm(ids, 'relay');
   end if;
   perform public.c__ping_stale(me);
-  return json_build_object('status', 'ok', 'id', rid, 'helpers', n, 'state', v_state, 'trial_left', v_left);
+  return json_build_object('status', 'ok', 'id', rid, 'helpers', n);
+end $$;
+
+create or replace function public.c_relay_done(p_id bigint, p_media text, p_size bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int; v_from uuid;
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  if p_media is null or p_media !~ ('^' || auth.uid()::text || '/[0-9a-f]{32}\.(mp3|m4a|mp4)$') or coalesce(p_size, 0) < 0 or coalesce(p_size, 0) > 52428800 then
+    return json_build_object('status', 'bad_request');
+  end if;
+  update public.c_relay set status = 'done', media = p_media, size = p_size
+    where id = p_id and taker_id = auth.uid() and status = 'taken'
+    returning from_id into v_from;
+  get diagnostics k = row_count;
+  -- Téléchargement réussi : on décompte l'essai gratuit de celui qui l'a demandé (jamais en cas d'échec).
+  if k = 1 and v_from is not null then
+    update public.c_subs set trial_dl = least(trial_dl + 1, 3), updated_at = now()
+      where user_id = v_from and not (paid_until is not null and paid_until > now()) and now() < trial_start + interval '1 day';
+  end if;
+  return json_build_object('status', case when k = 1 then 'ok' else 'gone' end);
 end $$;

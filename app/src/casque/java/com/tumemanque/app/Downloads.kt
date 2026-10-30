@@ -314,6 +314,7 @@ object Dl {
             }
             edit(id) { it.copy(status = DlStatus.DONE, progress = 1f, phase = "Terminé", resultId = resultId, size = size) }
             runCatching { MediaSync.onDone(app, t0.video, t0.kind, resultId, size) }
+            scope.launch { Sub.done() } // l'essai gratuit n'est décompté que si le téléchargement a réussi
         } catch (e: YoutubeDL.CanceledException) {
             edit(id) { it.copy(status = DlStatus.CANCELED, phase = "Annulé") }
         } catch (e: Throwable) {
