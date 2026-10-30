@@ -17,12 +17,11 @@ BT=$(ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/* 2>"$LOG" 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 printf '%s' "$SIGN_KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > "$T/new.p12" 2>"$LOG" || fail "lecture de la clé (base64)"
 [ -s "$T/new.p12" ] || { echo "clé vide" > "$LOG"; fail "clé vide"; }
-printf '%s' "$SIGN_PASSWORD" > "$T/pw"
 "$BT/apksigner" rotate --out "$T/lineage" \
   --old-signer --ks app/debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
-  --new-signer --ks "$T/new.p12" --ks-pass "file:$T/pw" --ks-key-alias freetune --key-pass "file:$T/pw" >"$LOG" 2>&1 || fail "création de la lignée"
+  --new-signer --ks "$T/new.p12" --ks-pass env:SIGN_PASSWORD --ks-key-alias freetune --key-pass env:SIGN_PASSWORD >"$LOG" 2>&1 || fail "création de la lignée"
 for f in "$@"; do
-  "$BT/apksigner" sign --ks "$T/new.p12" --ks-pass "file:$T/pw" --ks-key-alias freetune --key-pass "file:$T/pw" \
+  "$BT/apksigner" sign --ks "$T/new.p12" --ks-pass env:SIGN_PASSWORD --ks-key-alias freetune --key-pass env:SIGN_PASSWORD \
     --lineage "$T/lineage" "$f" >"$LOG" 2>&1 || fail "signature de $f"
   echo "== $f"
   "$BT/apksigner" verify --verbose --print-certs "$f" >"$LOG" 2>&1 || fail "vérification de $f"
