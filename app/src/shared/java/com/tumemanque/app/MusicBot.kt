@@ -92,9 +92,12 @@ import java.io.File
 
 /** Une chanson proposée par le bot. */
 data class MbSong(val id: String, val title: String, val channel: String, val durationSec: Int, val views: Long) {
-    val url get() = "https://www.youtube.com/watch?v=$id"
+    /** Seuls les vrais identifiants YouTube (11 caractères sûrs) sont acceptés : rien d'autre n'atteint le moteur de téléchargement. */
+    val url: String get() { require(ID_OK.matches(id)) { "identifiant invalide" }; return "https://www.youtube.com/watch?v=$id" }
     val thumb get() = "https://i.ytimg.com/vi/$id/hqdefault.jpg"
 }
+
+private val ID_OK = Regex("^[A-Za-z0-9_-]{11}$")
 
 object MbEngine {
     private val lock = Mutex()
@@ -142,7 +145,7 @@ object MbEngine {
 
     suspend fun search(ctx: Context, q: String): List<MbSong> = withContext(Dispatchers.IO) {
         ensure(ctx)
-        val req = YoutubeDLRequest("ytsearch10:$q")
+        val req = YoutubeDLRequest("ytsearch10:" + q.filter { !it.isISOControl() }.take(120))
             .addOption("--flat-playlist").addOption("--dump-single-json")
             .addOption("--no-warnings").addOption("--socket-timeout", "15")
         val o = JSONObject(EngineHeal.exec(req, null, null).out)

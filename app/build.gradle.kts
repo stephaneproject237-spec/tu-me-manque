@@ -78,6 +78,7 @@ android {
     // Réduction du code (R8) et des ressources : APK plus léger, démarrage plus rapide.
     buildTypes {
         getByName("debug") {
+            isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
