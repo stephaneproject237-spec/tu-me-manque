@@ -1917,6 +1917,101 @@
     if (U.sec === "search") draw();
   }
   const dlFor = (o, f) => DL.find((d) => d.f === f && ((o.src === "yt" && d.yid === o.id) || (o.src !== "yt" && d.ti === o.ti && d.ch === o.ch)));
+
+  // =====================================================================
+  // Abonnement : essai gratuit (24 h, 3 téléchargements) puis 500 FCFA / 30 jours par Orange Money ou MTN MoMo.
+  // Le contrôle est fait par le serveur à chaque demande de téléchargement ; cet écran sert à payer.
+  // =====================================================================
+  const PW = { el: null, step: "form", msg: "", ref: null, url: "", ussd: "", until: null, retry: null, t: null };
+  const pwOp = (d) => /^6(7\d|5[0-4]|8[0-4])/.test(d) ? "MTN Mobile Money" : /^6(9\d|5[5-9]|8[5-9])/.test(d) ? "Orange Money" : "";
+  const pwDate = (t) => { try { return new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }); } catch (e) { return ""; } };
+  function pwCss() {
+    if (document.getElementById("pw-css")) return;
+    const st = document.createElement("style"); st.id = "pw-css";
+    st.textContent = "#pw{position:fixed;inset:0;z-index:100001;overflow:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(#0e1b38,#0b0d12 60%);color:#eef1f6;font-family:inherit;padding:calc(env(safe-area-inset-top) + 16px) 22px calc(env(safe-area-inset-bottom) + 24px)}" +
+      "#pw .x{display:block;margin-left:auto;width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:20px}" +
+      "#pw .lg{width:92px;height:92px;margin:6px auto 14px;border-radius:28px;display:flex;align-items:center;justify-content:center;font-size:46px;background:linear-gradient(135deg,#3a8dff,#1b4fb8 60%,#0a1838)}" +
+      "#pw h2{margin:0;text-align:center;font-size:27px}#pw .sub{margin:6px 0 16px;text-align:center;color:#aab2c0;font-size:15px}" +
+      "#pw .box{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:16px 18px;margin-bottom:16px}" +
+      "#pw .pr{font-size:38px;font-weight:800}#pw .pr small{font-size:15px;font-weight:500;color:#aab2c0}" +
+      "#pw li{list-style:none;margin:8px 0;font-size:14px;display:flex;gap:10px}#pw ul{margin:10px 0 0;padding:0}#pw li:before{content:'✓';color:#6fb1ff;font-weight:800}" +
+      "#pw label{font-size:13px;color:#aab2c0;display:block;margin-bottom:6px}" +
+      "#pw .ph{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.09);border-radius:18px;padding:0 16px;height:54px}" +
+      "#pw .ph span{color:#aab2c0;font-size:17px}#pw input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:inherit;font-size:18px;letter-spacing:1px}" +
+      "#pw .op{min-height:18px;margin:6px 0 0;font-size:12px;color:#6fb1ff}#pw .er{color:#ff8a80;font-size:13px;text-align:center;margin:0 0 10px}" +
+      "#pw .bt{display:block;width:100%;margin-top:14px;border:0;border-radius:999px;padding:15px;text-align:center;text-decoration:none;font:inherit;font-weight:700;font-size:16px;color:#fff;background:linear-gradient(135deg,#5ea0ff,#1f6fe0)}" +
+      "#pw .bt.o{background:none;border:1px solid rgba(255,255,255,.25)}#pw .bt[disabled]{opacity:.45}" +
+      "#pw .c{text-align:center}#pw .c p{margin:8px 0;color:#aab2c0;font-size:13px;line-height:1.45}#pw .c b{color:#eef1f6;font-size:17px}" +
+      "#pw .sp{width:34px;height:34px;margin:0 auto 10px;border:3px solid rgba(255,255,255,.2);border-top-color:#6fb1ff;border-radius:50%;animation:pwsp 1s linear infinite}@keyframes pwsp{to{transform:rotate(360deg)}}" +
+      "#pw .ft{text-align:center;font-size:12px;color:#aab2c0;margin-top:18px}#pw .ft a{color:#aab2c0}";
+    document.head.appendChild(st);
+  }
+  function pwDraw() {
+    const d = PW.el; if (!d) return;
+    const reason = d.dataset.r;
+    const sub = reason === "dl" ? "Tu as utilisé tes 3 téléchargements gratuits." : reason === "expired" ? "Ton abonnement est terminé." : "Continue à profiter de Free tune.";
+    let body = "";
+    if (PW.step === "form" || PW.step === "fail") {
+      const v = (d.querySelector("#pw-ph") || {}).value || "";
+      body = (PW.step === "fail" ? '<p class="er">' + esc(PW.msg) + "</p>" : "") +
+        '<label>Ton numéro Orange Money ou MTN MoMo</label><div class="ph"><span>+237</span><input id="pw-ph" type="tel" inputmode="numeric" maxlength="9" placeholder="6XX XX XX XX" value="' + esc(v) + '"></div>' +
+        '<div class="op" id="pw-op">' + esc(pwOp(v)) + '</div><button class="bt" id="pw-go">' + (v.length === 9 ? "Payer 500 FCFA" : "Entre ton numéro") + "</button>";
+    } else if (PW.step === "wait") {
+      body = '<div class="box c"><div class="sp"></div><b>Confirme le paiement sur ton téléphone</b><p>' +
+        (PW.url ? "Termine le paiement sur la page sécurisée (Orange Money ou MTN MoMo), puis reviens ici : ton abonnement s'activera tout seul." :
+          "Une demande de 500 FCFA arrive sur ton téléphone : valide-la avec ton code secret." + (PW.ussd ? "<br>Si rien n'apparaît, compose " + esc(PW.ussd) + "." : "")) + "</p>" +
+        (PW.url ? '<a class="bt o" href="' + esc(PW.url) + '" target="_blank" rel="noopener">Ouvrir la page de paiement</a>' : "") + "</div>";
+    } else if (PW.step === "ok") {
+      body = '<div class="box c"><div style="font-size:42px">✅</div><b>Merci ! Ton abonnement est actif</b><p>jusqu\'au ' + esc(pwDate(PW.until)) + '</p><button class="bt" id="pw-done">Continuer</button></div>';
+    }
+    d.innerHTML = '<button class="x" id="pw-x" aria-label="Fermer">✕</button><div class="lg">🎧</div><h2>Free tune Premium</h2><p class="sub">' + sub + "</p>" +
+      '<div class="box"><div class="pr">500<small> FCFA / mois</small></div><ul><li>Téléchargements illimités, en audio et en vidéo</li><li>Lecture hors connexion, playlists</li><li>Valable 30 jours sur ton compte (Android et iPhone)</li><li>Sans renouvellement automatique : tu paies quand tu veux</li></ul></div>' +
+      body + '<div class="ft">Paiement sécurisé par Mobile Money. <a href="https://stephaneproject237-spec.github.io/tu-me-manque/legal/conditions.html" target="_blank" rel="noopener">Conditions générales</a></div>';
+    const x = d.querySelector("#pw-x"); if (x) x.onclick = closePaywall;
+    const ph = d.querySelector("#pw-ph");
+    if (ph) {
+      ph.oninput = () => { ph.value = ph.value.replace(/\D/g, "").slice(0, 9); d.querySelector("#pw-op").textContent = pwOp(ph.value); d.querySelector("#pw-go").textContent = ph.value.length === 9 ? "Payer 500 FCFA" : "Entre ton numéro"; };
+      d.querySelector("#pw-go").onclick = () => payGo(ph.value);
+    }
+    const dn = d.querySelector("#pw-done"); if (dn) dn.onclick = () => { const r = PW.retry; closePaywall(); if (r) r(); };
+  }
+  function closePaywall() { clearTimeout(PW.t); PW.ref = null; if (PW.el) { PW.el.remove(); PW.el = null; } }
+  function openPaywall(reason, retry) {
+    pwCss(); closePaywall();
+    PW.step = "form"; PW.msg = ""; PW.url = ""; PW.ussd = ""; PW.retry = retry || null;
+    const d = document.createElement("div"); d.id = "pw"; d.dataset.r = reason || "dl";
+    document.body.appendChild(d); PW.el = d; pwDraw();
+  }
+  async function payGo(phone) {
+    const A = API();
+    if (phone.length !== 9 || phone[0] !== "6") { PW.step = "fail"; PW.msg = "Numéro invalide : 9 chiffres, commençant par 6."; pwDraw(); return; }
+    PW.step = "wait"; PW.url = ""; PW.ussd = ""; pwDraw();
+    let j = null;
+    try { j = await A.authed("POST", "/functions/v1/abonnement", { action: "pay", phone }); } catch (e) { j = null; }
+    if (!PW.el) return;
+    if (j && j.status === "pending" && j.reference) {
+      PW.ref = j.reference; PW.url = j.pay_url || ""; PW.ussd = j.ussd_code || ""; pwDraw();
+      if (PW.url) { try { window.open(PW.url, "_blank"); } catch (e) { /* le bouton « Ouvrir la page de paiement » reste disponible */ } }
+      pwPoll(0);
+    } else if (j && j.status === "bad_phone") { PW.step = "fail"; PW.msg = "Numéro invalide : 9 chiffres, commençant par 6."; pwDraw(); }
+    else { PW.step = "fail"; PW.msg = "Paiement impossible pour le moment. " + String((j && j.message) || "").slice(0, 120); pwDraw(); }
+  }
+  async function pwPoll(n) {
+    clearTimeout(PW.t);
+    const ref = PW.ref; if (!ref || !PW.el) return;
+    if (n >= 150) { PW.step = "fail"; PW.msg = "Pas de confirmation reçue. Si tu as été débité, ton abonnement s'activera dans quelques minutes."; PW.ref = null; pwDraw(); return; }
+    let j = null;
+    try { j = await API().authed("POST", "/functions/v1/abonnement", { action: "check", reference: ref }); } catch (e) { j = null; }
+    if (!PW.el || PW.ref !== ref) return;
+    if (j && j.status === "successful") {
+      let until = j.paid_until || null;
+      try { const st = await API().authed("POST", "/rest/v1/rpc/sub_status", {}); if (st && st.paid_until) until = st.paid_until; } catch (e) { /* ignoré */ }
+      PW.until = until; PW.step = "ok"; PW.ref = null; pwDraw(); return;
+    }
+    if (j && j.status === "failed") { PW.step = "fail"; PW.msg = "Le paiement a été refusé ou annulé. Vérifie ton solde et réessaie."; PW.ref = null; pwDraw(); return; }
+    PW.t = setTimeout(() => pwPoll(n + 1), 4000);
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && PW.ref) pwPoll(0); });
   async function sendDl(o, f) {
     const A = API();
     if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connexion en cours, réessaie dans un instant."); return; }
@@ -1928,12 +2023,18 @@
     try {
       rel = await A.authed("POST", "/rest/v1/rpc/relay_create", { p_yid: o.src === "yt" ? o.id : "", p_q: o.src === "yt" ? "" : String(o.q || o.ti).slice(0, 120), p_ti: String(o.ti).slice(0, 120), p_ch: String(o.ch || "").slice(0, 60), p_d: o.d || 0, p_art: String(o.th || "").slice(0, 300), p_fmt: f });
     } catch (e) { rel = null; }
+    if (rel && rel.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
     if (rel && rel.status === "ok") {
+      if (rel.state === "trial") toast(Number(rel.trial_left) > 0 ? "Essai gratuit : encore " + rel.trial_left + " téléchargement(s)" : "C'était ton dernier téléchargement gratuit");
       DL.unshift({ mid: rel.id, app: "rel", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: rel.helpers || 0, at: Date.now(), st: "sent", p: 0 });
       saveDl(); draw(); pollSoon(2500);
       return;
     }
-    // 2) Sinon : le partenaire Android de « Tu me manques ».
+    // 2) Sinon : le partenaire Android de « Tu me manques » (même abonnement : on compte l'essai ici).
+    try {
+      const ud = await A.authed("POST", "/rest/v1/rpc/use_download", {});
+      if (ud && ud.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
+    } catch (e) { /* serveur pas prêt : on ne bloque pas */ }
     if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Ajoute d'abord un ami qui a Free tune sur Android."); draw(); return; } }
     const body = "📥 @music : peux-tu télécharger " + (isV(f) ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Free tune ? Ouvre cette conversation sur ton Android.";
     const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
