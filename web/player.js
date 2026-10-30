@@ -958,12 +958,20 @@
   }
   function dlRelease() { if (!DLP.internal) DLP.active = false; }
   // Suivant / précédent existent pour une vidéo YouTube, ou un fichier lancé depuis Téléchargements.
-  const canStep = () => !!V.key && (!!V.yid || DLP.active);
-  function vNext() { if (V.yid) nextRelated(true); else if (DLP.active) dlStep(1); }
+  // File des vidéos de l'écran Vidéos (même ordre que la grille) pour les boutons précédent / suivant.
+  const VL = { on: false };
+  const vlList = () => L.tracks.filter((t) => t.video).sort((a, b) => b.added - a.added);
+  function vlStep(d) {
+    const l = vlList(), i = l.findIndex((t) => "file:" + t.id === V.key), n = i + d;
+    if (i < 0 || n < 0 || n >= l.length) { if (d < 0 && V.el) V.el.currentTime = 0; return; }
+    const wasFull = V.full; playFile(l[n], { vl: true }); V.full = wasFull; placeVideo();
+  }
+  const canStep = () => !!V.key && (!!V.yid || DLP.active || VL.on);
+  function vNext() { if (V.yid) nextRelated(true); else if (VL.on) vlStep(1); else if (DLP.active) dlStep(1); }
   function vPrev() {
     const e = bgOn ? bgA : V.el;
     if (e && e.currentTime > 3) { e.currentTime = 0; return; }
-    if (!V.yid) { if (DLP.active) dlStep(-1); else if (e) e.currentTime = 0; return; }
+    if (!V.yid) { if (VL.on) vlStep(-1); else if (DLP.active) dlStep(-1); else if (e) e.currentTime = 0; return; }
     const p = V.hist.pop();
     if (!p) { if (e) e.currentTime = 0; return; }
     V.back = true; const wasFull = V.full;
@@ -1053,6 +1061,7 @@
     if (st === 0 && V.auto) nextRelated(false);
   });
   function playFile(t, o) {
+    VL.on = !!(o && o.vl);
     if (!(o && o.dl)) dlRelease();
     stopVideo();
     audio.pause();
@@ -1088,7 +1097,7 @@
     v.addEventListener("play", () => { lastPlay = Date.now(); audio.pause(); upd(); bgPrime(); videoSession(); });
     v.addEventListener("pause", () => { upd(); if (document.hidden && V.key) toBackground(true); });
     v.addEventListener("timeupdate", () => { if (!v.paused) lastPlay = Date.now(); });
-    v.addEventListener("ended", () => { wakeOff(); if (V.yid) { if (V.auto) nextRelated(false); } else if (DLP.active) dlStep(1); });
+    v.addEventListener("ended", () => { wakeOff(); if (V.yid) { if (V.auto) nextRelated(false); } else if (VL.on) vlStep(1); else if (DLP.active) dlStep(1); });
     v.addEventListener("playing", wakeOn);
     v.addEventListener("pause", wakeOff);
   }
@@ -1179,8 +1188,7 @@
       return;
     }
     // Plus de bulle dans l'appli : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
-    // iPhone : une vidéo cachée hors écran peut être coupée par iOS. On bascule alors en « son seul » (comme en arrière-plan) pour que le son ne s'arrête jamais.
-    if (!V.bub) { vbox.classList.add("gone"); if (V.el && !V.el.paused && !vbox.classList.contains("ifr")) toBackground(false, true); return; }
+    if (!V.bub) { vbox.classList.add("gone"); return; }
     back();
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
@@ -2255,8 +2263,8 @@
         draw();
         if (id === "dl") pollSoon(300);
         return true;
-      case "vrow": { const t = byId(id); if (t) playFile(t); return true; }
-      case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) playFile(t); return true; }
+      case "vrow": { const t = byId(id); if (t) playFile(t, { vl: true }); return true; }
+      case "m_vplay": { const t = byId(id); U.sheet = null; draw(); if (t) playFile(t, { vl: true }); return true; }
       case "m_share": shareTrack(id); return true;
       case "dlopen": {
         const t = byId(id); U.sheet = null; if (!t) { draw(); return true; }
