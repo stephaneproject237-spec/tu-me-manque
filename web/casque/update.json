@@ -1,7 +1,7 @@
 {
  "version": "web 2.48",
- "notes": "Free tune envoie sa version à l'administration ; améliorations et corrections.",
- "versionCode": 144,
- "versionName": "1.144",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-144/casque.apk"
+ "notes": "Abonnement : un téléchargement ne compte que s'il est terminé ; écran de paiement bloquant tant que l'abonnement n'est pas actif.",
+ "versionCode": 147,
+ "versionName": "1.147",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-147/casque.apk"
 }
