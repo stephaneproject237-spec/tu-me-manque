@@ -410,6 +410,8 @@
     repeat1: sv('<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/>'),
     gear: sv('<path d="M19.4 13a7.7 7.7 0 000-2l2.1-1.6a.5.5 0 00.1-.6l-2-3.5a.5.5 0 00-.6-.2l-2.5 1a7.3 7.3 0 00-1.7-1l-.4-2.6a.5.5 0 00-.5-.4h-4a.5.5 0 00-.5.4l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.5-1a.5.5 0 00-.6.2l-2 3.5a.5.5 0 00.1.6L4.6 11a7.7 7.7 0 000 2l-2.1 1.6a.5.5 0 00-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.2.4.5.4h4c.3 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 00-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/>'),
     plus: sv('<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/>'),
+    sort: sv('<path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>'),
+    chev: sv('<path d="M10 6L8.6 7.4 13.2 12l-4.6 4.6L10 18l6-6z"/>'),
     search: sv('<path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 109.5 16a6.5 6.5 0 004.2-1.6l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/>'),
     more: sv('<path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/>'),
     star: sv('<path d="M12 17.3l6.2 3.7-1.6-7L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.5 4.8-1.6 7z"/>'),
@@ -431,18 +433,23 @@
   // ---------- Affichage ----------
   const visibleTracks = () => {
     let l = AUD();
-    if (U.detail) {
-      if (U.detail.kind === "album") l = l.filter((t) => t.album === U.detail.id);
-      else if (U.detail.kind === "folder") l = l.filter((t) => t.folder === U.detail.id);
-      else if (U.detail.kind === "playlist") { const p = L.playlists.find((x) => x.id === U.detail.id); l = p ? p.ids.map(byId).filter(Boolean) : []; }
-    } else if (U.tab === "favoris") l = l.filter((t) => L.favs.has(t.id));
+    const d = U.detail;
+    const byT = (x, y) => x.title.localeCompare(y.title, "fr");
+    if (d) {
+      if (d.kind === "album") l = l.filter((t) => t.album === d.id).sort(byT);
+      else if (d.kind === "artist") l = l.filter((t) => t.artist === d.id).sort((x, y) => x.album.localeCompare(y.album, "fr") || byT(x, y));
+      else if (d.kind === "folder") l = l.filter((t) => t.folder === d.id).sort(byT);
+      else if (d.kind === "fav") l = [...L.favs].map(byId).filter((t) => t && !t.video);
+      else if (d.kind === "recent") l = l.slice().sort((x, y) => y.added - x.added).slice(0, 50);
+      else if (d.kind === "playlist") { const p = L.playlists.find((x) => x.id === d.id); l = p ? p.ids.map(byId).filter(Boolean) : []; }
+      return l;
+    }
     const q = U.q.trim().toLowerCase();
     if (q) l = l.filter((t) => (t.title + " " + t.artist + " " + t.album).toLowerCase().indexOf(q) >= 0);
-    if (!(U.detail && U.detail.kind === "playlist")) {
-      const k = U.sort;
-      l.sort((a, b) => k === "artiste" ? a.artist.localeCompare(b.artist, "fr") || a.title.localeCompare(b.title, "fr")
-        : k === "recent" ? b.added - a.added : k === "duree" ? b.dur - a.dur : a.title.localeCompare(b.title, "fr"));
-    }
+    const k = U.sort;
+    l = l.slice().sort((a, b) => k === "artiste" ? a.artist.localeCompare(b.artist, "fr") || a.album.localeCompare(b.album, "fr") || byT(a, b)
+      : k === "album" ? a.album.localeCompare(b.album, "fr") || byT(a, b)
+      : k === "recent" ? b.added - a.added : k === "duree" ? b.dur - a.dur : byT(a, b));
     return l;
   };
   function cover(t, cls) {
@@ -459,59 +466,85 @@
       (U.sel ? "" : '<button class="ib" data-a="menu" data-id="' + t.id + '" aria-label="Options">' + I.more + "</button>") + "</div>";
   }
   function emptyLib() {
-    return '<div class="empty"><div class="eh">' + I.head + "</div><h3>Ta bibliothèque est vide</h3>" +
+    return '<div class="es"><div class="esi hero">' + I.head + "</div><h3>Ta musique, partout</h3>" +
       "<p>Ajoute les fichiers audio (MP3, M4A, WAV…) de ton téléphone pour les écouter ici, avec playlists et lecture en arrière-plan.</p>" +
       '<button class="bt" data-a="pick">' + I.plus + " Ajouter des fichiers</button>" +
-      (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out" data-a="pickdir">' + I.folder + " Choisir un dossier</button>") + "</div>";
+      (/iPhone|iPad/.test(navigator.userAgent) ? "" : '<button class="bt out" data-a="pickdir">' + I.folder + " Choisir un dossier source</button>") + "</div>";
   }
   function libView() {
-    const tabs = ["titres", "albums", "dossiers", "playlists", "favoris"];
-    const names = { titres: "Titres", albums: "Albums", dossiers: "Dossiers", playlists: "Playlists", favoris: "Favoris" };
+    const tabs = ["titres", "albums", "artistes", "playlists", "dossiers"];
+    const names = { titres: "Titres", albums: "Albums", artistes: "Artistes", playlists: "Playlists", dossiers: "Dossiers" };
+    if (tabs.indexOf(U.tab) < 0) U.tab = "playlists";
+    const SORTS = { titre: "Titre (A → Z)", artiste: "Artiste", album: "Album", recent: "Ajoutés récemment", duree: "Durée" };
+    const pl = (n) => n + " morceau(x)";
+    const act = (b1, b2) => '<div class="act2">' + b1 + b2 + "</div>";
+    const btn = (a, ic, label, out) => '<button class="bt' + (out ? " out" : "") + '" data-a="' + a + '">' + ic + " " + label + "</button>";
+    const chev = '<span class="chv">' + I.chev + "</span>";
+    const prow = (attrs, icon, name, sub, cls) => '<div class="pr' + (cls || "") + '" ' + attrs + '><div class="pi">' + icon + '</div><div class="tm"><b>' + esc(name) + "</b><small>" + esc(sub) + "</small></div>" + chev + "</div>";
+    const q = U.q.trim();
     let body = "";
-    if (U.detail) {
+    const d = U.detail;
+    if (!AUD().length && !d) {
+      body = emptyLib();
+    } else if (d) {
       const l = visibleTracks();
-      const p = U.detail.kind === "playlist" ? L.playlists.find((x) => x.id === U.detail.id) : null;
-      const title = p ? p.name : U.detail.id;
-      const tot = l.reduce((s, t) => s + t.dur, 0);
-      body = '<div class="dh"><button class="ib" data-a="detailback">' + I.back + "</button><div><h2>" + esc(title) + "</h2><small>" + l.length + " titre" + (l.length > 1 ? "s" : "") + " · " + fmtTotal(tot) + "</small></div>" +
-        (p ? '<button class="ib" data-a="plmenu" data-id="' + p.id + '">' + I.more + "</button>" : "") + "</div>" +
-        '<div class="act"><button class="bt" data-a="playall">' + I.play + ' Lire</button><button class="bt out" data-a="shuffleall">' + I.shuffle + ' Aléatoire</button></div>' +
-        (l.length ? l.map((t, i) => row(t, l, i)).join("") : '<p class="note">Aucun titre ici.</p>');
+      const tot = l.reduce((s2, t) => s2 + t.dur, 0);
+      const p = d.kind === "playlist" ? L.playlists.find((x) => x.id === d.id) : null;
+      body = '<div class="dhd"><div class="dcv">' + cover(l[0], "xl") + '</div><div class="dhi"><b>' + pl(l.length) + "</b><small>" + fmtTotal(tot) + "</small></div></div>" +
+        act(btn("playall", I.play, "Lecture"), btn("shuffleall", I.shuffle, "Aléatoire", true)) +
+        (p ? '<div class="act2"><button class="bt out" data-a="plren" data-id="' + p.id + '">Renommer</button><button class="bt out" data-a="pldel" data-id="' + p.id + '">Supprimer</button></div>' : "") +
+        (l.length ? l.map((t, i) => row(t, l, i)).join("") : '<p class="note c">Rien ici pour l\'instant</p>');
+    } else if (q) {
+      const l = visibleTracks();
+      body = l.length ? l.map((t, i) => row(t, l, i)).join("") : '<p class="note c">Aucun résultat pour « ' + esc(q) + " »</p>";
     } else if (U.tab === "albums") {
       const m = new Map();
       AUD().forEach((t) => { if (!m.has(t.album)) m.set(t.album, []); m.get(t.album).push(t); });
-      const q = U.q.trim().toLowerCase();
-      const albums = [...m.entries()].filter(([a, l]) => !q || (a + " " + l.map((t) => t.artist).join(" ")).toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
-      body = albums.length ? '<div class="cgrid">' + albums.map(([a, l]) => '<div class="al" data-a="album" data-id="' + esc(a) + '">' + cover(l[0], "big") + "<b>" + esc(a) + "</b><small>" + esc(l[0].artist) + " · " + l.length + "</small></div>").join("") + "</div>" : AUD().length ? '<p class="note">Aucun résultat.</p>' : emptyLib();
+      const albums = [...m.entries()].sort((x, y) => x[0].toLowerCase().localeCompare(y[0].toLowerCase(), "fr"));
+      body = albums.length ? '<div class="cgrid">' + albums.map(([a, l]) => '<div class="al" data-a="album" data-id="' + esc(a) + '">' + cover(l[0], "big") + "<b>" + esc(a) + "</b><small>" + esc(l[0].artist) + " · " + l.length + "</small></div>").join("") + "</div>"
+        : '<p class="note c">Aucun album</p>';
+    } else if (U.tab === "artistes") {
+      const m = new Map();
+      AUD().forEach((t) => { if (!m.has(t.artist)) m.set(t.artist, []); m.get(t.artist).push(t); });
+      const arts = [...m.entries()].sort((x, y) => x[0].toLowerCase().localeCompare(y[0].toLowerCase(), "fr"));
+      body = arts.length ? arts.map(([a, l]) => '<div class="pr" data-a="artist" data-id="' + esc(a) + '"><div class="pi round">' + esc(String(a).slice(0, 1).toUpperCase()) + '</div><div class="tm"><b>' + esc(a) + "</b><small>" + pl(l.length) + " · " + new Set(l.map((t) => t.album)).size + " album(s)</small></div>" + chev + "</div>").join("")
+        : '<p class="note c">Aucun artiste</p>';
+    } else if (U.tab === "playlists") {
+      const favN = [...L.favs].filter((id) => { const t = byId(id); return t && !t.video; }).length;
+      body = '<div class="pr" data-a="newpl"><div class="pi blue">' + I.plus + '</div><div class="tm"><b class="acc">Nouvelle playlist</b></div></div>' +
+        prow('data-a="favs"', I.star, "Favoris", pl(favN)) +
+        prow('data-a="recent"', I2.refresh, "Ajoutés récemment", "Les 50 derniers morceaux") +
+        L.playlists.map((p) => prow('data-a="playlist" data-id="' + p.id + '"', I.list, p.name, pl(p.ids.length))).join("");
     } else if (U.tab === "dossiers") {
       const m = new Map();
       AUD().forEach((t) => { if (!m.has(t.folder)) m.set(t.folder, []); m.get(t.folder).push(t); });
-      const q = U.q.trim().toLowerCase();
-      const dirs = [...m.entries()].filter(([f]) => !q || f.toLowerCase().indexOf(q) >= 0).sort((x, y) => x[0].localeCompare(y[0], "fr"));
-      body = dirs.length ? dirs.map(([f, l]) => {
-        const sel = U.selDirs && U.selDirs.has(f);
-        return '<div class="tr' + (sel ? " sel" : "") + '" data-a="folder" data-id="' + esc(f) + '"><div class="cvw"><div class="cv ph h1">' + (sel ? I.check : I.folder) + '</div></div><div class="tm"><b>' + esc(f) + "</b><small>" + l.length + " titre" + (l.length > 1 ? "s" : "") + " · " + fmtTotal(l.reduce((s2, t) => s2 + t.dur, 0)) + "</small></div></div>";
-      }).join("") : AUD().length ? '<p class="note">Aucun dossier.</p>' : emptyLib();
-    } else if (U.tab === "playlists") {
-      body = '<button class="bt out wide" data-a="newpl">' + I.plus + " Nouvelle playlist</button>" +
-        (L.playlists.length ? L.playlists.map((p) => {
-          const t0 = byId(p.ids[0]);
-          return '<div class="tr" data-a="playlist" data-id="' + p.id + '"><div class="cvw">' + cover(t0) + '</div><div class="tm"><b>' + esc(p.name) + "</b><small>" + p.ids.length + " titre" + (p.ids.length > 1 ? "s" : "") + "</small></div>" +
-            '<button class="ib" data-a="plmenu" data-id="' + p.id + '">' + I.more + "</button></div>";
-        }).join("") : '<p class="note">Crée une playlist, puis ajoute-y des titres avec le menu ⋮ d\'un morceau.</p>');
+      const dirs = [...m.entries()].sort((x, y) => x[0].toLowerCase().localeCompare(y[0].toLowerCase(), "fr"));
+      body = '<div class="act2"><button class="bt out" data-a="pick">' + I2.dl + " Importer des fichiers</button></div>" +
+        '<p class="sec2">TOUS LES DOSSIERS</p>' +
+        (dirs.length ? dirs.map(([f, l]) => {
+          const sel = U.selDirs && U.selDirs.has(f);
+          return '<div class="pr' + (sel ? " sel" : "") + '" data-a="folder" data-id="' + esc(f) + '"><div class="pi' + (sel ? " blue" : "") + '">' + (sel ? I.check : I.folder) + '</div><div class="tm"><b>' + esc(String(f).split("/").pop()) + "</b><small>" + pl(l.length) + " · " + esc(f) + "</small></div>" + (U.selDirs ? "" : chev) + "</div>";
+        }).join("") : '<p class="note">Aucun dossier pour l\'instant</p>');
     } else {
       const l = visibleTracks();
-      body = l.length ? '<div class="act"><button class="bt" data-a="playall">' + I.play + " Lire</button><button class=\"bt out\" data-a=\"shuffleall\">" + I.shuffle + " Aléatoire</button>" +
-        '<button class="bt out sm" data-a="sort">' + esc({ titre: "A–Z", artiste: "Artiste", recent: "Récents", duree: "Durée" }[U.sort]) + "</button></div>" + l.map((t, i) => row(t, l, i)).join("")
-        : AUD().length ? '<p class="note">' + (U.tab === "favoris" ? "Aucun favori pour l'instant." : "Aucun résultat.") + "</p>" : emptyLib();
+      const tot = AUD().reduce((s2, t) => s2 + t.dur, 0);
+      body = act(btn("shuffleall", I.shuffle, "Aléatoire"), btn("playall", I.play, "Tout lire", true)) +
+        '<div class="srow"><span>' + AUD().length + " morceaux · " + fmtTotal(tot) + '</span><button class="sortb" data-a="sort">' + I.sort + " " + esc(SORTS[U.sort] || SORTS.titre) + "</button></div>" +
+        l.map((t, i) => row(t, l, i)).join("");
     }
-    const tot = AUD().reduce((s, t) => s + t.dur, 0);
-    return '<header class="top">' + (U.selDirs ? '<button class="ib" data-a="dircancel">' + I.close + "</button><h1>" + U.selDirs.size + " dossier" + (U.selDirs.size > 1 ? "s" : "") + '</h1><button class="ib" data-a="dirdel">' + I.trash + "</button>" : U.sel ? '<button class="ib" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
-      '<button class="ib" data-a="selplay">' + I.play + '</button><button class="ib" data-a="seladd">' + I.list + '</button><button class="ib" data-a="seldel">' + I.trash + "</button>"
-      : '<div class="logo">' + I.head + "</div><h1>Free tune</h1><button class=\"ib\" data-a=\"pick\" aria-label=\"Ajouter\">" + I.plus + '</button><button class="ib" data-a="settings" aria-label="Paramètres">' + I.gear + "</button>") + "</header>" +
-      (U.detail ? "" : '<div class="sr"><span>' + I.search + '</span><input id="q" type="search" placeholder="Rechercher un titre, un artiste…" value="' + esc(U.q) + '" autocomplete="off" autocapitalize="none"></div>' +
-        '<nav class="tabs">' + tabs.map((t) => '<button class="' + (U.tab === t ? "on" : "") + '" data-a="tab" data-id="' + t + '">' + names[t] + "</button>").join("") + "</nav>" +
-        (AUD().length && U.tab === "titres" ? '<p class="sum">' + AUD().length + " titre" + (AUD().length > 1 ? "s" : "") + " · " + fmtTotal(tot) + "</p>" : "")) +
+    let head;
+    if (U.selDirs) head = '<header class="top"><button class="ib gl" data-a="dircancel">' + I.close + "</button><h1>" + U.selDirs.size + " dossier" + (U.selDirs.size > 1 ? "s" : "") + '</h1><button class="ib gl del" data-a="dirdel">' + I.trash + "</button></header>";
+    else if (U.sel) head = '<header class="top"><button class="ib gl" data-a="selcancel">' + I.close + "</button><h1>" + U.sel.size + " sélectionné" + (U.sel.size > 1 ? "s" : "") + "</h1>" +
+      '<button class="ib gl" data-a="selplay">' + I.play + '</button><button class="ib gl" data-a="seladd">' + I.list + '</button><button class="ib gl del" data-a="seldel">' + I.trash + "</button></header>";
+    else if (d) {
+      const p = d.kind === "playlist" ? L.playlists.find((x) => x.id === d.id) : null;
+      const title = p ? p.name : d.kind === "fav" ? "Favoris" : d.kind === "recent" ? "Ajoutés récemment" : d.kind === "folder" ? String(d.id).split("/").pop() : d.id;
+      head = '<header class="top"><button class="ib gl" data-a="detailback" aria-label="Retour">' + I.back + '</button><h1 class="dt">' + esc(title) + "</h1></header>";
+    } else head = big("Audios", '<button class="ib gl' + (U.searching ? " on" : "") + '" data-a="tsearch" aria-label="Rechercher">' + I.search + '</button><button class="ib gl" data-a="pick" aria-label="Ajouter des fichiers">' + I.plus + "</button>" + gear);
+    const showTabs = !d && !U.sel && !U.selDirs;
+    return head +
+      (showTabs && U.searching ? '<div class="sr"><input id="q" type="search" placeholder="Chercher dans tes audios…" value="' + esc(U.q) + '" autocomplete="off" autocapitalize="none"></div>' : "") +
+      (showTabs ? '<nav class="tabs">' + tabs.map((t) => '<button class="' + (U.tab === t && !q ? "on" : "") + '" data-a="tab" data-id="' + t + '">' + names[t] + "</button>").join("") + "</nav>" : "") +
       '<main class="list">' + body + "</main>";
   }
   function miniView() {
@@ -563,12 +596,12 @@
       h = "<h3>Ajouter à une playlist</h3>" + L.playlists.map((p) => '<button class="sh" data-a="addto" data-id="' + p.id + '">' + esc(p.name) + "<small>" + p.ids.length + "</small></button>").join("") + '<button class="sh acc" data-a="newplAdd">' + I.plus + " Nouvelle playlist</button>";
     } else if (s.kind === "menu") {
       const t = byId(s.id); if (!t) return "";
-      h = "<h3>" + esc(t.title) + "</h3>" + [...(t.video ? [["vplay", "Regarder la vidéo"]] : []), ["next", "Lire ensuite"], ["queue1", "Ajouter à la file d'attente"], ["addpl", "Ajouter à une playlist…"], ["fav", L.favs.has(t.id) ? "Retirer des favoris" : "Ajouter aux favoris"], ...(s.pl ? [["rmpl", "Retirer de cette playlist"]] : []), ["share", "Partager / Enregistrer dans Fichiers…"], ["info", "Informations"], ["del", "Supprimer de la bibliothèque"]]
+      h = "<h3>" + esc(t.title) + "</h3>" + [...(t.video ? [["vplay", "Regarder la vidéo"]] : []), ["next", "Lire ensuite"], ["queue1", "Ajouter à la file d'attente"], ["addpl", "Ajouter à une playlist…"], ["fav", L.favs.has(t.id) ? "Retirer des favoris" : "Ajouter aux favoris"], ...(s.pl ? [["rmpl", "Retirer de la playlist"], ["up", "Monter"], ["down", "Descendre"]] : []), ["share", "Partager / Enregistrer dans Fichiers…"], ["info", "Informations"], ["del", "Supprimer de la bibliothèque"]]
         .map(([a, l]) => '<button class="sh' + (a === "del" ? " red" : "") + '" data-a="m_' + a + '" data-id="' + t.id + '">' + l + "</button>").join("");
     } else if (s.kind === "plmenu") {
       h = "<h3>Playlist</h3>" + [["plplay", "Lire"], ["plren", "Renommer"], ["pldel", "Supprimer"]].map(([a, l]) => '<button class="sh' + (a === "pldel" ? " red" : "") + '" data-a="' + a + '" data-id="' + s.id + '">' + l + "</button>").join("");
     } else if (s.kind === "sort") {
-      h = "<h3>Trier par</h3>" + [["titre", "Titre (A–Z)"], ["artiste", "Artiste"], ["recent", "Ajoutés récemment"], ["duree", "Durée"]].map(([k, l]) => '<button class="sh' + (U.sort === k ? " acc" : "") + '" data-a="setsort" data-id="' + k + '">' + l + "</button>").join("");
+      h = "<h3>Trier par</h3>" + [["titre", "Titre (A → Z)"], ["artiste", "Artiste"], ["album", "Album"], ["recent", "Ajoutés récemment"], ["duree", "Durée"]].map(([k, l]) => '<button class="sh' + (U.sort === k ? " acc" : "") + '" data-a="setsort" data-id="' + k + '">' + l + "</button>").join("");
     } else if (s.kind === "speed") {
       h = "<h3>Vitesse de lecture</h3>" + [0.75, 1, 1.25, 1.5, 2].map((k) => '<button class="sh' + (Q.speed === k ? " acc" : "") + '" data-a="setspeed" data-id="' + k + '">' + k + "×</button>").join("");
     } else if (s.kind === "sleep") {
@@ -714,6 +747,16 @@
         break;
       }
       case "album": U.detail = { kind: "album", id }; draw(); break;
+      case "artist": U.detail = { kind: "artist", id }; draw(); break;
+      case "favs": U.detail = { kind: "fav", id: "fav" }; draw(); break;
+      case "recent": U.detail = { kind: "recent", id: "recent" }; draw(); break;
+      case "tsearch": {
+        U.searching = !U.searching;
+        if (!U.searching) U.q = ""; else U.tab = "titres";
+        drawNow();
+        if (U.searching) { const qi = host.querySelector("#q"); if (qi) qi.focus(); }
+        break;
+      }
       case "folder": {
         if (U.selDirs) { if (U.selDirs.has(id)) U.selDirs.delete(id); else U.selDirs.add(id); if (!U.selDirs.size) U.selDirs = null; draw(); }
         else { U.detail = { kind: "folder", id }; draw(); }
@@ -754,6 +797,7 @@
       case "m_queue1": enqueue([id], false); U.sheet = null; draw(); break;
       case "m_addpl": case "addpl": sheet({ kind: "addpl", ids: [id] }); break;
       case "m_fav": if (L.favs.has(id)) L.favs.delete(id); else L.favs.add(id); saveFav(); U.sheet = null; draw(); break;
+      case "m_up": case "m_down": { const p = L.playlists.find((x) => x.id === U.sheet.pl); if (p) { const i = p.ids.indexOf(id), j = a === "m_up" ? i - 1 : i + 1; if (i >= 0 && j >= 0 && j < p.ids.length) { const x = p.ids[i]; p.ids[i] = p.ids[j]; p.ids[j] = x; savePl(); } } U.sheet = null; draw(); break; }
       case "m_rmpl": { const p = L.playlists.find((x) => x.id === U.sheet.pl); if (p) { p.ids = p.ids.filter((x) => x !== id); savePl(); } U.sheet = null; draw(); break; }
       case "m_info": sheet({ kind: "info", id }); break;
       case "m_del": pending = () => removeTracks([id]).then(() => { U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer ce titre ?", text: "Il sera retiré de la bibliothèque Free tune (le fichier d'origine reste sur ton téléphone).", ok: "Supprimer" }); break;
