@@ -16,6 +16,10 @@ android {
         versionName = "1.$build"
     }
 
+    buildTypes {
+        getByName("debug") { isDebuggable = false }
+    }
+
     signingConfigs {
         getByName("debug") {
             storeFile = file("../app/debug.keystore")
