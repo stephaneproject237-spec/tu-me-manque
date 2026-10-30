@@ -1,7 +1,7 @@
 {
- "version": "web 2.48",
- "notes": "Abonnement : un téléchargement ne compte que s'il est terminé ; écran de paiement bloquant tant que l'abonnement n'est pas actif.",
- "versionCode": 147,
- "versionName": "1.147",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-147/casque.apk"
+ "version": "web 2.49",
+ "notes": "Fenêtre de paiement non fermable ; améliorations de l'abonnement.",
+ "versionCode": 149,
+ "versionName": "1.149",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-149/casque.apk"
 }
