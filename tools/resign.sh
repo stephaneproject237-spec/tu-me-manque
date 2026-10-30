@@ -21,7 +21,9 @@ printf '%s' "$SIGN_KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > "$T/new.p12" 2>"$
   --old-signer --ks app/debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
   --new-signer --ks "$T/new.p12" --ks-pass env:SIGN_PASSWORD --ks-key-alias freetune --key-pass env:SIGN_PASSWORD >"$LOG" 2>&1 || fail "création de la lignée"
 for f in "$@"; do
-  "$BT/apksigner" sign --ks "$T/new.p12" --ks-pass env:SIGN_PASSWORD --ks-key-alias freetune --key-pass env:SIGN_PASSWORD \
+  # Ancienne clé en premier (nécessaire à la signature v1 des vieux Android), nouvelle clé ensuite, avec la lignée.
+  "$BT/apksigner" sign --ks app/debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+    --next-signer --ks "$T/new.p12" --ks-pass env:SIGN_PASSWORD --ks-key-alias freetune --key-pass env:SIGN_PASSWORD \
     --lineage "$T/lineage" "$f" >"$LOG" 2>&1 || fail "signature de $f"
   echo "== $f"
   "$BT/apksigner" verify --verbose --print-certs "$f" >"$LOG" 2>&1 || fail "vérification de $f"
