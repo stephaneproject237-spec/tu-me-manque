@@ -1416,20 +1416,29 @@
       tickEl.click();
     } catch (e) { /* ignoré */ }
   }
+  // Petits clics partout où une liste défile (Rechercher, Audios, Vidéos, Téléchargements, Favoris…), comme sur Android.
+  const tickTops = new WeakMap();
+  function scroller(t) {
+    for (let e = t && t.nodeType === 1 ? t : t && t.parentElement; e && e !== host && e !== document.body; e = e.parentElement) {
+      if (e.scrollHeight > e.clientHeight + 4) { const o = getComputedStyle(e).overflowY; if (o === "auto" || o === "scroll") return e; }
+    }
+    return null;
+  }
+  function scrollFeel(el, step) {
+    if (!el) return;
+    if (el.classList.contains("list") && U.sec === "search") lastScrollAt = Date.now();
+    const top = el.scrollTop, last = tickTops.has(el) ? tickTops.get(el) : top;
+    if (!tickTops.has(el)) tickTops.set(el, top);
+    if (Math.abs(top - last) >= step) { tickTops.set(el, top); feelTick(); }
+  }
   host.addEventListener("scroll", (ev) => {
     const el = ev.target;
-    if (!el || !el.classList || !el.classList.contains("list") || U.sec !== "search") return;
-    lastScrollAt = Date.now();
-    const top = el.scrollTop;
-    if (Math.abs(top - lastTop) >= 70) { lastTop = top; feelTick(); }
+    if (!el || !el.classList || el === document) return;
+    if (el.scrollHeight > el.clientHeight + 4) scrollFeel(el, 70);
   }, true);
   // Sur iPhone, le « clic » n'est autorisé que pendant un geste du doigt : on le déclenche donc aussi pendant le glissement.
-  host.addEventListener("touchmove", (ev) => {
-    const el = ev.target && ev.target.closest ? ev.target.closest(".list") : null;
-    if (!el || U.sec !== "search") return;
-    lastScrollAt = Date.now();
-    if (Math.abs(el.scrollTop - lastTop) >= 60) { lastTop = el.scrollTop; feelTick(); }
-  }, { passive: true, capture: true });
+  host.addEventListener("touchstart", (ev) => { const el = scroller(ev.target); if (el) tickTops.set(el, el.scrollTop); }, { passive: true, capture: true });
+  host.addEventListener("touchmove", (ev) => { scrollFeel(scroller(ev.target), 60); }, { passive: true, capture: true });
 
   // ---------- Séries : saisons (playlists YouTube) ----------
   const seasonNum = (t) => { const m = /(saison|season)\s*0?(\d{1,2})/i.exec(t || ""); return m ? +m[2] : 999; };

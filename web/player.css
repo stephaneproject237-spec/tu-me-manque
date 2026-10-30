@@ -560,3 +560,9 @@ body:has(.fr-col) .petit{display:none}
 #player .es h3{font-size:24px;font-weight:700}#player .es p{font-size:15px}
 #player .dcv{width:96px;height:96px;flex:none;position:relative}
 #player .act2{padding-bottom:4px}
+
+/* v2.36 : page Audios (et pages à onglets) : léger flou sur toute la zone du haut (titre, onglets), jusqu'en haut de l'écran, comme sur Android */
+#player .chrome:has(.tabs)::before,#player .chrome.sc:has(.tabs)::before{opacity:1!important;top:0!important;bottom:-14px!important;
+  -webkit-backdrop-filter:blur(14px) saturate(1.5)!important;backdrop-filter:blur(14px) saturate(1.5)!important;
+  background:linear-gradient(180deg,rgba(11,13,16,.52),rgba(11,13,16,.28) 78%,rgba(11,13,16,0))!important;
+  -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 20px),transparent)!important;mask-image:linear-gradient(180deg,#000 calc(100% - 20px),transparent)!important}
