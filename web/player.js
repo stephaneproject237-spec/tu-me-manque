@@ -1159,11 +1159,13 @@
     const ifr = vbox.classList.contains("ifr");
     vbox.className = ifr ? "ifr" : "";
     vbox.removeAttribute("style");
-    if (V.full) { vbox.classList.add("full"); if (vbox.dataset.noctl) vbox.classList.add("noctl"); return; }
+    const back = () => { if (bgOn && !document.hidden) toForeground(); };
+    if (V.full) { back(); vbox.classList.add("full"); if (vbox.dataset.noctl) vbox.classList.add("noctl"); return; }
     delete vbox.dataset.noctl;
     const slot = V.bub || U.np ? null : U.sec === "search" && V.yid ? host.querySelector('.pslot[data-id="' + V.yid + '"]')
       : U.sec === "dl" && V.dl ? host.querySelector(".pslot.dlslot") : null;
     if (slot) {
+      back();
       const r = slot.getBoundingClientRect();
       const chr = host.querySelector(".chrome");
       const lr = { top: chr ? chr.getBoundingClientRect().bottom : 0 };
@@ -1177,7 +1179,9 @@
       return;
     }
     // Plus de bulle dans l'appli : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
-    if (!V.bub) { vbox.classList.add("gone"); return; }
+    // iPhone : une vidéo cachée hors écran peut être coupée par iOS. On bascule alors en « son seul » (comme en arrière-plan) pour que le son ne s'arrête jamais.
+    if (!V.bub) { vbox.classList.add("gone"); if (V.el && !V.el.paused && !vbox.classList.contains("ifr")) toBackground(); return; }
+    back();
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
     const bot = "calc(" + (92 + miniUp) + "px + env(safe-area-inset-bottom))";
