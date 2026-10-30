@@ -63,6 +63,13 @@ jobs:
           if [ -f $d/app-casque-debug.apk ]; then cp $d/app-casque-debug.apk casque.apk; fi
           if [ -f $d/app-casque-arm64-v8a-debug.apk ]; then cp $d/app-casque-arm64-v8a-debug.apk casque-64bits.apk; cp $d/app-casque-armeabi-v7a-debug.apk casque-32bits.apk; fi
 
+      - name: Signer avec la clé privée Free tune
+        env:
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
+          REQUIRE_SIGN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: tools/resign.sh casque*.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: casque
