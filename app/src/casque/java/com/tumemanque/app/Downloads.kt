@@ -338,9 +338,9 @@ object Dl {
         val m = e.message.orEmpty()
         return when {
             m.contains("Sign in to confirm", true) || m.contains("bot", true) ->
-                "Le serveur demande une vérification. Réessaie dans quelques minutes, ou mets à jour le moteur dans Paramètres."
+                "Le serveur demande une vérification. Réessaie dans quelques minutes."
             m.contains("unavailable", true) || m.contains("private", true) -> "Cette vidéo n'est pas disponible."
-            m.contains("403") -> "Le serveur a refusé le téléchargement. Mets à jour le moteur dans Paramètres puis réessaie."
+            m.contains("403") -> "Le téléchargement a été refusé. Réessaie dans quelques minutes."
             m.contains("No space", true) -> "Plus de place sur le téléphone."
             m.contains("resolve", true) || m.contains("timed out", true) || m.contains("Network", true) || m.contains("connection", true) ->
                 "Pas de connexion internet ?"

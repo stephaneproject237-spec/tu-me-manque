@@ -91,6 +91,7 @@ object AutoUpdate {
 class UpdateWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
     override suspend fun doWork(): Result {
         AutoUpdate.kick(applicationContext)
+        runCatching { engineMaintenance(applicationContext) }
         return Result.success()
     }
 }

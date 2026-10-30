@@ -729,7 +729,7 @@
           } catch (e) { sendBot("⚠️ Le téléchargement de « " + o.ti + " » a échoué.", { t: "fail", r: m.id }); }
         } else if (now - botSeen[m.id] > 45000 && !findBot("wait", m.id)) {
           markBot(m.id);
-          toast("Pour télécharger depuis YouTube, il faut un téléphone Android dans la conversation (avec l'appli ouverte).");
+          toast("Pour télécharger une chanson, il faut un téléphone Android dans la conversation (avec l'appli ouverte).");
         }
       }
     }

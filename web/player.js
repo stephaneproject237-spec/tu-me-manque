@@ -1177,7 +1177,7 @@
   }
   function pip(ask) {
     const v = V.el;
-    if (!v) { if (ask) toast("Touche le bouton plein écran de la vidéo YouTube, puis l'icône « image dans l'image »."); return false; }
+    if (!v) { if (ask) toast("Touche le bouton plein écran de la vidéo, puis l'icône « image dans l'image »."); return false; }
     try {
       if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) { v.webkitSetPresentationMode("picture-in-picture"); return true; }
       if (document.pictureInPictureEnabled) { v.requestPictureInPicture().catch(() => {}); return true; }

@@ -55,6 +55,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Première page de « Casque » : le lecteur audio, et ses paramètres. */
+/** Entretien invisible du moteur de téléchargement (mise à jour automatique). */
+suspend fun engineMaintenance(ctx: android.content.Context) = Yt.maintainNow(ctx)
+
 @Composable
 fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, username: String?, onScreen: (String) -> Unit) {
     val ctx = LocalContext.current
@@ -188,33 +191,17 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
         }
         Spacer(Modifier.height(14.dp))
 
-        // ------------------------------------------------------------ moteur de téléchargement
+        // ------------------------------------------------------------ où sont les fichiers
         SettingsCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(P.card2), contentAlignment = Alignment.Center) { CIcon(Ic.Download, P.blueSoft, 22.dp) }
                 Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Téléchargements YouTube", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        when (Yt.state) {
-                            Yt.State.READY -> "Moteur prêt" + if (Yt.engineVersion.isNotBlank()) " · version ${Yt.engineVersion}" else ""
-                            Yt.State.PREPARING -> "Préparation du moteur…"
-                            Yt.State.FAILED -> "Le moteur n'a pas démarré"
-                            else -> "Moteur en attente"
-                        },
-                        color = P.sub, fontSize = 13.sp,
-                    )
-                }
-                if (Yt.updating) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = P.blue)
+                Text("Mes téléchargements", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             Text(
-                "Les audios sont enregistrés dans Musique/Casque, les vidéos restent dans l'application (elles n'apparaissent pas dans la galerie). Si une recherche ou un téléchargement ne marche plus, mets le moteur à jour : YouTube change souvent.",
-                color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
+                "Les audios sont enregistrés dans Musique/Casque, les vidéos restent dans l'application (elles n'apparaissent pas dans la galerie).",
+                color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp),
             )
-            BlueButton(if (Yt.updating) "Mise à jour…" else "Mettre à jour le moteur", Modifier.fillMaxWidth(), Ic.Update, outlined = true) {
-                if (!Yt.updating) Yt.update()
-            }
-            if (Yt.updateMessage.isNotEmpty()) Text(Yt.updateMessage, color = P.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
         Spacer(Modifier.height(14.dp))
 

@@ -174,7 +174,7 @@ fun SearchScreen() {
             } catch (e: Exception) {
                 if (my != token) return@launch
                 error = when (Yt.state) {
-                    Yt.State.FAILED -> "Le moteur n'a pas pu démarrer : ${Yt.error}"
+                    Yt.State.FAILED -> "La recherche n'est pas disponible pour le moment. Réessaie dans un instant."
                     else -> "Recherche impossible. Vérifie ta connexion internet."
                 }
             } finally {
@@ -246,7 +246,7 @@ fun SearchScreen() {
             Row(Modifier.padding(horizontal = 22.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = P.blueSoft)
                 Spacer(Modifier.width(8.dp))
-                Text("Préparation du moteur (seulement la première fois)…", color = P.sub, fontSize = 12.sp)
+                Text("Préparation de la recherche (seulement la première fois)…", color = P.sub, fontSize = 12.sp)
             }
         }
 

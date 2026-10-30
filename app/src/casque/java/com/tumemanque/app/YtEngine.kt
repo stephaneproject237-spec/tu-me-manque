@@ -90,7 +90,7 @@ object Yt {
         scope.launch {
             runCatching { ensure() }
             val last = prefs().getLong("updated_at", 0L)
-            if (state == State.READY && System.currentTimeMillis() - last > 20 * 3600_000L) update(silent = true)
+            if (state == State.READY && System.currentTimeMillis() - last > 12 * 3600_000L) update(silent = true)
         }
     }
 
@@ -115,20 +115,30 @@ object Yt {
         }
     }
 
+    /** Entretien automatique et invisible, même appli fermée (appelé par la vérification périodique) : au plus toutes les 12 heures. */
+    suspend fun maintainNow(ctx: Context) {
+        if (!::app.isInitialized) { app = ctx.applicationContext; EngineHeal.appCtx = app }
+        runCatching { ensure() }
+        if (state != State.READY) return
+        if (System.currentTimeMillis() - prefs().getLong("updated_at", 0L) < 12 * 3600_000L) return
+        runCatching {
+            YoutubeDL.updateYoutubeDL(app, YoutubeDL.UpdateChannel.STABLE)
+            engineVersion = runCatching { YoutubeDL.versionName(app) ?: YoutubeDL.version(app) }.getOrNull().orEmpty()
+            prefs().edit().putLong("updated_at", System.currentTimeMillis()).apply()
+        }
+    }
+
     /** Met yt-dlp à jour : YouTube change souvent, c'est ce qui garde la recherche et les téléchargements fonctionnels. */
     fun update(silent: Boolean = false) {
         if (updating) return
         scope.launch {
             updating = true
-            if (!silent) updateMessage = "Mise à jour du moteur…"
             try {
                 ensure()
                 val r = YoutubeDL.updateYoutubeDL(app, YoutubeDL.UpdateChannel.STABLE)
                 engineVersion = runCatching { YoutubeDL.versionName(app) ?: YoutubeDL.version(app) }.getOrNull().orEmpty()
                 prefs().edit().putLong("updated_at", System.currentTimeMillis()).apply()
-                updateMessage = if (r == YoutubeDL.UpdateStatus.DONE) "Moteur mis à jour." else "Le moteur est déjà à jour."
             } catch (e: Throwable) {
-                if (!silent) updateMessage = "Mise à jour impossible : vérifie ta connexion."
             } finally {
                 updating = false
             }
