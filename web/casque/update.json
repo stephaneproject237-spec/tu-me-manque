@@ -1,7 +1,7 @@
 {
  "version": "web 2.33",
- "notes": "Mise à jour automatique : téléchargement tout seul, puis un seul bouton « Installer la mise à jour ».",
- "versionCode": 131,
- "versionName": "1.131",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-131/casque.apk"
+ "notes": "Le moteur de téléchargement se met à jour tout seul, sans rien afficher.",
+ "versionCode": 134,
+ "versionName": "1.134",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-134/casque.apk"
 }
