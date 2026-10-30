@@ -32,6 +32,7 @@ class HomeActivity : ComponentActivity() {
     private var progress = 0
     private var apk: File? = null
     private var needPerm = false
+    private var lastAuto = 0L
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -63,6 +64,29 @@ class HomeActivity : ComponentActivity() {
         val f = apk
         if (needPerm && f != null && f.exists()) {
             if (AdminUpdater.install(this, f)) { needPerm = false; render() }
+        }
+        autoCheck()
+    }
+
+    /** Mise à jour automatique : à chaque ouverture, vérifie en silence et télécharge tout seul la nouvelle version. */
+    private fun autoCheck() {
+        val now = System.currentTimeMillis()
+        if (checking || downloading || now - lastAuto < 60_000) return
+        lastAuto = now
+        AdminUpdater.check { info, _ ->
+            runOnUiThread {
+                val newer = if (info != null && info.code > AdminUpdater.currentCode(this)) info else null
+                if (newer == null) { if (available != null) { available = null; apk = null; render() }; return@runOnUiThread }
+                if (available?.code == newer.code && (apk != null || downloading)) return@runOnUiThread
+                available = newer; apk = null; downloading = true; progress = 0; render()
+                AdminUpdater.download(this, newer, { p -> runOnUiThread { progress = p; render() } }) { file, err ->
+                    runOnUiThread {
+                        downloading = false
+                        if (file != null) apk = file else errorMsg = "Téléchargement : $err"
+                        render()
+                    }
+                }
+            }
         }
     }
 
@@ -106,6 +130,17 @@ class HomeActivity : ComponentActivity() {
             text = "Administration"; textSize = 15f; setTextColor(Color.parseColor("#FF6A9C"))
             setPadding(0, dp(2), 0, dp(32))
         })
+        val av = available
+        if (av != null && apk != null) {
+            root.addView(card("Mise à jour ${av.name} prête", "Touchez pour l'installer", "⬇️") {
+                needPerm = !AdminUpdater.install(this, apk!!); if (needPerm) render()
+            })
+        } else if (av != null && downloading) {
+            root.addView(TextView(this).apply {
+                text = "⬇️ Téléchargement de la mise à jour ${av.name}… $progress %"; textSize = 13f
+                setTextColor(Color.parseColor("#FFD180")); setPadding(dp(4), 0, 0, dp(14))
+            })
+        }
         root.addView(card("Suivi de l'application", "Utilisateurs, couples, conversations", "📊") {
             startActivity(Intent(this, MainActivity::class.java).putExtra("page", "app"))
         })
