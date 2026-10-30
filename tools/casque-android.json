@@ -1,6 +1,6 @@
 {
- "versionCode": 139,
- "versionName": "1.139",
- "notes": "Sécurité renforcée : l'application est maintenant signée avec une nouvelle clé privée.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-139/casque.apk"
+ "versionCode": 142,
+ "versionName": "1.142",
+ "notes": "Sécurité : contrôle strict des demandes de téléchargement, mode debug retiré, protections renforcées.",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-142/casque.apk"
 }
