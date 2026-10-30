@@ -1,6 +1,6 @@
 {
- "versionCode": 128,
- "versionName": "1.128",
- "notes": "Présence plus rapide : l'administrateur voit en quelques secondes qui est dans Free tune.",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-128/casque.apk"
+ "versionCode": 131,
+ "versionName": "1.131",
+ "notes": "Mise à jour automatique : téléchargement tout seul, puis un seul bouton « Installer la mise à jour ».",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-131/casque.apk"
 }
