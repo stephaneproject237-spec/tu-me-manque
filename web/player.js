@@ -1180,7 +1180,7 @@
     }
     // Plus de bulle dans l'appli : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
     // iPhone : une vidéo cachée hors écran peut être coupée par iOS. On bascule alors en « son seul » (comme en arrière-plan) pour que le son ne s'arrête jamais.
-    if (!V.bub) { vbox.classList.add("gone"); if (V.el && !V.el.paused && !vbox.classList.contains("ifr")) toBackground(); return; }
+    if (!V.bub) { vbox.classList.add("gone"); if (V.el && !V.el.paused && !vbox.classList.contains("ifr")) toBackground(false, true); return; }
     back();
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
@@ -1270,12 +1270,12 @@
     } catch (e) { /* ignoré */ }
   }
   let lastPlay = 0;
-  function toBackground(force) {
+  function toBackground(force, inApp) {
     const v = V.el;
     if (!v || v.ended || bgOn) return;
     // iOS peut mettre la vidéo en pause juste avant : on reprend alors en son seul (force).
     if (v.paused && !(force && Date.now() - lastPlay < 1500)) return;
-    if (!v.paused && pip(false)) return;
+    if (!inApp && !v.paused && pip(false)) return;
     try {
       const src = v.currentSrc || v.src;
       if (!src) return;
@@ -1296,7 +1296,15 @@
     if (v) { try { v.currentTime = t; } catch (e) { /* ignoré */ } if (wasPlaying) v.play().catch(() => {}); }
     videoSession(); updateSession();
   }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) toBackground(); else toForeground(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) toBackground(); else { exitPip(); toForeground(); } });
+  // Retour dans Free tune : la petite fenêtre flottante (image dans l'image) disparaît et la vidéo continue dans l'appli, sans coupure.
+  function exitPip() {
+    const v = V.el; if (!v) return;
+    try {
+      if (v.webkitPresentationMode === "picture-in-picture") v.webkitSetPresentationMode("inline");
+      else if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+    } catch (e) { /* ignoré */ }
+  }
   window.addEventListener("pagehide", toBackground);
   // Glisser la bulle flottante ; glisser le plein écran vers le bas pour le réduire.
   let drag = null;
