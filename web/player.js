@@ -1950,6 +1950,8 @@
     const A = API();
     if (document.hidden || !A || !A.casque || !A.casque.ready || !A.casque.ready()) return;
     A.authed("POST", "/rest/v1/rpc/heartbeat", { p_platform: "ios", p_share: null }).catch(() => {});
+    // L'administrateur voit la version de Free tune de chaque compte : envoyée une fois par lancement.
+    if (!beat.ver) { beat.ver = 1; A.authed("POST", "/rest/v1/rpc/set_version", { p_ver: "iPhone " + ((A.CFG && A.CFG.VERSION) || "") }).catch(() => { beat.ver = 0; }); }
   }
   setInterval(beat, 20000); setTimeout(beat, 2000);
 

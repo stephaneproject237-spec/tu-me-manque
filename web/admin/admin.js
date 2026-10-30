@@ -253,10 +253,12 @@
     const share = android
       ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
     const jobs = Number(u.jobs) ? `<span class="chip">⏳ ${u.jobs} en cours</span>` : "";
+    const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span>`;
     const where = st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
       <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
         <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
+      <div class="row" style="margin-top:6px">${ver}</div>
       ${lights}
       <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
         <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div></div>`;
@@ -281,10 +283,10 @@
       <div class="card glass">
         ${sw("auto_friends", !!st.auto_friends, "🤝 Amis automatiques", "Tous les comptes Android en ligne deviennent amis avec tous les iPhone en ligne.")}
         ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}</div>
-      <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les.</p>
+      <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les. Un iPhone et un Android sélectionnés : ils sont reliés entre eux. Plusieurs comptes du même type (par exemple des Android) : ils sont tous reliés entre eux.</p>
         <div class="row"><span class="chip">🍎 ${nI} iPhone</span><span class="chip">🤖 ${nA} Android</span>
         <span class="grow"></span><button class="s" data-a="ftclear" ${nI + nA ? "" : "disabled"}>Effacer</button></div>
-        <div class="row" style="margin-top:8px"><button class="p grow" data-a="ftlink" ${nI && nA && !S.busy ? "" : "disabled"}>🔗 Lier la sélection</button><button class="d grow" data-a="ftunlink" ${nI && nA && !S.busy ? "" : "disabled"}>✂️ Délier</button></div></div>
+        <div class="row" style="margin-top:8px"><button class="p grow" data-a="ftlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>🔗 Lier la sélection</button><button class="d grow" data-a="ftunlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>✂️ Délier</button></div></div>
       <input class="q" id="fq" placeholder="Rechercher un pseudo ou un e-mail…" value="${esc(S.fq)}" autocomplete="off">
       <h2>🍎 Comptes iPhone (${ios.length})</h2>${ios.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte iPhone.</p>'}
       <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}`;
@@ -579,8 +581,8 @@
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
       case "ftclear": S.sel = {}; renderContent(); break;
-      case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); if (!A.length || !I.length) break; const n = await ftDo("admin_ft_link", I, A); if (n != null) { S.sel = {}; renderContent(); } break; }
-      case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); if (!A.length || !I.length || !confirm("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", I, A); if (n != null) { S.sel = {}; renderContent(); } break; }
+      case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs) break; const n = await ftDo("admin_ft_link", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
+      case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs || !confirm("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
       case "ftrm": { const m = S.modal; if (!m || !confirm("Retirer cette amitié ?\nLa conversation est conservée.")) break; await ftDo("admin_ft_unlink", [m.id], [id]); break; }
       case "ftset": {
         try { const r = await call("admin_ft_setting", { p_key: t.dataset.k, p_val: t.dataset.v === "1" }); await loadFt(); if (r && r.linked) alert(r.linked + " amitié(s) créée(s)."); }

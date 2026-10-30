@@ -255,7 +255,13 @@ object Backend {
     }.getOrDefault(false)
 
     /** Free tune : « je suis en ligne » (Android), avec l'état du partage de chansons aux iPhone. */
+    @Volatile private var versionSent = false
     suspend fun heartbeat(share: Boolean, inApp: Boolean) {
+        // L'administrateur voit la version de Free tune de chaque compte : envoyée une fois par lancement.
+        if (!versionSent) {
+            versionSent = true
+            runCatching { authed("POST", "/rest/v1/rpc/set_version", JSONObject().put("p_ver", BuildConfig.VERSION_NAME).toString()) }.onFailure { versionSent = false }
+        }
         runCatching { authed("POST", "/rest/v1/rpc/heartbeat", JSONObject().put("p_platform", "android").put("p_share", share).put("p_in_app", inApp).toString()) }
     }
 
