@@ -1029,8 +1029,35 @@
       '<button data-v="hide" class="vb-hide" aria-label="Cacher la bulle">' + I.down + "</button>";
     vbox.hidden = false;
   }
+  // Un seul lecteur vidéo réutilisé : débloqué une fois par un geste (toucher), il peut ensuite lancer chaque nouvelle vidéo tout seul
+  // (suivant, précédent, résultat touché, fin de vidéo) sans que l'iPhone demande de retoucher l'écran.
+  const POOL = document.createElement("video");
+  POOL.setAttribute("playsinline", ""); POOL.setAttribute("x-webkit-airplay", "allow"); POOL.controls = true; POOL.autoplay = true;
+  let poolOk = false;
+  function unlockPool() {
+    if (poolOk || V.key) return;
+    try {
+      POOL.muted = false; POOL.src = "data:video/mp4;base64,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MCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0yIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEwIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAFmWIhA/yYoAAw+ycnJ1111111111114BGCAHARggBwEYIAcAAAAGQZo4H+EYARggBwEYIAcAAAAGQZpUB/hGARggBwEYIAcAAAAGQZpgO8IwARggBwEYIAcAAAAGQZqAN8IwARggBwEYIAc=";
+      const pr = POOL.play(); if (pr && pr.then) pr.then(() => { poolOk = true; }).catch(() => {});
+    } catch (e) { /* ignoré */ }
+  }
+  function takeVideo() {
+    try { POOL.pause(); } catch (e) { /* ignoré */ }
+    POOL.removeAttribute("src"); POOL.muted = false; POOL.onerror = null;
+    vbox.querySelector(".vb-media").appendChild(POOL);
+    return POOL;
+  }
+  // Si l'iPhone refuse quand même le son, la vidéo démarre sans son et le son revient au premier toucher.
+  function startPlay(v) {
+    const pr = v.play();
+    if (pr && pr.catch) pr.catch(() => {
+      v.muted = true;
+      v.play().then(() => { const un = () => { v.muted = false; document.removeEventListener("touchstart", un, true); }; document.addEventListener("touchstart", un, true); }).catch(() => {});
+    });
+  }
   async function playYt(o) {
     feelTick(true);
+    unlockPool();
     if (V.key === "yt:" + o.id) { V.full = false; V.bub = false; placeVideo(); return; }
     dlRelease();
     const prevYt = V.yid ? { id: V.yid, ti: V.title, src: "yt" } : null, back = V.back, hist = V.hist;
@@ -1047,12 +1074,12 @@
     try { url = await ytStream(o.id); } catch (e) { url = null; }
     if (V.key !== "yt:" + o.id) return;
     if (url) {
-      vbox.querySelector(".vb-media").innerHTML = '<video playsinline controls autoplay autopictureinpicture x-webkit-airplay="allow"></video>';
-      V.el = vbox.querySelector("video");
+      vbox.querySelector(".vb-media").innerHTML = "";
+      V.el = takeVideo();
       V.el.src = url;
       V.el.onerror = () => { if (V.key === "yt:" + o.id) embedYt(o.id); };
       bindVideoEl();
-      V.el.play().catch(() => {});
+      startPlay(V.el);
     } else embedYt(o.id);
   }
   function embedYt(id) {
@@ -1073,14 +1100,15 @@
     if (st === 0 && V.auto) nextRelated(false);
   });
   function playFile(t, o) {
+    unlockPool();
     VL.on = !!(o && o.vl);
     if (!(o && o.dl)) dlRelease();
     stopVideo();
     audio.pause();
     const dl = !!(o && o.dl) && U.sec === "dl";
     V.key = "file:" + t.id; V.yid = null; V.title = t.title; V.full = !dl; V.dl = dl; V.hid = false;
-    videoShell('<video playsinline controls autoplay autopictureinpicture></video>');
-    V.el = vbox.querySelector("video");
+    videoShell("");
+    V.el = takeVideo();
     bindVideoEl();
     if (dl) {
       draw();   // la page fait de la place en haut pour le lecteur
@@ -1097,12 +1125,13 @@
       if (!r || !V.el || V.key !== "file:" + t.id) { if (!r) toast("Fichier introuvable."); return; }
       V.url = URL.createObjectURL(r.blob.type === "video/mp4" ? r.blob : new Blob([r.blob], { type: "video/mp4" }));
       V.el.src = V.url;
-      V.el.play().catch(() => {});
+      startPlay(V.el);
     });
   }
   function bindVideoEl() {
     const v = V.el;
-    if (!v) return;
+    if (!v || v._bound) return;
+    v._bound = true;
     // iPhone : demande la bulle flottante automatique quand on quitte l'appli pendant la lecture.
     try { v.autoPictureInPicture = true; v.disablePictureInPicture = false; v.setAttribute("autopictureinpicture", ""); } catch (e) { /* ignoré */ }
     const upd = () => { const b = vbox.querySelector('[data-v="pp"]'); if (b) b.innerHTML = v.paused ? I.play : I.pause; };
@@ -1296,11 +1325,18 @@
     if (!v || v.ended || bgOn) return;
     // iOS peut mettre la vidéo en pause juste avant : on reprend alors en son seul (force).
     if (v.paused && !(force && Date.now() - lastPlay < 1500)) return;
-    // Déjà en image dans l'image (lancée avec le bouton du lecteur) : on n'y touche pas. Sinon le son de la vidéo continue comme celui d'un audio.
-    if (v.webkitPresentationMode === "picture-in-picture" || document.pictureInPictureElement === v) return;
+    const inPip = () => v.webkitPresentationMode === "picture-in-picture" || document.pictureInPictureElement === v;
+    if (inPip()) return;
+    // 1) le son continue tout de suite (comme un audio) ; 2) on demande aussi la bulle flottante d'iOS : si elle apparaît, c'est elle qui joue la vidéo.
+    if (!inApp && !v.paused) {
+      audioOnly(v, true);
+      pip(false);
+      setTimeout(() => { if (V.el !== v) return; if (inPip()) { try { bgA.pause(); } catch (e) { /* ignoré */ } bgOn = false; } else { try { v.pause(); } catch (e) { /* ignoré */ } } }, 400);
+      return;
+    }
     audioOnly(v);
   }
-  function audioOnly(v) {
+  function audioOnly(v, keep) {
     try {
       const src = v.currentSrc || v.src;
       if (!src) return;
@@ -1311,7 +1347,7 @@
       bgOn = true;
       const p = bgA.play();
       if (p) p.catch(() => { bgOn = false; });
-      v.pause();
+      if (!keep) v.pause();
     } catch (e) { bgOn = false; }
   }
   function toForeground() {
