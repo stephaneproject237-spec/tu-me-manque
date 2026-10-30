@@ -1275,7 +1275,10 @@
   }
   function pip(ask) {
     const v = V.el;
-    if (!v) { if (ask) toast("Lance d'abord une vidéo, puis touche ce bouton."); return false; }
+    if (!v) {
+      if (ask) toast(V.key && vbox.classList.contains("ifr") ? "Cette vidéo joue dans le lecteur YouTube : touche son plein écran, puis l'icône image dans l'image du lecteur." : "Lance d'abord une vidéo, puis touche ce bouton.");
+      return false;
+    }
     try {
       if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) { v.webkitSetPresentationMode("picture-in-picture"); return true; }
       if (document.pictureInPictureEnabled) { v.requestPictureInPicture().catch(() => {}); return true; }
