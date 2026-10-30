@@ -574,3 +574,5 @@ body:has(.fr-col) .petit{display:none}
 #cq-video.mini .vb-ctl button{background:rgba(255,255,255,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 #player .pcb{flex:0 0 auto;width:36px;height:36px;border-radius:50%;border:0;padding:0;margin-right:6px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}
 #player .pcb svg{width:20px;height:20px}
+
+/* v2.40 : pas de bulle dans l'appli (elle n'existe qu'en quittant l'appli, avec l'image dans l'image d'iOS) */

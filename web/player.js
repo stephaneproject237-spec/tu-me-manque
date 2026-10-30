@@ -1188,8 +1188,9 @@
         (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 14px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
       return;
     }
-    // Hors de la page où elle s'affiche, la vidéo devient une petite bulle flottante (précédent / lecture / suivant), rangeable sur le côté gauche.
-    // Dès qu'on revient sur son écran, la bulle disparaît et la vidéo reprend sa place, sans coupure.
+    // Dans l'appli, aucune bulle : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
+    // La bulle (image dans l'image d'iOS) n'apparaît que lorsqu'on QUITTE l'appli.
+    if (!V.bub) { vbox.classList.add("gone"); return; }
     back();
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
@@ -1284,13 +1285,24 @@
     if (!v || v.ended || bgOn) return;
     // iOS peut mettre la vidéo en pause juste avant : on reprend alors en son seul (force).
     if (v.paused && !(force && Date.now() - lastPlay < 1500)) return;
-    if (!inApp && !v.paused && pip(false)) return;
+    if (!inApp && !v.paused && pip(false)) {
+      // L'iPhone n'accepte pas toujours la bulle sans geste : si elle n'est pas apparue, le son continue en arrière-plan.
+      setTimeout(() => {
+        const inPip = v.webkitPresentationMode === "picture-in-picture" || document.pictureInPictureElement === v;
+        if (!inPip && V.el === v && !bgOn) audioOnly(v);
+      }, 350);
+      return;
+    }
+    audioOnly(v);
+  }
+  function audioOnly(v) {
     try {
       const src = v.currentSrc || v.src;
       if (!src) return;
       if (bgA.src !== src) bgA.src = src;
       bgA.muted = false;
-      bgA.currentTime = v.currentTime;
+      const t0 = v.currentTime, seek = () => { try { bgA.currentTime = t0; } catch (e) { /* ignoré */ } };
+      if (bgA.readyState < 1) bgA.addEventListener("loadedmetadata", seek, { once: true }); else seek();
       bgOn = true;
       const p = bgA.play();
       if (p) p.catch(() => { bgOn = false; });

@@ -1,5 +1,5 @@
 {
- "version": "web 2.39",
+ "version": "web 2.40",
  "notes": "Sécurité : contrôle strict des demandes de téléchargement, mode debug retiré, protections renforcées.",
  "versionCode": 142,
  "versionName": "1.142",
