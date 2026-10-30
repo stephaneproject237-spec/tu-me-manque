@@ -1010,7 +1010,8 @@
   function videoShell(inner) {
     vbox.innerHTML = '<div class="vb-media">' + inner + "</div>" +
       '<div class="vb-ctl"><button data-v="close" class="tl" aria-label="Fermer">' + I.close + '</button><button data-v="full" class="tr" aria-label="Plein écran">' + I2.full + "</button>" +
-      '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button></div>" +
+      '<button data-v="pp" class="mid" aria-label="Lecture">' + I.pause + "</button>" +
+      (canStep() ? '<button data-v="prev" class="pv" aria-label="Précédent">' + I.prev + '</button><button data-v="next" class="nx" aria-label="Suivant">' + I.next + "</button>" : "") + "</div>" +
       '<div class="vb-bar"><button data-v="min" aria-label="Réduire">' + I.down + "</button><b>" + esc(V.title) + '</b>' + (canStep() ? '<button data-v="prev" aria-label="Précédent">' + I.prev + '</button><button data-v="next" aria-label="Suivant">' + I.next + "</button>" : "") + '<button data-v="auto" class="' + (V.auto ? "on" : "") + '" aria-label="Lecture continue">' + I.repeat + '</button><button data-v="pip" aria-label="Image dans l\'image">' + I2.pip + '</button><button data-v="close" aria-label="Fermer">' + I.close + "</button></div>" +
       '<div class="vb-grip" aria-hidden="true"></div>' +
       '<button data-v="bub" class="vb-min" aria-label="Réduire en bulle">' + I.down + '</button>' +
@@ -1187,8 +1188,8 @@
         (ct || cb ? "clip-path:inset(" + ct + "px 0 " + cb + "px 0 round 14px);" : "") + (ct + cb >= r.height ? "visibility:hidden;" : "");
       return;
     }
-    // Plus de bulle dans l'appli : hors de la page Rechercher la vidéo continue (le son aussi), sans fenêtre.
-    if (!V.bub) { vbox.classList.add("gone"); return; }
+    // Hors de la page où elle s'affiche, la vidéo devient une petite bulle flottante (précédent / lecture / suivant), rangeable sur le côté gauche.
+    // Dès qu'on revient sur son écran, la bulle disparaît et la vidéo reprend sa place, sans coupure.
     back();
     vbox.classList.add("mini");
     const miniUp = host.querySelector(".mini") ? 66 : 0;
@@ -2226,6 +2227,7 @@
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
           '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v), fmtAgo(sel.pu)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
+          (sel.src === "yt" && playing ? '<button class="pcb" data-a="vprev" aria-label="Précédent">' + I.prev + '</button><button class="pcb" data-a="vnext" aria-label="Suivant">' + I.next + "</button>" : "") +
           (sel.src === "yt" ? '<button class="aps' + (V.auto ? " on" : "") + '" data-a="yauto" aria-label="Lecture automatique"><i>' + I.play + "</i></button>" : "") + "</div></div>";
         body += dcBanner();
         body += dcLists();
@@ -2283,6 +2285,8 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
+      case "vprev": vPrev(); return true;
+      case "vnext": vNext(); return true;
       case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; const e = host.querySelector(".fp"); if (e) e.classList.toggle("open", U.fpo === sl.id); else draw(); } return true; }
       case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
       case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
