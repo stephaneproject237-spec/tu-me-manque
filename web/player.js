@@ -1275,7 +1275,7 @@
   }
   function pip(ask) {
     const v = V.el;
-    if (!v) { if (ask) toast("Touche le bouton plein écran de la vidéo, puis l'icône « image dans l'image »."); return false; }
+    if (!v) { if (ask) toast("Lance d'abord une vidéo, puis touche ce bouton."); return false; }
     try {
       if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) { v.webkitSetPresentationMode("picture-in-picture"); return true; }
       if (document.pictureInPictureEnabled) { v.requestPictureInPicture().catch(() => {}); return true; }
@@ -2280,7 +2280,7 @@
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
           '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v), fmtAgo(sel.pu)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
-          (sel.src === "yt" ? '<button class="pcb" data-a="vprev" aria-label="Précédent">' + I.prev + '</button><button class="pcb" data-a="vnext" aria-label="Suivant">' + I.next + "</button>" : "") +
+          (sel.src === "yt" ? '<button class="pcb" data-a="vpip" aria-label="Image dans l\'image">' + I2.pip + '</button><button class="pcb" data-a="vprev" aria-label="Précédent">' + I.prev + '</button><button class="pcb" data-a="vnext" aria-label="Suivant">' + I.next + "</button>" : "") +
           (sel.src === "yt" ? '<button class="aps' + (V.auto ? " on" : "") + '" data-a="yauto" aria-label="Lecture automatique"><i>' + I.play + "</i></button>" : "") + "</div></div>";
         body += dcBanner();
         body += dcLists();
@@ -2338,6 +2338,7 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
+      case "vpip": pip(true); return true;
       case "vprev": selStep(-1); return true;
       case "vnext": selStep(1); return true;
       case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; const e = host.querySelector(".fp"); if (e) e.classList.toggle("open", U.fpo === sl.id); else draw(); } return true; }
