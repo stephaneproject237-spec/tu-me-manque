@@ -112,6 +112,9 @@ class HomeActivity : ComponentActivity() {
         root.addView(card("Clients Free tune", "Comptes iPhone et Android, en ligne, amitiés", "🎧") {
             startActivity(Intent(this, MainActivity::class.java).putExtra("page", "ft"))
         })
+        root.addView(card("Suivi des abonnements", "Abonnés du mois, chiffre d'affaires, récap par mois", "💰") {
+            startActivity(Intent(this, MainActivity::class.java).putExtra("page", "subs"))
+        })
         root.addView(card("Paramètres", "Version et mises à jour", "⚙️") {
             inSettings = true; render()
             if (!checked && !checking) doCheck()

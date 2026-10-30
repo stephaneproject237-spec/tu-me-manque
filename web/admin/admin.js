@@ -61,7 +61,7 @@
     modal: null,           // { type: "delete" | "history" | "update", user }
     targets: null,         // nombre de personnes à prévenir par application et appareil
     busy: false,
-    ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
+    subsMode: false, subs: null, ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
   };
 
   const call = (name, args) => authed("POST", "/rest/v1/rpc/" + name, args || {});
@@ -70,7 +70,7 @@
   async function init() {
     const q = new URLSearchParams(location.search);
     const pg = q.get("p");
-    try { if (pg) localStorage.setItem("tmm_admin_page", pg); S.ftMode = (pg || localStorage.getItem("tmm_admin_page")) === "ft"; } catch (e) { S.ftMode = pg === "ft"; }
+    try { if (pg) localStorage.setItem("tmm_admin_page", pg); const pp = pg || localStorage.getItem("tmm_admin_page"); S.ftMode = pp === "ft"; S.subsMode = pp === "subs"; } catch (e) { S.ftMode = pg === "ft"; S.subsMode = pg === "subs"; }
     const code = q.get("code"), err = q.get("error_description");
     if (code || err) {
       try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignoré */ }
@@ -92,7 +92,7 @@
     S.email = s.email || "";
     try {
       const r = await call("admin_whoami");
-      if (r && r.admin) { S.stage = "app"; S.err = null; render(); if (S.ftMode) await loadFt(); else await loadAll(); startPolling(); }
+      if (r && r.admin) { S.stage = "app"; S.err = null; render(); if (S.subsMode) await loadSubs(); else if (S.ftMode) await loadFt(); else await loadAll(); startPolling(); }
       else { S.stage = "denied"; render(); }
     } catch (e) {
       if (e.message === "NO_SESSION") { S.stage = "login"; S.err = null; return render(); }
@@ -128,10 +128,11 @@
     clearInterval(pollT);
     pollT = setInterval(async () => {
       if (document.hidden || S.stage !== "app" || S.modal) return;
-      if (S.ftMode) await loadFt();
+      if (S.subsMode) await loadSubs();
+      else if (S.ftMode) await loadFt();
       else if (S.thread) await openThread(S.thread.id, S.thread.name, true);
       else await loadAll();
-    }, S.ftMode ? 2000 : 5000);
+    }, S.subsMode ? 15000 : S.ftMode ? 2000 : 5000);
   }
 
   // ---------- Messagerie ----------
@@ -194,6 +195,54 @@
   }
 
 
+
+  // ---------- Suivi des abonnements ----------
+  async function loadSubs(manual) {
+    try { S.subs = await call("admin_subs_overview"); S.err = null; }
+    catch (e) { S.err = "Chargement impossible : " + (e.message || e) + " (as-tu collé le code SQL « suivi des abonnements » dans Supabase ?)"; }
+    renderContent();
+  }
+  const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const fcfa = (n) => new Intl.NumberFormat("fr-FR").format(Math.round(Number(n) || 0)).replace(/[\u202f\u00a0]/g, " ") + " FCFA";
+  const kfmt = (n) => { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " M" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(".0", "") + " k" : String(n); };
+  const mlabel = (m) => { const a = String(m).split("-"); return MOIS[(+a[1] || 1) - 1]; };
+  const mlong = (m) => { const a = String(m).split("-"); return MOIS[(+a[1] || 1) - 1] + " " + a[0]; };
+  const dshort = (t) => t ? new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—";
+  const inDays = (t) => { const d = Math.ceil((new Date(t) - Date.now()) / 86400000); return d <= 0 ? "aujourd'hui" : d === 1 ? "demain" : "dans " + d + " j"; };
+  function subsHtml() {
+    const d = S.subs;
+    if (!d) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
+    const mo = d.month || {}, tot = d.total || {};
+    // Les 6 derniers mois, même ceux sans paiement.
+    const byM = {}; (d.months || []).forEach((x) => { byM[x.m] = x; });
+    const keys = []; { const [y, m] = String(mo.key || "").split("-").map(Number); for (let i = 5; i >= 0; i--) { const dt = new Date(y, m - 1 - i, 1); keys.push(dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0")); } }
+    const max = Math.max(1, ...keys.map((k) => Number((byM[k] || {}).rev) || 0));
+    const delta = Number(mo.prev_revenue) > 0 ? Math.round(((Number(mo.revenue) - Number(mo.prev_revenue)) / Number(mo.prev_revenue)) * 100) : null;
+    const dtxt = delta == null ? (Number(mo.revenue) > 0 ? "premier mois avec des ventes" : "pas encore de vente") : (delta >= 0 ? "▲ +" : "▼ ") + delta + " % vs mois dernier";
+    const bars = keys.map((k) => { const x = byM[k] || {}, v = Number(x.rev) || 0, h = Math.max(v ? 8 : 3, Math.round((v / max) * 100));
+      return `<div class="bcol${k === mo.key ? " now" : ""}"><span class="bv">${v ? kfmt(v) : ""}</span><div class="bar" style="height:${h}px"></div><span class="bl">${mlabel(k)}</span></div>`; }).join("");
+    const person = (u) => "@" + esc(u.username || "?");
+    const cur = (d.current || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span>
+        <span class="chip" style="${u.active ? "background:rgba(46,204,113,.18);color:#2E9E5B" : "background:rgba(255,138,128,.2);color:#C62828"}">${u.active ? "✅ actif jusqu'au " + dshort(u.paid_until) : "⛔ expiré"}</span></div>
+        <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.phone || u.email || "—")} · payé le ${dshort(u.at)}${Number(u.n_month) > 1 ? " (" + u.n_month + " fois)" : ""}</span><b>${fcfa(u.amount)}</b></div>
+        ${Number(u.times) > 1 ? `<div class="k" style="margin-top:2px">🔁 fidèle : ${u.times} abonnements depuis le début</div>` : ""}</div>`).join("");
+    const soon = (d.soon || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip">⏳ se termine ${inDays(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
+    const exp = (d.expired || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip" style="background:rgba(255,138,128,.2);color:#C62828">terminé le ${dshort(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
+    const months = (d.months || []).slice().reverse().map((x) => `<div class="mrow"><span class="grow">${mlong(x.m)}</span><span class="k">${x.n} abonnement${x.n > 1 ? "s" : ""}</span><b>${fcfa(x.rev)}</b></div>`).join("");
+    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `
+      <div class="shero"><div class="sk">Chiffre d'affaires total</div><div class="sbig">${fcfa(tot.revenue)}</div>
+        <div class="sk">${tot.payments || 0} abonnement${tot.payments > 1 ? "s" : ""} · ${tot.payers || 0} client${tot.payers > 1 ? "s" : ""}${tot.first ? " · depuis le " + dshort(tot.first) : ""}</div></div>
+      <div class="sgrid">
+        <div class="stile glass"><span>Ce mois-ci (${mlabel(mo.key)})</span><b>${fcfa(mo.revenue)}</b><small>${esc(dtxt)}</small></div>
+        <div class="stile glass"><span>Abonnés actifs</span><b>${d.active_count || 0}</b><small>${d.trial_count || 0} en essai gratuit</small></div>
+        <div class="stile glass"><span>Abonnements ce mois</span><b>${mo.payments || 0}</b><small>${mo.payers || 0} client${mo.payers > 1 ? "s" : ""} (mois dernier : ${mo.prev_payments || 0})</small></div>
+        <div class="stile glass"><span>À renouveler (7 j)</span><b>${(d.soon || []).length}</b><small>${(d.expired || []).length} terminé${(d.expired || []).length > 1 ? "s" : ""} ces 30 jours</small></div></div>
+      <div class="card glass"><div class="name" style="font-size:15px">Chiffre d'affaires par mois</div><div class="bars">${bars}</div></div>
+      <h2>👥 Abonnés de ${mlong(mo.key)} (${(d.current || []).length})</h2>${cur || '<p class="muted">Aucun abonnement ce mois-ci pour le moment.</p>'}
+      ${(d.soon || []).length ? `<h2>⏳ À relancer : fin dans moins de 7 jours</h2>${soon}` : ""}
+      ${(d.expired || []).length ? `<h2>💤 Terminés récemment</h2>${exp}` : ""}
+      <h2>📅 Récap mois par mois</h2><div class="card glass">${months || '<p class="k">Aucun paiement pour l\'instant.</p>'}</div>`;
+  }
   // ---------- Clients Free tune ----------
   async function loadFt() {
     // Demande aux Android silencieux de se signaler (au plus une fois par minute) : ils apparaissent « sur internet » s'ils sont joignables.
@@ -315,6 +364,12 @@
         <button class="s" data-a="logout">Changer de compte</button></div>`;
       return;
     }
+    if (S.subsMode) {
+      root.innerHTML = `<header><button data-a="ftback" aria-label="Retour">‹</button><h1>💰 Suivi des abonnements</h1><button data-a="subsrefresh" aria-label="Actualiser">↻</button></header>
+        <main id="content"></main><div id="modal"></div>`;
+      renderContent();
+      return;
+    }
     if (S.ftMode) {
       root.innerHTML = `<header><button data-a="ftback" aria-label="Retour">‹</button><h1>🎧 Clients Free tune</h1><button data-a="ftrefresh" aria-label="Actualiser les statuts" class="ftref"><i>↻</i></button></header>
         <main id="content"></main><div id="modal"></div>`;
@@ -341,6 +396,7 @@
 
   function renderContent() {
     if (S.stage !== "app") return;
+    if (S.subsMode) { const c1 = document.getElementById("content"); if (c1) c1.innerHTML = subsHtml(); return; }
     if (S.ftMode) {
       const c0 = document.getElementById("content");
       if (!c0) return;
@@ -577,6 +633,7 @@
     S.focusQ = false;
     switch (a) {
       case "login": login(); break;
+      case "subsrefresh": await loadSubs(true); break;
       case "ftback": if (window.NativeAdmin) window.NativeAdmin.back(); break;
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;

@@ -112,7 +112,17 @@
     .ftst b { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 22px; }
     .ftst span { display: block; font-size: 11px; font-weight: 600; opacity: .8; margin-top: 2px; }
     .ftst b .ond { width: 10px; height: 10px; }
-  </style>
+      .shero { margin: 4px 0 12px; padding: 20px 18px; border-radius: 24px; color: #fff; text-align: center; background: linear-gradient(135deg, #FF6A9C, #E91E63 60%, #B5179E); box-shadow: 0 12px 30px rgba(233,30,99,.35); }
+    .shero .sk { font-size: 13px; opacity: .9; } .shero .sbig { font-size: 34px; font-weight: 800; margin: 6px 0; letter-spacing: -.5px; }
+    .sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    .stile { padding: 12px; display: flex; flex-direction: column; gap: 2px; } .stile span { font-size: 12px; font-weight: 600; color: var(--gris); }
+    .stile b { font-size: 19px; color: var(--rose); } .stile small { font-size: 11px; color: var(--gris); }
+    .bars { display: flex; align-items: flex-end; gap: 8px; height: 150px; margin-top: 12px; }
+    .bcol { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+    .bcol .bar { width: 100%; max-width: 38px; border-radius: 10px 10px 4px 4px; background: linear-gradient(180deg, #FFB3CB, #FF6A9C); } .bcol.now .bar { background: linear-gradient(180deg, #FF6A9C, #E91E63); box-shadow: 0 4px 12px rgba(233,30,99,.35); }
+    .bcol .bv { font-size: 10px; font-weight: 700; color: var(--rose); min-height: 12px; } .bcol .bl { font-size: 11px; color: var(--gris); }
+    .mrow { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid rgba(127,127,127,.15); } .mrow:last-child { border-bottom: 0; }
+</style>
 </head>
 <body>
   <div id="app"><div class="center"><div class="spin"></div></div></div>
