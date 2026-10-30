@@ -2018,10 +2018,13 @@
   async function subGuard() {
     const A = API();
     if (document.hidden || !A || !A.casque || !A.casque.ready || !A.casque.ready()) return;
-    if (PW.el && PW.el.dataset.b === "1" && PW.step !== "ok") return;
+    const open = PW.el && PW.el.dataset.b === "1";
     let j = null;
     try { j = await A.authed("POST", "/rest/v1/rpc/sub_status", {}); } catch (e) { return; }
     if (!j || j.status !== "ok") return;
+    // Compte remis à zéro (essai de nouveau disponible) : l'écran de paiement se retire.
+    if (open && j.state === "trial" && PW.step !== "ok" && PW.step !== "wait") { closePaywall(); return; }
+    if (open && PW.step !== "ok") return;
     if (j.state === "expired") {
       if (PW.el && PW.el.dataset.b === "1") return;
       document.querySelectorAll("audio,video").forEach((m) => { try { m.pause(); } catch (e) { /* ignoré */ } });
@@ -2041,7 +2044,7 @@
     try {
       rel = await A.authed("POST", "/rest/v1/rpc/relay_create", { p_yid: o.src === "yt" ? o.id : "", p_q: o.src === "yt" ? "" : String(o.q || o.ti).slice(0, 120), p_ti: String(o.ti).slice(0, 120), p_ch: String(o.ch || "").slice(0, 60), p_d: o.d || 0, p_art: String(o.th || "").slice(0, 300), p_fmt: f });
     } catch (e) { rel = null; }
-    if (rel && rel.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
+    if (rel && rel.status === "pay") { openPaywall("dl", () => sendDl(o, f), true); return; }
     if (rel && rel.status === "ok") {
       DL.unshift({ mid: rel.id, app: "rel", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: rel.helpers || 0, at: Date.now(), st: "sent", p: 0 });
       saveDl(); draw(); pollSoon(2500);
@@ -2050,7 +2053,7 @@
     // 2) Sinon : le partenaire Android de « Tu me manques » (même abonnement ; l'essai est décompté quand le fichier est reçu).
     try {
       const ud = await A.authed("POST", "/rest/v1/rpc/sub_can", {});
-      if (ud && ud.status === "pay") { openPaywall("dl", () => sendDl(o, f)); return; }
+      if (ud && ud.status === "pay") { openPaywall("dl", () => sendDl(o, f), true); return; }
     } catch (e) { /* serveur pas prêt : on ne bloque pas */ }
     if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Ajoute d'abord un ami qui a Free tune sur Android."); draw(); return; } }
     const body = "📥 @music : peux-tu télécharger " + (isV(f) ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Free tune ? Ouvre cette conversation sur ton Android.";
@@ -2361,7 +2364,7 @@
     const act = DL.filter((d) => ["sent", "wait", "recv", "sending"].indexOf(d.st) >= 0);
     const done = DL.filter((d) => d.st === "done" || d.st === "fail");
     let body = "";
-    if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Un ami qui a Free tune sur Android la télécharge pour toi, puis elle apparaît ici, dans Audios ou Vidéos.", "Rechercher");
+    if (!DL.length) body = emptyState(I2.dl, "Aucun téléchargement", "Cherche une chanson dans « Rechercher », puis choisis MP3 ou vidéo. Elle apparaît ensuite ici, dans Audios ou Vidéos.", "Rechercher");
     if (act.length) body += '<p class="sec2">EN COURS · ' + act.length + "</p>" + act.map(dlRow).join("");
     if (done.length) body += '<p class="sec2">TERMINÉS</p>' + done.map(dlRow).join("");
     const win = V.key && V.dl ? '<div class="dlwin"><div class="pslot dlslot"></div>' +
@@ -2411,7 +2414,7 @@
         const fpo = U.fpo === sel.id, mineD = DL.filter((d) => (sel.src === "yt" ? d.yid === sel.id : d.ti === sel.ti));
         const fsub = mineD.some((d) => d.st !== "done" && d.st !== "fail") ? "Téléchargement en cours…" : mineD.some((d) => d.st === "done") ? "Téléchargé · touche pour d'autres formats" : "Audio · Vidéo · touche pour choisir";
         body += '<div class="fp' + (fpo ? " open" : "") + '"><div class="fh" data-a="fpt">' + I2.dl + "<span><b>Télécharger</b><small>" + esc(fsub) + "</small></span>" + (fpo && TP.st === "?" ? '<i class="spin s"></i>' : "") + '<em class="fch">' + I.down + "</em></div>" + (fpo ? "" : "") +
-          '<div class="fpb"><p class="via">Un ami qui a Free tune sur Android télécharge pour toi : le premier disponible prend ta demande, et le fichier arrive ici tout seul.</p>' +
+          '<div class="fpb">' +
           '<p class="fk">AUDIO</p>' + fmtRow(sel, "al") + fmtRow(sel, "a") + fmtRow(sel, "ah") + '<p class="fk">VIDÉO</p>' + fmtRow(sel, "vl") + fmtRow(sel, "v") + fmtRow(sel, "vh") + "</div></div>";
         const rowOf = (o) => {
           const got = DL.some((d) => d.st === "done" && ((o.src === "yt" && d.yid === o.id) || d.ti === o.ti));

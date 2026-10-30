@@ -228,6 +228,9 @@
         ${Number(u.times) > 1 ? `<div class="k" style="margin-top:2px">🔁 fidèle : ${u.times} abonnements depuis le début</div>` : ""}</div>`).join("");
     const soon = (d.soon || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip">⏳ se termine ${inDays(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
     const exp = (d.expired || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip" style="background:rgba(255,138,128,.2);color:#C62828">terminé le ${dshort(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
+    const tests = (d.tests || []).map((u) => { const st = u.state === "active" ? "✅ abonnement actif jusqu'au " + dshort(u.paid_until) : u.state === "trial" ? "🎁 essai gratuit (" + (3 - (Number(u.trial_dl) || 0)) + " téléchargement(s) restant(s))" : "⛔ abonnement ou essai terminé";
+      return `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><button class="btn small" data-a="subsreset" data-id="${esc(u.id)}" data-n="${esc(u.username || "")}">↺ Remettre à 0</button></div>
+        <div class="k" style="margin-top:6px">${st}</div><div class="k">Numéro de test ${esc(u.phone || "")} · ${esc(u.email || "")}</div></div>`; }).join("") || '<p class="muted">Aucun compte n\'a encore payé avec un numéro de test.</p>';
     const months = (d.months || []).slice().reverse().map((x) => `<div class="mrow"><span class="grow">${mlong(x.m)}</span><span class="k">${x.n} abonnement${x.n > 1 ? "s" : ""}</span><b>${fcfa(x.rev)}</b></div>`).join("");
     return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `
       <div class="shero"><div class="sk">Chiffre d'affaires total</div><div class="sbig">${fcfa(tot.revenue)}</div>
@@ -241,6 +244,7 @@
       <h2>👥 Abonnés de ${mlong(mo.key)} (${(d.current || []).length})</h2>${cur || '<p class="muted">Aucun abonnement ce mois-ci pour le moment.</p>'}
       ${(d.soon || []).length ? `<h2>⏳ À relancer : fin dans moins de 7 jours</h2>${soon}` : ""}
       ${(d.expired || []).length ? `<h2>💤 Terminés récemment</h2>${exp}` : ""}
+      <h2>🧪 Comptes de test (paiement avec un numéro de test)</h2>${tests}
       <h2>📅 Récap mois par mois</h2><div class="card glass">${months || '<p class="k">Aucun paiement pour l\'instant.</p>'}</div>`;
   }
   // ---------- Clients Free tune ----------
@@ -633,6 +637,12 @@
     S.focusQ = false;
     switch (a) {
       case "login": login(); break;
+      case "subsreset": {
+        const id = t.dataset.id, nm = t.dataset.n || "ce compte";
+        if (!confirm("Remettre @" + nm + " à zéro ? Son abonnement de test est retiré, ses téléchargements et ses jours reviennent à 0 (nouvel essai gratuit).")) break;
+        try { await call("admin_test_reset", { p_user: id }); } catch (e) { alert("Impossible : " + (e.message || e)); }
+        await loadSubs(true); break;
+      }
       case "subsrefresh": await loadSubs(true); break;
       case "ftback": if (window.NativeAdmin) window.NativeAdmin.back(); break;
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;

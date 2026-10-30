@@ -89,6 +89,8 @@ object Sub {
         paidUntil = parse(j.optString("paid_until"))
         trialEnd = parse(j.optString("trial_end"))
         trialLeft = j.optInt("trial_left", 3)
+        // Compte remis à zéro par l'administrateur : l'essai est de nouveau disponible, l'écran de paiement se retire.
+        if (state == "trial" && (paywall == "dl" || paywall == "expired")) paywall = null
         if (state == "expired") {
             paywall = if (trialLeft <= 0 && paidUntil == null) "dl" else "expired"
             // L'écran de paiement ne se ferme qu'en payant : la lecture est aussi mise en pause.
