@@ -1,7 +1,7 @@
 {
- "version": "web 2.30",
- "notes": "Le moteur YouTube se répare et se met à jour tout seul quand YouTube change.",
- "versionCode": 127,
- "versionName": "1.127",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-127/casque.apk"
+ "version": "web 2.31",
+ "notes": "Présence plus rapide : l'administrateur voit en quelques secondes qui est dans Free tune.",
+ "versionCode": 128,
+ "versionName": "1.128",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-128/casque.apk"
 }
