@@ -54,6 +54,13 @@ jobs:
       - name: Préparer le fichier
         run: cp app/build/outputs/apk/tmm/debug/app-tmm-debug.apk tu-me-manque.apk
 
+      - name: Signer avec la clé privée Free tune
+        env:
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
+          REQUIRE_SIGN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: tools/resign.sh tu-me-manque.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: tu-me-manque

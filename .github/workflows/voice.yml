@@ -38,6 +38,13 @@ jobs:
       - name: Préparer le fichier
         run: cp voice/build/outputs/apk/debug/voice-debug.apk take-my-voice.apk
 
+      - name: Signer avec la clé privée Free tune
+        env:
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
+          REQUIRE_SIGN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: tools/resign.sh take-my-voice.apk
+
       - name: Publier l'APK (lien de téléchargement)
         uses: softprops/action-gh-release@v2
         with:

@@ -40,6 +40,13 @@ jobs:
       - name: Préparer le fichier
         run: cp admin/build/outputs/apk/debug/admin-debug.apk tu-me-manque-admin.apk
 
+      - name: Signer avec la clé privée Free tune
+        env:
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
+          REQUIRE_SIGN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: tools/resign.sh tu-me-manque-admin.apk
+
       - name: Publier l'APK Admin
         uses: softprops/action-gh-release@v2
         with:
