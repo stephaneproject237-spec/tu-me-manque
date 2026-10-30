@@ -21,16 +21,15 @@ class UpdateReceiver : BroadcastReceiver() {
         if (id < 0 || id != pr.getLong("id", -2)) return
         val f = File(pr.getString("file", "") ?: "")
         if (!f.exists() || f.length() < 1_000_000) return
-        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", f)
-        val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        val pi = PendingIntent.getActivity(context, 7, view, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        // Un touché sur la notification ouvre l'appli : la fenêtre « Installer la mise à jour » s'y affiche.
+        val open = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+        val pi = PendingIntent.getActivity(context, 7, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel("update", "Mises à jour", NotificationManager.IMPORTANCE_DEFAULT))
         val n = NotificationCompat.Builder(context, "update")
             .setSmallIcon(R.drawable.ic_stat_heart)
             .setContentTitle("Mise à jour prête")
-            .setContentText("Touche pour installer la nouvelle version de Tu me manques.")
+            .setContentText("Ouvre l'application pour installer la mise à jour.")
             .setContentIntent(pi).setAutoCancel(true).build()
         try { nm.notify(4242, n) } catch (e: SecurityException) { /* notifications refusées */ }
     }
