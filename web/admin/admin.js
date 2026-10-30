@@ -199,12 +199,42 @@
     // Demande aux Android silencieux de se signaler (au plus une fois par minute) : ils apparaissent « sur internet » s'ils sont joignables.
     if (Date.now() - (S.pingAt || 0) > 8000) { S.pingAt = Date.now(); call("admin_ft_ping").catch(() => {}); }
     try {
-      S.ft = await call("admin_ft_clients"); S.err = null;
+      S.ft = await call("admin_ft_clients"); S.err = null; S.ftAt = Date.now();
     } catch (e) {
       S.err = "Chargement impossible : " + (e.message || e) + " (as-tu collé le code SQL « clients » dans Supabase ?)";
     }
     if (S.modal && S.modal.type === "ftfriends") renderModal();
     renderContent();
+  }
+  function ftAgeText() {
+    if (S.ftBusy) return "Vérification des téléphones en cours…";
+    if (S.ftNote) return S.ftNote;
+    if (!S.ftAt) return "Chargement…";
+    const sec = Math.max(0, Math.round((Date.now() - S.ftAt) / 1000));
+    return "Mis à jour " + (sec < 2 ? "à l'instant" : "il y a " + sec + " s");
+  }
+  // Met à jour la barre d'état sans redessiner la liste (garde le clavier et la sélection).
+  function paintFtBar() {
+    const a = document.getElementById("ftage"); if (a) a.textContent = ftAgeText();
+    document.querySelectorAll(".ftref").forEach((b) => {
+      b.classList.toggle("busy", !!S.ftBusy); b.disabled = !!S.ftBusy;
+      const sp = b.querySelector("span"); if (sp) sp.textContent = S.ftBusy ? "Vérification…" : "Actualiser";
+    });
+  }
+  setInterval(() => { if (S.ftMode && !document.hidden) paintFtBar(); }, 1000);
+  // Actualisation manuelle : on demande tout de suite aux Android de se signaler, puis on relit les statuts.
+  async function ftRefresh() {
+    if (S.ftBusy) return;
+    S.ftBusy = true; S.ftNote = ""; paintFtBar();
+    let n = 0;
+    try { n = Number(await call("admin_ft_ping")) || 0; } catch (e) { /* le SQL de présence n'est peut-être pas collé */ }
+    S.pingAt = Date.now();
+    try { await loadFt(); } catch (e) { /* loadFt gère ses erreurs */ }
+    S.ftBusy = false;
+    S.ftNote = S.err ? "⚠️ Échec de l'actualisation" : n ? "✓ À jour · " + n + " sollicité" + (n > 1 ? "s" : "") : "✓ Statuts à jour";
+    paintFtBar();
+    setTimeout(() => { if (S.ftMode) loadFt(); }, 3000); // les réponses des téléphones sollicités arrivent en quelques secondes
+    setTimeout(() => { S.ftNote = ""; paintFtBar(); }, 5000);
   }
   const ago = (t) => {
     if (!t) return "jamais vu";
@@ -242,9 +272,13 @@
     const st = S.ft.settings || {};
     const sw = (k, on, t, d) => `<div class="row" style="margin:10px 0"><div class="grow"><div class="name" style="font-size:15px">${t}</div><div class="k">${d}</div></div>
       <button class="swt ${on ? "on" : ""}" data-a="ftset" data-k="${k}" data-v="${on ? 0 : 1}" aria-label="${t}"><i></i></button></div>`;
-    const online = all.filter((u) => u.online);
+    const cApp = all.filter((u) => u.state === "app").length, cNet = all.filter((u) => u.state === "net").length, cOff = all.filter((u) => u.state === "off").length;
     return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") +
-      `<div class="card glass"><div class="k">${all.length} comptes · <span class="ond on"></span> ${all.filter((u) => u.state === "app").length} dans Free tune · <span class="ond net"></span> ${all.filter((u) => u.state === "net").length} sur internet · ${all.filter((u) => u.state === "off").length} hors ligne</div>
+      `<div class="card glass ftbar"><div class="row"><div class="grow"><div class="name" style="font-size:16px">Statuts en direct</div><div class="k" id="ftage">${esc(ftAgeText())}</div></div>
+        <button class="p ftref${S.ftBusy ? " busy" : ""}" data-a="ftrefresh" ${S.ftBusy ? "disabled" : ""}><i>↻</i><span>${S.ftBusy ? "Vérification…" : "Actualiser"}</span></button></div>
+        <div class="ftstats"><div class="ftst"><b><span class="ond on"></span>${cApp}</b><span>Dans Free tune</span></div><div class="ftst"><b><span class="ond net"></span>${cNet}</b><span>Sur internet</span></div><div class="ftst"><b><span class="ond"></span>${cOff}</b><span>Hors ligne</span></div></div>
+        <div class="k" style="margin-top:8px">${all.length} compte${all.length > 1 ? "s" : ""} · mise à jour automatique toutes les 2 secondes</div></div>
+      <div class="card glass">
         ${sw("auto_friends", !!st.auto_friends, "🤝 Amis automatiques", "Tous les comptes Android en ligne deviennent amis avec tous les iPhone en ligne.")}
         ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}</div>
       <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les.</p>
@@ -267,7 +301,7 @@
   function render() {
     if (S.stage === "loading") { root.innerHTML = '<div class="center"><div class="spin"></div></div>'; return; }
     if (S.stage === "login") {
-      root.innerHTML = `<div class="center"><div style="font-size:56px">🛠️💗</div><h1 style="margin:0">Tu me manques – Admin</h1>
+      root.innerHTML = `<div class="center"><div style="font-size:56px">🎧</div><h1 style="margin:0">Free tune Admin</h1>
         <p class="muted" style="padding:0">Réservé à l'administrateur.</p>
         ${S.err ? '<p class="err">' + esc(S.err) + "</p>" : ""}
         <button class="p" data-a="login" style="font-size:17px;padding:14px 24px">Continuer avec Google</button></div>`;
@@ -280,7 +314,7 @@
       return;
     }
     if (S.ftMode) {
-      root.innerHTML = `<header><button data-a="ftback" aria-label="Retour">‹</button><h1>🎧 Clients Free tune</h1><button data-a="refresh" aria-label="Actualiser">↻</button></header>
+      root.innerHTML = `<header><button data-a="ftback" aria-label="Retour">‹</button><h1>🎧 Clients Free tune</h1><button data-a="ftrefresh" aria-label="Actualiser les statuts" class="ftref"><i>↻</i></button></header>
         <main id="content"></main><div id="modal"></div>`;
       renderContent();
       return;
@@ -554,7 +588,8 @@
         break;
       }
       case "logout": store.clear(); clearInterval(pollT); S.stage = "login"; S.thread = null; S.loaded = false; render(); break;
-      case "refresh": if (S.ftMode) loadFt(); else loadAll(); break;
+      case "refresh": if (S.ftMode) ftRefresh(); else loadAll(); break;
+      case "ftrefresh": ftRefresh(); break;
       case "sort": S.sort = t.dataset.k; try { localStorage.setItem("tmm_sort", S.sort); } catch (e) {} renderContent(); break;
       case "tab": S.tab = t.dataset.t; renderContent(); break;
       case "chat": { const u = user(); const th = S.threads.find((x) => x.user_id === id); openThread(id, (u && u.username) || (th && th.username) || "?"); break; }

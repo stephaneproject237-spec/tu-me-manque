@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#160A12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Admin">
-  <title>Tu me manques – Admin</title>
+  <meta name="apple-mobile-web-app-title" content="Free tune Admin">
+  <title>Free tune Admin</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
   <link rel="icon" href="../icons/icon-192.png">
@@ -101,11 +101,22 @@
     .swt { flex: none; width: 52px; height: 30px; padding: 0; border-radius: 30px; background: #4A2A3C; position: relative; transition: background .2s; }
     .swt i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; }
     .swt.on { background: #2ECC71; } .swt.on i { transform: translateX(22px); }
+    #ftage { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ftbar .grow { min-width: 0; }
+    .ftref { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .ftref i { font-style: normal; font-size: 18px; line-height: 1; display: inline-block; }
+    .ftref.busy i { animation: t .8s linear infinite; }
+    .ftref:disabled { opacity: .75; }
+    .ftstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .ftst { background: rgba(127,127,127,.14); border-radius: 14px; padding: 10px 6px; text-align: center; }
+    .ftst b { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 22px; }
+    .ftst span { display: block; font-size: 11px; font-weight: 600; opacity: .8; margin-top: 2px; }
+    .ftst b .ond { width: 10px; height: 10px; }
   </style>
 </head>
 <body>
   <div id="app"><div class="center"><div class="spin"></div></div></div>
   <script src="../config.js"></script>
-  <script src="admin.js?v=13"></script>
+  <script src="admin.js?v=14"></script>
 </body>
 </html>

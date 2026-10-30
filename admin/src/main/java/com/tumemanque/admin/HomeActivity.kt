@@ -101,7 +101,7 @@ class HomeActivity : ComponentActivity() {
     }
 
     private fun renderHome() {
-        root.addView(TextView(this).apply { text = "Tu me manques"; textSize = 28f; setTextColor(Color.WHITE); setTypeface(null, Typeface.BOLD) })
+        root.addView(TextView(this).apply { text = "Free tune Admin"; textSize = 28f; setTextColor(Color.WHITE); setTypeface(null, Typeface.BOLD) })
         root.addView(TextView(this).apply {
             text = "Administration"; textSize = 15f; setTextColor(Color.parseColor("#FF6A9C"))
             setPadding(0, dp(2), 0, dp(32))
