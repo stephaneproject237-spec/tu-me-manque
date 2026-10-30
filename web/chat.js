@@ -309,11 +309,21 @@
     $("ch-list").addEventListener("scroll", onScroll, { passive: true });
     const vv = window.visualViewport;
     if (vv) {
-      const fit = () => {
+      // Le cadre ne suit la zone visible que si le clavier est ouvert. Sans clavier, on ne touche à rien :
+      // sur iPhone, l'événement « scroll » de la zone visible part pendant qu'on fait défiler (rebond, élan)
+      // et décalait toute la conversation à contre-sens du doigt.
+      const fit = (ev) => {
         if (!opened) return;
-        host.style.height = vv.height + "px";
-        host.style.top = vv.offsetTop + "px";
-        if (nearBottomFlag) scrollBottom(true);
+        const kb = window.innerHeight - vv.height > 80;
+        if (!kb) {
+          if (host.style.height || host.style.top) { host.style.height = ""; host.style.top = ""; }
+          if (ev && ev.type === "resize" && nearBottomFlag) scrollBottom(true);
+          return;
+        }
+        const h = vv.height + "px", t = vv.offsetTop + "px";
+        if (host.style.height !== h) host.style.height = h;
+        if (host.style.top !== t) host.style.top = t;
+        if (ev && ev.type === "resize" && nearBottomFlag) scrollBottom(true);
       };
       vv.addEventListener("resize", fit);
       vv.addEventListener("scroll", fit);
