@@ -966,6 +966,17 @@
     if (i < 0 || n < 0 || n >= l.length) { if (d < 0 && V.el) V.el.currentTime = 0; return; }
     const wasFull = V.full; playFile(l[n], { vl: true }); V.full = wasFull; placeVideo();
   }
+  // Précédent / suivant sur la page Rechercher : pendant une vidéo, on enchaîne comme d'habitude ; sinon on passe au résultat voisin et il se lance seul.
+  function selStep(d) {
+    if (V.yid) {
+      if (d > 0) { vNext(); return; }
+      const e = V.el;
+      if ((e && e.currentTime > 3) || V.hist.length) { vPrev(); return; }
+    }
+    const l = SR.items.filter((x) => x.src === "yt"), i = l.findIndex((x) => x.id === SR.sel), n = i < 0 ? 0 : i + d;
+    if (n < 0 || n >= l.length) { toast(d > 0 ? "C'est le dernier résultat." : "C'est le premier résultat."); return; }
+    const o = l[n]; SR.sel = o.id; saveSr(); draw(); loadRelated(o); playYt(o); draw();
+  }
   const canStep = () => !!V.key && (!!V.yid || DLP.active || VL.on);
   function vNext() { if (V.yid) nextRelated(true); else if (VL.on) vlStep(1); else if (DLP.active) dlStep(1); }
   function vPrev() {
@@ -1285,14 +1296,8 @@
     if (!v || v.ended || bgOn) return;
     // iOS peut mettre la vidéo en pause juste avant : on reprend alors en son seul (force).
     if (v.paused && !(force && Date.now() - lastPlay < 1500)) return;
-    if (!inApp && !v.paused && pip(false)) {
-      // L'iPhone n'accepte pas toujours la bulle sans geste : si elle n'est pas apparue, le son continue en arrière-plan.
-      setTimeout(() => {
-        const inPip = v.webkitPresentationMode === "picture-in-picture" || document.pictureInPictureElement === v;
-        if (!inPip && V.el === v && !bgOn) audioOnly(v);
-      }, 350);
-      return;
-    }
+    // Déjà en image dans l'image (lancée avec le bouton du lecteur) : on n'y touche pas. Sinon le son de la vidéo continue comme celui d'un audio.
+    if (v.webkitPresentationMode === "picture-in-picture" || document.pictureInPictureElement === v) return;
     audioOnly(v);
   }
   function audioOnly(v) {
@@ -2239,7 +2244,7 @@
         pin = '<div class="pst"><div class="pslot" data-id="' + esc(sel.id) + '">' + thumbImg(sel, true) +
           (playing ? "" : '<button class="gplay" data-a="yplay">' + (sel.src === "it" && U.pv === sel.pv ? I.pause : I.play) + "</button>" + (sel.d ? '<span class="vd">' + fmt(sel.d) + "</span>" : "")) + "</div>" +
           '<div class="pc pcf"><div class="pct"><h2>' + esc(sel.ti) + "</h2><small>" + esc([sel.ch, fmtViews(sel.v), fmtAgo(sel.pu)].filter(Boolean).join(" · ")) + (sel.src === "it" ? " · extrait de 30 s" : "") + "</small></div>" +
-          (sel.src === "yt" && playing ? '<button class="pcb" data-a="vprev" aria-label="Précédent">' + I.prev + '</button><button class="pcb" data-a="vnext" aria-label="Suivant">' + I.next + "</button>" : "") +
+          (sel.src === "yt" ? '<button class="pcb" data-a="vprev" aria-label="Précédent">' + I.prev + '</button><button class="pcb" data-a="vnext" aria-label="Suivant">' + I.next + "</button>" : "") +
           (sel.src === "yt" ? '<button class="aps' + (V.auto ? " on" : "") + '" data-a="yauto" aria-label="Lecture automatique"><i>' + I.play + "</i></button>" : "") + "</div></div>";
         body += dcBanner();
         body += dcLists();
@@ -2297,8 +2302,8 @@
       case "dlclear": DL = DL.filter((d) => d.st !== "done" && d.st !== "fail"); saveDl(); draw(); return true;
       case "dlretry": { const d = DL.find((x) => String(x.mid) === String(id)); if (d) { DL = DL.filter((x) => x !== d); sendDl({ src: d.yid ? "yt" : "it", id: d.yid, q: d.ch + " " + d.ti, ti: d.ti, ch: d.ch, th: d.th }, d.f); } return true; }
       case "yauto": toggleAuto(); return true;
-      case "vprev": vPrev(); return true;
-      case "vnext": vNext(); return true;
+      case "vprev": selStep(-1); return true;
+      case "vnext": selStep(1); return true;
       case "fpt": { const sl = SR.items.find((x) => x.id === SR.sel); if (sl) { U.fpo = U.fpo === sl.id ? null : sl.id; const e = host.querySelector(".fp"); if (e) e.classList.toggle("open", U.fpo === sl.id); else draw(); } return true; }
       case "dcyes": { const d = SR.dc; if (!d) return true; d.stage = 1; if (d.kind === "artist" && !d.albums) dcAlbums(d); draw(); return true; }
       case "dcno": { const d = SR.dc; if (d) { d.stage = 2; } draw(); return true; }
@@ -2344,7 +2349,9 @@
         SR.sel = id; saveSr();
         const l = host.querySelector(".list"); if (l) l.scrollTop = 0;
         draw();
-        loadRelated(SR.items.find((x) => x.id === id));
+        const it = SR.items.find((x) => x.id === id);
+        loadRelated(it);
+        if (it && it.src === "yt") { playYt(it); draw(); }
         return true;
       }
       case "yget": {
