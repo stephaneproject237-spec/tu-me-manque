@@ -196,6 +196,17 @@
 
 
 
+
+  // Boîte de confirmation dans la page : le WebView d'Android ignore confirm() et alert(), ils ne s'affichaient jamais.
+  function ask(msg, okLabel) {
+    return new Promise((res) => {
+      const o = document.createElement("div");
+      o.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:24px";
+      o.innerHTML = '<div class="card glass" style="max-width:340px;width:100%;padding:20px;margin:0"><p style="margin:0 0 16px;white-space:pre-line;line-height:1.4">' + esc(msg) + '</p><div class="row" style="gap:10px"><button data-k="0" class="grow" style="background:rgba(255,255,255,.14);color:inherit">Annuler</button><button data-k="1" class="grow btn small">' + esc(okLabel || "Confirmer") + "</button></div></div>";
+      o.addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (!b) return; o.remove(); res(b.dataset.k === "1"); });
+      document.body.appendChild(o);
+    });
+  }
   // ---------- Suivi des abonnements ----------
   async function loadSubs(manual) {
     try { S.subs = await call("admin_subs_overview"); S.err = null; }
@@ -228,9 +239,9 @@
         ${Number(u.times) > 1 ? `<div class="k" style="margin-top:2px">🔁 fidèle : ${u.times} abonnements depuis le début</div>` : ""}</div>`).join("");
     const soon = (d.soon || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip">⏳ se termine ${inDays(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
     const exp = (d.expired || []).map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><span class="chip" style="background:rgba(255,138,128,.2);color:#C62828">terminé le ${dshort(u.paid_until)}</span></div><div class="k" style="margin-top:4px">${esc(u.email || "")}</div></div>`).join("");
-    const tests = (d.tests || []).map((u) => { const st = u.state === "active" ? "✅ abonnement actif jusqu'au " + dshort(u.paid_until) : u.state === "trial" ? "🎁 essai gratuit (" + (3 - (Number(u.trial_dl) || 0)) + " téléchargement(s) restant(s))" : "⛔ abonnement ou essai terminé";
+    const tests = (d.tests || []).filter((u) => u.state === "active").map((u) => { const st = u.state === "active" ? "✅ abonnement actif jusqu'au " + dshort(u.paid_until) : u.state === "trial" ? "🎁 essai gratuit (" + (3 - (Number(u.trial_dl) || 0)) + " téléchargement(s) restant(s))" : "⛔ abonnement ou essai terminé";
       return `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><button class="btn small" data-a="subsreset" data-id="${esc(u.id)}" data-n="${esc(u.username || "")}">↺ Remettre à 0</button></div>
-        <div class="k" style="margin-top:6px">${st}</div><div class="k">Numéro de test ${esc(u.phone || "")} · ${esc(u.email || "")}</div></div>`; }).join("") || '<p class="muted">Aucun compte n\'a encore payé avec un numéro de test.</p>';
+        <div class="k" style="margin-top:6px">${st}</div><div class="k">Numéro de test ${esc(u.phone || "")} · ${esc(u.email || "")}</div></div>`; }).join("") || '<p class="muted">Aucun compte n\'a actuellement un abonnement payé avec un numéro de test.</p>';
     const months = (d.months || []).slice().reverse().map((x) => `<div class="mrow"><span class="grow">${mlong(x.m)}</span><span class="k">${x.n} abonnement${x.n > 1 ? "s" : ""}</span><b>${fcfa(x.rev)}</b></div>`).join("");
     return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `
       <div class="shero"><div class="sk">Chiffre d'affaires total</div><div class="sbig">${fcfa(tot.revenue)}</div>
@@ -639,8 +650,8 @@
       case "login": login(); break;
       case "subsreset": {
         const id = t.dataset.id, nm = t.dataset.n || "ce compte";
-        if (!confirm("Remettre @" + nm + " à zéro ? Son abonnement de test est retiré, ses téléchargements et ses jours reviennent à 0 (nouvel essai gratuit).")) break;
-        try { await call("admin_test_reset", { p_user: id }); } catch (e) { alert("Impossible : " + (e.message || e)); }
+        if (!await ask("Remettre @" + nm + " à zéro ? Son abonnement de test est retiré, ses téléchargements et ses jours reviennent à 0 (nouvel essai gratuit).")) break;
+        try { await call("admin_test_reset", { p_user: id }); } catch (e) { await ask("Remise à zéro impossible : " + (e.message || e) + "\n(As-tu collé le dernier code SQL « suivi des abonnements » dans Supabase ?)", "OK"); }
         await loadSubs(true); break;
       }
       case "subsrefresh": await loadSubs(true); break;
@@ -649,8 +660,8 @@
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
       case "ftclear": S.sel = {}; renderContent(); break;
       case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs) break; const n = await ftDo("admin_ft_link", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
-      case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs || !confirm("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
-      case "ftrm": { const m = S.modal; if (!m || !confirm("Retirer cette amitié ?\nLa conversation est conservée.")) break; await ftDo("admin_ft_unlink", [m.id], [id]); break; }
+      case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs || !await ask("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
+      case "ftrm": { const m = S.modal; if (!m || !await ask("Retirer cette amitié ?\nLa conversation est conservée.")) break; await ftDo("admin_ft_unlink", [m.id], [id]); break; }
       case "ftset": {
         try { const r = await call("admin_ft_setting", { p_key: t.dataset.k, p_val: t.dataset.v === "1" }); await loadFt(); if (r && r.linked) alert(r.linked + " amitié(s) créée(s)."); }
         catch (e) { alert("Impossible : " + (e.message || e)); }
@@ -665,7 +676,7 @@
       case "tback": S.thread = null; renderThread(); loadAll(); break;
       case "tsend": sendThread(); break;
       case "tdel": {
-        if (!S.thread || !confirm("Supprimer cette conversation ?\nElle disparaîtra aussi chez @" + S.thread.name + ".")) break;
+        if (!S.thread || !await ask("Supprimer cette conversation ?\nElle disparaîtra aussi chez @" + S.thread.name + ".")) break;
         try { await call("admin_delete_thread", { p_user: S.thread.id }); S.thread = null; renderThread(); await loadAll(); }
         catch (e) { alert("Suppression impossible : " + (e.message || e)); }
         break;
