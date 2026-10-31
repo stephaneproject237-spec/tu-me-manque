@@ -348,7 +348,8 @@
         <div class="k" style="margin-top:8px">${all.length} compte${all.length > 1 ? "s" : ""} · mise à jour automatique toutes les 2 secondes</div></div>
       <div class="card glass">
         ${sw("auto_friends", !!st.auto_friends, "🤝 Amis automatiques", "Tous les comptes Android en ligne deviennent amis avec tous les iPhone en ligne.")}
-        ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}</div>
+        ${sw("random_dispatch", st.random_dispatch !== false, "🎲 Répartition au hasard", "Chaque demande d'un iPhone part vers un seul Android en ligne qui accepte de partager.")}
+        ${sw("p2p", !!st.p2p, "🧩 p2p", "Le fichier audio d'un iPhone est découpé en morceaux : chaque Android en ligne en télécharge et en envoie, l'iPhone les recolle. Si un Android s'arrête, les autres reprennent ses morceaux. (Audio MP3 léger et standard ; vidéos et haute qualité : méthode habituelle.)")}</div>
       <div class="card glass"><p class="k" style="margin:0 0 8px">Touche des comptes pour les sélectionner, puis relie-les ou sépare-les. Un iPhone et un Android sélectionnés : ils sont reliés entre eux. Plusieurs comptes du même type (par exemple des Android) : ils sont tous reliés entre eux.</p>
         <div class="row"><span class="chip">🍎 ${nI} iPhone</span><span class="chip">🤖 ${nA} Android</span>
         <span class="grow"></span><button class="s" data-a="ftclear" ${nI + nA ? "" : "disabled"}>Effacer</button></div>

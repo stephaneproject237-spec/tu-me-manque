@@ -2142,6 +2142,43 @@
     } catch (e) { d.st = "wait"; }
     saveDl(); draw(); pollSoon(1500);
   }
+  // Mode p2p : le fichier arrive en morceaux envoyés par plusieurs Android ; on les télécharge au fur et à mesure et on les recolle.
+  async function recvP2p(d, r, A) {
+    d.p2p = true; d.p2pBusy = true; d.st = "recv"; d.pp = 0; draw();
+    const n = Number(r.p2p_n) || 0, parts = new Array(n).fill(null), busy = new Set();
+    let got = 0; const t0 = Date.now();
+    const fetchPart = async (c) => {
+      busy.add(c.idx);
+      try {
+        for (let k = 0; k < 3 && !parts[c.idx]; k++) {
+          const resp = await fetch(mediaUrl(c.media), { cache: "no-store" });
+          if (!resp.ok) continue;
+          const buf = await resp.arrayBuffer();
+          if (buf.byteLength === Number(c.size)) { parts[c.idx] = buf; got++; d.pp = got / n; }
+        }
+      } catch (e) { /* on réessaiera au prochain passage */ }
+      busy.delete(c.idx);
+    };
+    try {
+      while (got < n) {
+        if (Date.now() - t0 > 900000) throw new Error("délai");
+        const info = await A.authed("POST", "/rest/v1/rpc/relay_chunks", { p_id: r.id });
+        if (!info || info.status === "gone" || info.status === "fail") throw new Error("annulé");
+        for (const c of info.chunks || []) {
+          if (!parts[c.idx] && !busy.has(c.idx) && busy.size < 4) fetchPart(c);
+        }
+        await new Promise((ok) => setTimeout(ok, 800));
+      }
+      const blob = new Blob(parts, { type: "audio/mp4" });
+      const t = await importBlob(blob, { title: d.ti, artist: d.ch, art: d.th, video: false, d: d.d || 0, yid: d.yid, fk: d.f });
+      d.st = "done"; d.tid = t.id; d.size = blob.size; mediaAdd(d);
+      A.authed("POST", "/rest/v1/rpc/relay_ack", { p_id: r.id }).catch(() => {});
+      toast("Chanson ajoutée : « " + t.title + " »");
+      if (navigator.vibrate) navigator.vibrate(30);
+    } catch (e) { d.st = "wait"; }
+    d.p2pBusy = false;
+    saveDl(); draw(); pollSoon(1500);
+  }
   async function pollDl() {
     const A = API();
     const list = pendingDl();
@@ -2162,6 +2199,11 @@
           if (r.tries != null) d.tries = r.tries;
           if (r.status === "open" && d.st === "wait") d.st = "sent";
           if (r.prog > (d.pr || 0)) d.pr = r.prog;
+          if (Number(r.p2p_n) > 0 && r.status !== "fail") {
+            if (d.st === "sent") d.st = "wait";
+            if (!d.p2pBusy && d.st !== "recv" && d.st !== "done") recvP2p(d, r, A);
+            continue;
+          }
           if (r.status === "taken" && d.st === "sent") d.st = "wait";
           else if (r.status === "fail") d.st = "fail";
           else if (r.status === "done" && r.media && d.st !== "recv" && d.st !== "done") recvRel(d, r, A);
@@ -2299,6 +2341,7 @@
   // Avancement total (0 à 100) d'une demande faite à un ami Android : chez lui (jusqu'à 90 %), puis réception sur l'iPhone ; -1 = on ne sait pas encore.
   function dlPct(d) {
     if (d.app === "rel") {
+      if (d.p2p && (d.st === "recv" || d.st === "wait")) return Math.round((d.pp || 0) * 100);
       if (d.st === "recv") return Math.round(d.vp > 0 ? d.vp : 67 + (d.p || 0) * 33);
       if (d.st === "wait") { const v = Math.round(Math.max(d.vp || 0, d.pr || 0)); return v > 0 ? Math.min(67, v) : -1; }
       return -1;
@@ -2310,7 +2353,10 @@
   function dlAnim() {
     DL.forEach((d) => {
       if (d.app !== "rel" || (d.st !== "wait" && d.st !== "recv")) return;
+      if (d.p2p) d.vp = Math.round((d.pp || 0) * 100);
       const v = d.vp || 0; let n = v;
+      if (d.p2p) n = v;
+      else
       if (d.st === "wait" && (d.lost || d.quiet >= 3)) { n = v; }
       else if (d.st === "wait") {
         const pr = Math.min(67, d.pr || 0), cap = pr >= 67 ? 67 : Math.min(66, pr + 24);

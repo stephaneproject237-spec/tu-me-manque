@@ -254,6 +254,31 @@ object Backend {
         JSONObject(authed("POST", "/rest/v1/rpc/relay_done", JSONObject().put("p_id", id).put("p_media", media).put("p_size", size).toString())).optString("status") == "ok"
     }.getOrDefault(false)
 
+    // ---------- Mode p2p : le fichier est découpé, chaque Android envoie des morceaux ----------
+    suspend fun relayP2pInit(id: Long, yid: String, fid: String, size: Long): JSONObject? = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/relay_p2p_init", JSONObject().put("p_id", id).put("p_yid", yid).put("p_fid", fid).put("p_size", size).toString()))
+            .takeIf { it.optString("status") == "ok" }
+    }.getOrNull()
+
+    suspend fun relayP2pJobs(): JSONArray =
+        runCatching { JSONArray(authed("POST", "/rest/v1/rpc/relay_p2p_jobs", "{}")) }.getOrDefault(JSONArray())
+
+    suspend fun relayChunkTake(id: Long): JSONObject =
+        runCatching { JSONObject(authed("POST", "/rest/v1/rpc/relay_chunk_take", JSONObject().put("p_id", id).toString())) }
+            .getOrDefault(JSONObject().put("status", "error"))
+
+    suspend fun relayChunkBeat(id: Long, idx: Int) {
+        runCatching { authed("POST", "/rest/v1/rpc/relay_chunk_beat", JSONObject().put("p_id", id).put("p_idx", idx).toString()) }
+    }
+
+    suspend fun relayChunkFail(id: Long, idx: Int) {
+        runCatching { authed("POST", "/rest/v1/rpc/relay_chunk_fail", JSONObject().put("p_id", id).put("p_idx", idx).toString()) }
+    }
+
+    suspend fun relayChunkDone(id: Long, idx: Int, media: String, size: Long): Boolean = runCatching {
+        JSONObject(authed("POST", "/rest/v1/rpc/relay_chunk_done", JSONObject().put("p_id", id).put("p_idx", idx).put("p_media", media).put("p_size", size).toString())).optString("status") == "ok"
+    }.getOrDefault(false)
+
     /** Free tune : « je suis en ligne » (Android), avec l'état du partage de chansons aux iPhone. */
     @Volatile private var versionSent = false
     suspend fun heartbeat(share: Boolean, inApp: Boolean) {
