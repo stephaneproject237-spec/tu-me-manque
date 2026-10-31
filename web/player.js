@@ -2008,7 +2008,7 @@
       body = '<div class="box c"><div style="font-size:42px">✅</div><b>Merci ! Ton abonnement est actif</b><p>jusqu\'au ' + esc(pwDate(PW.until)) + '</p><button class="bt" id="pw-done">Continuer</button></div>';
     }
     const blocking = d.dataset.b === "1" && PW.step !== "ok";
-    d.innerHTML = (blocking ? '<div style="height:38px"></div>' : '<button class="x" id="pw-x" aria-label="Fermer">✕</button>') + '<div class="lg">🎧</div><h2>Free tune Premium</h2><p class="sub">' + sub + "</p>" +
+    d.innerHTML = (blocking || PW.step === "ok" ? '<div style="height:38px"></div>' : '<button class="x" id="pw-x" aria-label="Fermer">✕</button>') + '<div class="lg">🎧</div><h2>Free tune Premium</h2><p class="sub">' + sub + "</p>" +
       '<div class="box"><div class="pr">500<small> FCFA / mois</small></div><ul><li>Téléchargements illimités, en audio et en vidéo</li><li>Lecture hors connexion, playlists</li><li>Valable 30 jours sur ton compte (Android et iPhone)</li><li>Sans renouvellement automatique : tu paies quand tu veux</li></ul></div>' +
       body + '<div class="ft">Paiement sécurisé par Mobile Money. <a href="https://stephaneproject237-spec.github.io/tu-me-manque/legal/conditions.html" target="_blank" rel="noopener">Conditions générales</a></div>';
     const x = d.querySelector("#pw-x"); if (x) x.onclick = closePaywall;

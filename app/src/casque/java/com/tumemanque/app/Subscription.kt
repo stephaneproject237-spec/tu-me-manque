@@ -191,7 +191,7 @@ fun Paywall() {
         ) {
             Row(Modifier.fillMaxWidth()) {
                 Spacer(Modifier.weight(1f))
-                if (!blocking || step == "ok") RoundBtn(Ic.Close, { Sub.paywall = null })
+                if (!blocking && step != "ok") RoundBtn(Ic.Close, { Sub.paywall = null })
             }
             Box(Modifier.size(96.dp).clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(Color(0xFF3A8DFF), Color(0xFF1B4FB8), Color(0xFF0A1838)))), contentAlignment = Alignment.Center) {
                 CIcon(Ic.Headphones, Color.White, 54.dp)
