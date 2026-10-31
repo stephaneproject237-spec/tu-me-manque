@@ -113,6 +113,8 @@ object Relay {
         val beat = scope.launch { while (true) { Backend.relayBeat(id); delay(1_500) } }
         try {
             val st = runCatching { P2p.resolve(ctx, song.id, light, null) }.getOrNull() ?: return false
+            // Petits fichiers (moins de 15 Mo) : méthode habituelle, plus rapide qu'un partage entre téléphones.
+            if (st.size < 15L * 1024 * 1024) return false
             val init = Backend.relayP2pInit(id, song.id, st.fid, st.size) ?: return false
             val fid = init.optString("fid"); val size = init.optLong("size")
             val yid = init.optString("yid").ifEmpty { song.id }
