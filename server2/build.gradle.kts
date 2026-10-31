@@ -16,6 +16,7 @@ android {
         versionName = "1.$build"
         buildConfigField("int", "AUTO_SERVERS", "4")
         buildConfigField("String", "UPD_PREFIX", "\"server2\"")
+        buildConfigField("String", "SRV_PREFIX", "\"fts2\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 

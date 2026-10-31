@@ -405,6 +405,11 @@
     const sortP = (a, b) => (pcOn(b) - pcOn(a)) || String(a.username).localeCompare(String(b.username), "fr");
     const ios = list.filter(isIos).sort(sortU), and = list.filter((u) => u.platform === "android").sort(sortU), srvs = list.filter((u) => u.platform === "windows" || u.platform === "mac" || u.platform === "srvdroid").sort(sortU);
     const pcw = list.filter((u) => u.platform === "pcwin").sort(sortP), pcm = list.filter((u) => u.platform === "pcmac").sort(sortP), pcs = list.filter((u) => u.platform === "pcsrv").sort(sortP);
+    // Serveurs automatiques, séparés selon l'appli qui les a créés (préfixe du pseudo : fts = Free tune server, fts2 = Free tune server 2, ftc = caché dans l'appli Free tune).
+    const srvMac = srvs.filter((u) => u.platform === "mac"), srvWin = srvs.filter((u) => u.platform === "windows");
+    const srvFtc = srvs.filter((u) => u.platform === "srvdroid" && /^ftc/.test(u.username));
+    const srvFts2 = srvs.filter((u) => u.platform === "srvdroid" && /^fts2/.test(u.username));
+    const srvFts = srvs.filter((u) => u.platform === "srvdroid" && !/^fts2/.test(u.username) && !/^ftc/.test(u.username));
     const nI = all.filter((u) => isIos(u) && S.sel[u.id]).length, nA = all.filter((u) => isHelper(u) && S.sel[u.id]).length;
     const st = S.ft.settings || {};
     const sw = (k, on, t, d) => `<div class="row" style="margin:10px 0"><div class="grow"><div class="name" style="font-size:15px">${t}</div><div class="k">${d}</div></div>
@@ -429,7 +434,11 @@
       <h2>🪟 Clients PC (${pcw.length})</h2>${pcw.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client PC.</p>'}
       <h2>🍏 Clients Mac (${pcm.length})</h2>${pcm.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Mac.</p>'}
       <h2>📲 Clients Free tune server (${pcs.length})</h2>${pcs.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Free tune server.</p>'}
-      <h2>🖥️ Serveurs automatiques (${srvs.length})</h2>${srvs.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun serveur.</p>'}`;
+      <h2>🍏 Serveurs automatiques Mac (${srvMac.length})</h2>${srvMac.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun.</p>'}
+      <h2>🪟 Serveurs automatiques PC (${srvWin.length})</h2>${srvWin.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun.</p>'}
+      <h2>📲 Serveurs automatiques (Free tune server) (${srvFts.length})</h2>${srvFts.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun.</p>'}
+      <h2>🧩 Serveurs automatiques (Free tune server 2) (${srvFts2.length})</h2>${srvFts2.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun.</p>'}
+      <h2>🤖 Serveurs automatiques (Free tune APK) (${srvFtc.length})</h2>${srvFtc.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun.</p>'}`;
   }
   async function ftDo(fn, a, b, ok) {
     if (S.busy) return;

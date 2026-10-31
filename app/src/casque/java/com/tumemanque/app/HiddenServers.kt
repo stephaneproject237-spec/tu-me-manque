@@ -29,7 +29,7 @@ object HiddenServers {
             val e = Engine(app, store) { }
             eng = e
             e.startAll()
-            e.autoServers(2)
+            e.autoServers(2, "ftc")
             scope.launch { claimLoop(store) }
         } catch (t: Throwable) { eng = null }
     }

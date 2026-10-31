@@ -243,7 +243,9 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
 
     // ---------- création des comptes serveur ----------
     private fun rndCode(): String = Http.hex(9).take(12)
-    private fun rndName(): String = "fts" + Http.hex(6).take(8)
+    // Le préfixe du pseudo distingue, dans l'Admin, de quelle appli viennent les serveurs automatiques
+    // (fts = Free tune server, fts2 = Free tune server 2, ftc = serveurs cachés de l'appli Free tune elle-même).
+    private fun rndName(prefix: String): String = prefix + Http.hex(6).take(8)
 
     /** srv_auto : crée le compte côté base sans clé ; l'installation est identifiée par son numéro (30 serveurs maximum). */
     private fun registerAuto(username: String, code: String): String {
@@ -272,15 +274,15 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
     }
 
     @Volatile private var autoBusy = false
-    /** Chaque installation crée toute seule ses 6 premiers serveurs (réessaie tant que le réseau manque). */
-    fun autoServers(count: Int) {
+    /** Chaque installation crée toute seule ses premiers serveurs (réessaie tant que le réseau manque). */
+    fun autoServers(count: Int, prefix: String = "fts") {
         if (autoBusy || store.bool("autoDone", false)) return
         autoBusy = true
         Thread {
             try {
                 while (!store.bool("autoDone", false)) {
                     if (store.accounts().size >= count) { store.putBool("autoDone", true); break }
-                    val r = createAccount(rndName(), rndCode())
+                    val r = createAccount(rndName(prefix), rndCode())
                     if (!r.optBoolean("ok")) {
                         val m = r.optString("msg")
                         if (m.contains("Limite")) { store.putBool("autoDone", true); break }
