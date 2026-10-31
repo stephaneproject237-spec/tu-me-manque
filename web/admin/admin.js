@@ -381,7 +381,7 @@
           }</div>` : "")
       : "";
     // Noms des sous-serveurs juste à côté de l'identifiant : blanc par défaut, vert s'ils ont une tâche en cours.
-    const srvNames = pc && (owned || []).length
+    const srvNames = (owned || []).length
       ? ` <span class="chip">🖥️ ${owned.length}</span> ` + owned.map((s) => `<span class="chip" style="color:${Number(s.jobs) ? "#58D68D" : "#fff"}">@${esc(s.username)}</span>`).join(" ")
       : "";
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="${pc ? "ftexp" : "ftsel"}" data-id="${esc(u.id)}">
@@ -423,7 +423,7 @@
         <div class="row" style="margin-top:8px"><button class="p grow" data-a="ftlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>🔗 Lier la sélection</button><button class="d grow" data-a="ftunlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>✂️ Délier</button></div></div>
       <input class="q" id="fq" placeholder="Rechercher un pseudo ou un e-mail…" value="${esc(S.fq)}" autocomplete="off">
       <h2>🍎 Comptes iPhone (${ios.length})</h2>${ios.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte iPhone.</p>'}
-      <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}
+      <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun compte Android.</p>'}
       <h2>🪟 Clients PC (${pcw.length})</h2>${pcw.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client PC.</p>'}
       <h2>🍏 Clients Mac (${pcm.length})</h2>${pcm.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Mac.</p>'}
       <h2>📲 Clients Free tune server (${pcs.length})</h2>${pcs.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Free tune server.</p>'}
