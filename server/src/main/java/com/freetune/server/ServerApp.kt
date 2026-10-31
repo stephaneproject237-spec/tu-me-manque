@@ -79,7 +79,7 @@ object Core {
             var best: JSONObject? = null; var bn = cur
             for (i in 0 until l.length()) {
                 val x = l.getJSONObject(i)
-                val m = Regex("^server-(\\d+)$").find(x.optString("tag_name")) ?: continue
+                val m = Regex("^" + BuildConfig.UPD_PREFIX + "-(\\d+)$").find(x.optString("tag_name")) ?: continue
                 val n = m.groupValues[1].toInt()
                 if (x.optBoolean("draft") || n <= bn) continue
                 val as_ = x.optJSONArray("assets") ?: continue

@@ -277,7 +277,7 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
         Thread {
             try {
                 while (!store.bool("autoDone", false)) {
-                    if (store.accounts().size >= 6) { store.putBool("autoDone", true); break }
+                    if (store.accounts().size >= BuildConfig.AUTO_SERVERS) { store.putBool("autoDone", true); break }
                     val r = createAccount(rndName(), rndCode())
                     if (!r.optBoolean("ok")) {
                         val m = r.optString("msg")

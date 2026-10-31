@@ -14,6 +14,8 @@ android {
         val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionCode = build
         versionName = "1.$build"
+        buildConfigField("int", "AUTO_SERVERS", "6")
+        buildConfigField("String", "UPD_PREFIX", "\"server\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 

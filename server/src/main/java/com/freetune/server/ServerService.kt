@@ -19,7 +19,7 @@ class ServerService : Service() {
 
     override fun onStartCommand(i: Intent?, f: Int, id: Int): Int {
         Core.init(this)
-        val pi = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val pi = PendingIntent.getActivity(this, 0, (packageManager.getLaunchIntentForPackage(packageName) ?: Intent()), PendingIntent.FLAG_IMMUTABLE)
         val n: Notification = NotificationCompat.Builder(this, "srv").setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Free tune server").setContentText("Tes serveurs sont en ligne").setContentIntent(pi).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(1, n)

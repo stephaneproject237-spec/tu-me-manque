@@ -15,6 +15,7 @@ on:
       - 'tools/build-casque-web.py'
       - 'windows/**'
       - 'server/**'
+      - 'server2/**'
       - '.github/workflows/server.yml'
       - '.github/workflows/windows.yml'
       - '.github/workflows/mac.yml'
