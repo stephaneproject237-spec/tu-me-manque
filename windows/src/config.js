@@ -5,5 +5,5 @@ module.exports = {
   REPO: "stephaneproject237-spec/tu-me-manque",
   EMAIL_DOMAIN: "srv.freetune.app",
   // Clé d'activation : installée automatiquement, la personne n'a rien à saisir.
-  ENROLL_KEY: "1a6519f6fe94b2faa5222eee319f8d4dd0e47d42f7abd539",
+  ENROLL_KEY: "93mnjovssb4m3com",
 };
