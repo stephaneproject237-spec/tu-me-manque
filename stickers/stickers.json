@@ -1,0 +1,130 @@
+[
+ {
+  "id": "a01_coucou",
+  "label": "Coucou"
+ },
+ {
+  "id": "a02_tu_me_manques",
+  "label": "Tu me manques"
+ },
+ {
+  "id": "a03_je_taime",
+  "label": "Je t'aime"
+ },
+ {
+  "id": "a04_bisou",
+  "label": "Bisou"
+ },
+ {
+  "id": "a05_calin",
+  "label": "Câlin"
+ },
+ {
+  "id": "a06_bonne_nuit",
+  "label": "Bonne nuit"
+ },
+ {
+  "id": "a07_jaloux",
+  "label": "Jaloux"
+ },
+ {
+  "id": "a08_fete",
+  "label": "Fête"
+ },
+ {
+  "id": "a09_oui",
+  "label": "Oui"
+ },
+ {
+  "id": "a10_non",
+  "label": "Non"
+ },
+ {
+  "id": "a11_bravo",
+  "label": "Bravo"
+ },
+ {
+  "id": "a12_triste",
+  "label": "Triste"
+ },
+ {
+  "id": "s01_coeur_content",
+  "label": "Cœur content"
+ },
+ {
+  "id": "s02_coeur_yeux",
+  "label": "Yeux en cœur"
+ },
+ {
+  "id": "s03_bisou",
+  "label": "Bisou"
+ },
+ {
+  "id": "s04_tu_me_manques",
+  "label": "Tu me manques"
+ },
+ {
+  "id": "s05_moi_aussi",
+  "label": "Moi aussi"
+ },
+ {
+  "id": "s06_je_taime",
+  "label": "Je t'aime"
+ },
+ {
+  "id": "s07_bonne_nuit",
+  "label": "Bonne nuit"
+ },
+ {
+  "id": "s08_bonjour",
+  "label": "Bonjour"
+ },
+ {
+  "id": "s09_cafe",
+  "label": "Café ?"
+ },
+ {
+  "id": "s10_fleurs",
+  "label": "Fleurs"
+ },
+ {
+  "id": "s11_sans_toi",
+  "label": "Sans toi…"
+ },
+ {
+  "id": "s12_etoile",
+  "label": "Étoile"
+ },
+ {
+  "id": "s13_gateau",
+  "label": "Miam"
+ },
+ {
+  "id": "s14_rire",
+  "label": "Mort de rire"
+ },
+ {
+  "id": "s15_pleure",
+  "label": "Triste"
+ },
+ {
+  "id": "s16_clin_doeil",
+  "label": "Clin d'œil"
+ },
+ {
+  "id": "s17_ours_calin",
+  "label": "Câlin"
+ },
+ {
+  "id": "s18_bisous",
+  "label": "Bisous"
+ },
+ {
+  "id": "s19_coeur_brise",
+  "label": "Aïe"
+ },
+ {
+  "id": "s20_bravo",
+  "label": "Bravo"
+ }
+]

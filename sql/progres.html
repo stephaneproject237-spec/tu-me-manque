@@ -1,0 +1,35 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL progression Free tune</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : l'avancement du téléchargement chez l'ami Android s'affiche sur la barre de l'iPhone.
+-- À lancer une seule fois (peut être relancé sans risque).
+
+alter table public.c_relay add column if not exists prog int not null default 0;
+
+-- Le téléphone Android qui télécharge donne son avancement : 0 à 67 (téléchargement puis envoi) ; l'iPhone ajoute la réception (67 à 100).
+create or replace function public.c_relay_progress(p_id bigint, p_prog int)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object('status', 'unauthenticated'); end if;
+  update public.c_relay set prog = greatest(prog, least(greatest(coalesce(p_prog, 0), 0), 100))
+    where id = p_id and taker_id = auth.uid() and status = 'taken';
+  return json_build_object('status', 'ok');
+end $$;
+
+-- L'iPhone suit ses demandes (avec l'avancement).
+create or replace function public.c_relay_status(p_ids bigint[])
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return '[]'::json; end if;
+  return coalesce((
+    select json_agg(json_build_object('id', r.id, 'status', r.status, 'media', r.media, 'size', r.size, 'prog', r.prog,
+                                      'by', (select username from public.c_profiles where id = r.taker_id)))
+    from public.c_relay r where r.id = any(p_ids) and r.from_id = auth.uid()), '[]'::json);
+end $$;
+
+revoke all on function public.c_relay_progress(bigint, int) from public, anon;
+grant execute on function public.c_relay_progress(bigint, int) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

@@ -1,0 +1,277 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Tu me manques : application admin + messagerie « @admin ».
+-- À exécuter une fois dans Supabase → SQL Editor, APRÈS schema.sql, chat.sql, compte.sql et fond.sql. Peut être relancé sans danger.
+
+-- ========== COLONNES ==========
+alter table public.profiles add column if not exists device text;       -- appareil utilisé à la création du compte
+alter table public.profiles add column if not exists linked_at timestamptz;
+
+-- ========== ADMINISTRATEUR ==========
+create table if not exists public.admin_emails (email text primary key);
+alter table public.admin_emails enable row level security;
+revoke all on public.admin_emails from anon, authenticated;
+
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from auth.users u
+    join public.admin_emails a on a.email = lower(u.email)
+    where u.id = auth.uid() and u.email_confirmed_at is not null
+  )
+$$;
+
+-- ========== HISTORIQUE DES AMITIÉS ==========
+create table if not exists public.friendship_log (
+  id bigint generated always as identity primary key,
+  a_id uuid, b_id uuid,
+  a_name text, b_name text,
+  a_phone text, b_phone text,
+  started_at timestamptz default now(),   -- vide : date inconnue (amitié antérieure à l&#x27;application admin)
+  ended_at timestamptz,
+  ended_by text
+);
+alter table public.friendship_log enable row level security;
+revoke all on public.friendship_log from anon, authenticated;
+
+-- Amitiés déjà en cours : on les ajoute à l&#x27;historique (date de début inconnue).
+insert into public.friendship_log (a_id, b_id, a_name, b_name, a_phone, b_phone, started_at)
+select a.id, b.id, a.username, b.username, a.phone, b.phone, null
+from public.profiles a join public.profiles b on a.partner_id = b.id and a.id &lt; b.id
+where not exists (
+  select 1 from public.friendship_log l
+  where l.ended_at is null and ((l.a_id = a.id and l.b_id = b.id) or (l.a_id = b.id and l.b_id = a.id))
+);
+
+create or replace function public._link(a uuid, b uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare na text; nb text; pa text; pb text;
+begin
+  select username, phone into na, pa from public.profiles where id = a;
+  select username, phone into nb, pb from public.profiles where id = b;
+  update public.profiles set partner_id = b, partner_name = nb, partner_phone = pb, linked_at = now() where id = a;
+  update public.profiles set partner_id = a, partner_name = na, partner_phone = pa, linked_at = now() where id = b;
+  delete from public.requests where from_id in (a, b) or to_id in (a, b);
+  insert into public.friendship_log (a_id, b_id, a_name, b_name, a_phone, b_phone) values (a, b, na, nb, pa, pb);
+end $$;
+
+create or replace function public.remove_partner()
+returns json language plpgsql security definer set search_path = public as $$
+declare me public.profiles;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  select * into me from public.profiles where id = auth.uid();
+  if not found or me.partner_id is null then return json_build_object(&#x27;status&#x27;, &#x27;no_partner&#x27;); end if;
+  delete from public.messages
+    where sender_id in (me.id, me.partner_id) and recipient_id in (me.id, me.partner_id);
+  update public.friendship_log set ended_at = now(), ended_by = &#x27;@&#x27; || me.username
+    where ended_at is null and ((a_id = me.id and b_id = me.partner_id) or (a_id = me.partner_id and b_id = me.id));
+  update public.profiles
+    set partner_id = null, partner_name = null, partner_phone = null, linked_at = null,
+        last_miss_from = null, last_miss_reply = null, last_miss_at = null
+    where id in (me.id, me.partner_id);
+  insert into public.notifications (to_id, title, body)
+    values (me.partner_id, &#x27;Partenaire retiré&#x27;, &#x27;@&#x27; || me.username || &#x27; a mis fin au lien. Tu peux ajouter quelqu&#x27;&#x27;un d&#x27;&#x27;autre.&#x27;);
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- ========== CRÉATION DE COMPTE : on mémorise l&#x27;appareil ==========
+drop function if exists public.create_account(text, int);
+create or replace function public.create_account(p_username text, p_age int, p_device text default null)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  n text := lower(regexp_replace(trim(coalesce(p_username, &#x27;&#x27;)), &#x27;^@&#x27;, &#x27;&#x27;));
+  existing text;
+  ph text;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  if coalesce((auth.jwt() -&gt;&gt; &#x27;is_anonymous&#x27;)::boolean, false) then return json_build_object(&#x27;status&#x27;, &#x27;anonymous&#x27;); end if;
+  if n !~ &#x27;^[a-z][a-z0-9_]{2,19}$&#x27; then return json_build_object(&#x27;status&#x27;, &#x27;invalid&#x27;); end if;
+  if p_age is null or p_age &lt; 1 or p_age &gt; 120 then return json_build_object(&#x27;status&#x27;, &#x27;invalid_age&#x27;); end if;
+  insert into public.profiles (id) values (auth.uid()) on conflict (id) do nothing;
+  select username into existing from public.profiles where id = auth.uid();
+  if existing is not null then return json_build_object(&#x27;status&#x27;, &#x27;has_username&#x27;); end if;
+  select public.norm_phone(phone) into ph from auth.users where id = auth.uid();
+  begin
+    update public.profiles set username = n, age = p_age::smallint, phone = ph, device = left(p_device, 200)
+      where id = auth.uid();
+  exception when unique_violation then
+    return json_build_object(&#x27;status&#x27;, &#x27;taken&#x27;);
+  end;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- ========== MESSAGERIE AVEC @admin ==========
+create table if not exists public.support_messages (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  from_admin boolean not null default false,
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now(),
+  read_at timestamptz,                       -- lu par l&#x27;utilisateur (messages de l&#x27;admin)
+  admin_read boolean not null default false  -- lu par l&#x27;admin (messages de l&#x27;utilisateur)
+);
+create index if not exists support_messages_user_idx on public.support_messages (user_id, id);
+alter table public.support_messages enable row level security;
+drop policy if exists &quot;support : lecture par la personne&quot; on public.support_messages;
+create policy &quot;support : lecture par la personne&quot; on public.support_messages
+  for select to authenticated using (user_id = auth.uid());
+revoke all on public.support_messages from anon, authenticated;
+grant select on public.support_messages to authenticated;
+
+create or replace function public.support_send(p_body text)
+returns json language plpgsql security definer set search_path = public as $$
+declare b text := left(trim(coalesce(p_body, &#x27;&#x27;)), 2000);
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  if b = &#x27;&#x27; then return json_build_object(&#x27;status&#x27;, &#x27;empty&#x27;); end if;
+  if not exists (select 1 from public.profiles where id = auth.uid()) then return json_build_object(&#x27;status&#x27;, &#x27;no_profile&#x27;); end if;
+  if (select count(*) from public.support_messages
+        where user_id = auth.uid() and not from_admin and created_at &gt; now() - interval &#x27;1 minute&#x27;) &gt;= 15 then
+    return json_build_object(&#x27;status&#x27;, &#x27;too_fast&#x27;);
+  end if;
+  insert into public.support_messages (user_id, from_admin, body) values (auth.uid(), false, b);
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+create or replace function public.support_mark_read()
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.support_messages set read_at = now()
+    where user_id = auth.uid() and from_admin and read_at is null;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- ========== FONCTIONS RÉSERVÉES À L&#x27;ADMIN ==========
+create or replace function public.admin_whoami()
+returns json language sql stable security definer set search_path = public as $$
+  select json_build_object(&#x27;admin&#x27;, public.is_admin())
+$$;
+
+create or replace function public.admin_users()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  return coalesce((
+    select json_agg(json_build_object(
+      &#x27;id&#x27;, p.id, &#x27;username&#x27;, p.username, &#x27;email&#x27;, u.email, &#x27;phone&#x27;, p.phone, &#x27;age&#x27;, p.age,
+      &#x27;device&#x27;, p.device, &#x27;provider&#x27;, u.raw_app_meta_data -&gt;&gt; &#x27;provider&#x27;,
+      &#x27;created_at&#x27;, u.created_at, &#x27;last_sign_in_at&#x27;, u.last_sign_in_at,
+      &#x27;partner_id&#x27;, p.partner_id, &#x27;partner_name&#x27;, p.partner_name, &#x27;linked_at&#x27;, p.linked_at,
+      &#x27;unread&#x27;, (select count(*) from public.support_messages s where s.user_id = p.id and not s.from_admin and not s.admin_read)
+    ) order by u.created_at desc)
+    from public.profiles p join auth.users u on u.id = p.id
+  ), &#x27;[]&#x27;::json);
+end $$;
+
+create or replace function public.admin_friendships()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  return json_build_object(
+    &#x27;current&#x27;, coalesce((
+      select json_agg(json_build_object(
+        &#x27;id&#x27;, l.id, &#x27;a_id&#x27;, l.a_id, &#x27;b_id&#x27;, l.b_id, &#x27;a_name&#x27;, l.a_name, &#x27;b_name&#x27;, l.b_name,
+        &#x27;a_phone&#x27;, l.a_phone, &#x27;b_phone&#x27;, l.b_phone, &#x27;started_at&#x27;, l.started_at,
+        &#x27;a_device&#x27;, pa.device, &#x27;b_device&#x27;, pb.device
+      ) order by l.started_at desc nulls last)
+      from public.friendship_log l
+      left join public.profiles pa on pa.id = l.a_id
+      left join public.profiles pb on pb.id = l.b_id
+      where l.ended_at is null
+    ), &#x27;[]&#x27;::json),
+    &#x27;history&#x27;, coalesce((
+      select json_agg(x) from (
+        select json_build_object(
+          &#x27;id&#x27;, l.id, &#x27;a_id&#x27;, l.a_id, &#x27;b_id&#x27;, l.b_id, &#x27;a_name&#x27;, l.a_name, &#x27;b_name&#x27;, l.b_name,
+          &#x27;a_phone&#x27;, l.a_phone, &#x27;b_phone&#x27;, l.b_phone, &#x27;started_at&#x27;, l.started_at,
+          &#x27;ended_at&#x27;, l.ended_at, &#x27;ended_by&#x27;, l.ended_by) as x
+        from public.friendship_log l where l.ended_at is not null
+        order by l.ended_at desc limit 1000
+      ) h
+    ), &#x27;[]&#x27;::json)
+  );
+end $$;
+
+-- Supprime le compte ET le pseudo : la personne pourra se réinscrire comme un nouvel utilisateur.
+create or replace function public.admin_delete_user(p_id uuid)
+returns json language plpgsql security definer set search_path = public as $$
+declare me public.profiles;
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  if p_id = auth.uid() then return json_build_object(&#x27;status&#x27;, &#x27;self&#x27;); end if;
+  select * into me from public.profiles where id = p_id;
+  if found and me.partner_id is not null then
+    delete from public.messages
+      where sender_id in (me.id, me.partner_id) and recipient_id in (me.id, me.partner_id);
+    update public.friendship_log set ended_at = now(), ended_by = &#x27;admin (compte supprimé)&#x27;
+      where ended_at is null and ((a_id = me.id and b_id = me.partner_id) or (a_id = me.partner_id and b_id = me.id));
+    update public.profiles
+      set partner_id = null, partner_name = null, partner_phone = null, linked_at = null,
+          last_miss_from = null, last_miss_reply = null, last_miss_at = null
+      where id = me.partner_id;
+    insert into public.notifications (to_id, title, body)
+      values (me.partner_id, &#x27;Partenaire retiré&#x27;, &#x27;Le compte de ton partenaire a été supprimé. Tu peux ajouter quelqu&#x27;&#x27;un d&#x27;&#x27;autre.&#x27;);
+  end if;
+  delete from auth.users where id = p_id;   -- supprime aussi le profil, le pseudo, les demandes et les messages
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+create or replace function public.admin_threads()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  return coalesce((
+    select json_agg(t order by t.last_at desc) from (
+      select p.id as user_id, p.username,
+        max(s.created_at) as last_at,
+        (array_agg(s.body order by s.id desc))[1] as last_body,
+        (array_agg(s.from_admin order by s.id desc))[1] as last_from_admin,
+        count(*) filter (where not s.from_admin and not s.admin_read) as unread
+      from public.support_messages s join public.profiles p on p.id = s.user_id
+      group by p.id, p.username
+    ) t
+  ), &#x27;[]&#x27;::json);
+end $$;
+
+create or replace function public.admin_thread(p_user uuid)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  update public.support_messages set admin_read = true where user_id = p_user and not from_admin and not admin_read;
+  return coalesce((
+    select json_agg(m order by m.id) from (
+      select id, from_admin, body, created_at, read_at
+      from public.support_messages where user_id = p_user order by id desc limit 300
+    ) m
+  ), &#x27;[]&#x27;::json);
+end $$;
+
+create or replace function public.admin_send(p_user uuid, p_body text)
+returns json language plpgsql security definer set search_path = public as $$
+declare b text := left(trim(coalesce(p_body, &#x27;&#x27;)), 2000);
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  if b = &#x27;&#x27; then return json_build_object(&#x27;status&#x27;, &#x27;empty&#x27;); end if;
+  if not exists (select 1 from public.profiles where id = p_user) then return json_build_object(&#x27;status&#x27;, &#x27;not_found&#x27;); end if;
+  insert into public.support_messages (user_id, from_admin, body) values (p_user, true, b);
+  insert into public.notifications (to_id, title, body) values (p_user, &#x27;@admin&#x27;, left(b, 200));
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- ========== DROITS ==========
+revoke all on function public.is_admin(), public.support_send(text), public.support_mark_read(),
+  public.admin_whoami(), public.admin_users(), public.admin_friendships(), public.admin_delete_user(uuid),
+  public.admin_threads(), public.admin_thread(uuid), public.admin_send(uuid, text),
+  public._link(uuid, uuid), public.remove_partner(), public.create_account(text, int, text)
+  from public, anon, authenticated;
+grant execute on function public.support_send(text), public.support_mark_read(),
+  public.admin_whoami(), public.admin_users(), public.admin_friendships(), public.admin_delete_user(uuid),
+  public.admin_threads(), public.admin_thread(uuid), public.admin_send(uuid, text),
+  public.remove_partner(), public.create_account(text, int, text) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

@@ -1,0 +1,139 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL clients Free tune 5</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : un iPhone peut être servi par N&#x27;IMPORTE QUEL Android en ligne (amis ou non), avec le réglage « Envoi aléatoire » activé.
+-- Choix : d&#x27;abord un Android sans tâche ; sinon celui dont le travail finit le plus vite. Aucune amitié nécessaire.
+-- À lancer une seule fois, APRÈS clients, clients2, clients3 et clients4 (peut être relancé sans risque).
+
+-- Les Android qui peuvent servir un compte : tous (réglage « Envoi aléatoire » activé) ou seulement ses amis (réglage désactivé).
+create or replace function public.c__helpers(p_from uuid)
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select p.id from public.c_profiles p
+  where p.id &lt;&gt; p_from and p.fcm_token is not null and p.relay_share and public.c__platform(p) = &#x27;android&#x27;
+    and (public.c__setting(&#x27;random_dispatch&#x27;, true)
+         or exists (select 1 from public.c_friends f where f.user_id = p_from and f.friend_id = p.id))
+$$;
+
+-- « me » peut-il servir la demande de « from » ?
+create or replace function public.c__can(p_me uuid, p_from uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.c__setting(&#x27;random_dispatch&#x27;, true) or exists (select 1 from public.c_friends f where f.user_id = p_me and f.friend_id = p_from)
+$$;
+
+create or replace function public.c__pick_server(p_from uuid, p_skip uuid[])
+returns uuid language sql stable security definer set search_path = public as $$
+  select p.id from public.c_profiles p
+  where p.id in (select public.c__helpers(p_from))
+    and p.id &lt;&gt; all (coalesce(p_skip, &#x27;{}&#x27;))
+    and public.c__avail(p) in (&#x27;app&#x27;, &#x27;net&#x27;)
+  order by coalesce((select sum(greatest(0, 67 - r.prog)) from public.c_relay r
+                     where (r.status = &#x27;taken&#x27; and r.taker_id = p.id) or (r.status = &#x27;open&#x27; and r.target_id = p.id)), 0), random()
+  limit 1
+$$;
+create or replace function public.c_relay_open()
+returns json language plpgsql volatile security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  perform public.c__touch();
+  if not coalesce((select relay_share from public.c_profiles where id = auth.uid()), true) then return &#x27;[]&#x27;::json; end if;
+  return coalesce((
+    select json_agg(x) from (
+      select r.id, r.yid, r.q, r.ti, r.ch, r.d, r.art, r.fmt
+      from public.c_relay r
+      where public.c__can(auth.uid(), r.from_id)
+        and r.created_at &gt; now() - interval &#x27;1 day&#x27;
+        and not (auth.uid() = any (r.skip))
+        and (r.target_id is null or r.target_id = auth.uid() or r.assigned_at &lt; now() - interval &#x27;30 seconds&#x27;)
+        and (r.status = &#x27;open&#x27; or (r.status = &#x27;taken&#x27; and r.taken_at &lt; now() - interval &#x27;4 minutes&#x27; and r.beat_at is null))
+      order by r.id limit 8
+    ) x), &#x27;[]&#x27;::json);
+end $$;
+create or replace function public.c_relay_take(p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  if not coalesce((select relay_share from public.c_profiles where id = auth.uid()), true) then return json_build_object(&#x27;status&#x27;, &#x27;gone&#x27;); end if;
+  update public.c_relay set status = &#x27;taken&#x27;, taker_id = auth.uid(), taken_at = now(), tries = tries + 1, beat_at = null, lost_at = null
+    where id = p_id and public.c__can(auth.uid(), from_id)
+      and not (auth.uid() = any (skip))
+      and (target_id is null or target_id = auth.uid() or assigned_at &lt; now() - interval &#x27;30 seconds&#x27;)
+      and (status = &#x27;open&#x27; or (status = &#x27;taken&#x27; and taken_at &lt; now() - interval &#x27;4 minutes&#x27; and beat_at is null));
+  get diagnostics k = row_count;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+create or replace function public.c_relay_create(p_yid text, p_q text, p_ti text, p_ch text, p_d int, p_art text, p_fmt text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare me uuid := auth.uid(); n int; rid bigint; notified boolean; tgt uuid; ids uuid[];
+begin
+  if me is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  select count(*) into n from public.c__helpers(me);
+  if n = 0 then return json_build_object(&#x27;status&#x27;, &#x27;no_helper&#x27;); end if;
+  select id into rid from public.c_relay
+    where from_id = me and status in (&#x27;open&#x27;, &#x27;taken&#x27;) and fmt = coalesce(p_fmt, &#x27;a&#x27;)
+      and ((p_yid is not null and p_yid &lt;&gt; &#x27;&#x27; and yid = p_yid) or (coalesce(p_yid, &#x27;&#x27;) = &#x27;&#x27; and q = left(p_q, 120)))
+    order by id desc limit 1;
+  if rid is not null then return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n); end if;
+  if public.c__setting(&#x27;random_dispatch&#x27;, true) then tgt := public.c__pick_server(me, &#x27;{}&#x27;); end if;
+  notified := exists (select 1 from public.c_relay where from_id = me and status in (&#x27;open&#x27;, &#x27;taken&#x27;) and created_at &gt; now() - interval &#x27;40 seconds&#x27; and target_id is null);
+  insert into public.c_relay (from_id, yid, q, ti, ch, d, art, fmt, target_id, assigned_at)
+    values (me, nullif(left(p_yid, 20), &#x27;&#x27;), left(p_q, 120), left(p_ti, 120), left(p_ch, 60), greatest(coalesce(p_d, 0), 0), left(p_art, 300), coalesce(nullif(left(p_fmt, 3), &#x27;&#x27;), &#x27;a&#x27;),
+            tgt, case when tgt is null then null else now() end)
+    returning id into rid;
+  if tgt is not null then
+    perform public.c__fcm(array[tgt], &#x27;relay&#x27;);
+  elsif not notified then
+    select array_agg(h) into ids from public.c__helpers(me) h;
+    perform public.c__fcm(ids, &#x27;relay&#x27;);
+  end if;
+  perform public.c__ping_stale(me);
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n);
+end $$;
+create or replace function public.c_relay_status(p_ids bigint[])
+returns json language plpgsql security definer set search_path = public as $$
+declare w record; nt uuid; wake uuid[];
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  for w in
+    select * from public.c_relay
+    where id = any(p_ids) and from_id = auth.uid()
+      and ((status = &#x27;taken&#x27; and beat_at is not null and beat_at &lt; now() - interval &#x27;6 seconds&#x27;)
+        or (status = &#x27;open&#x27; and target_id is not null and assigned_at &lt; now() - interval &#x27;15 seconds&#x27;))
+    for update
+  loop
+    if w.tries &gt;= 4 then
+      update public.c_relay set status = &#x27;fail&#x27; where id = w.id;
+      continue;
+    end if;
+    nt := public.c__pick_server(w.from_id, array_append(w.skip, coalesce(w.taker_id, w.target_id)));
+    update public.c_relay set status = &#x27;open&#x27;, taker_id = null, taken_at = null, beat_at = null, prog = 0,
+        skip = array_append(skip, coalesce(w.taker_id, w.target_id)), target_id = nt, assigned_at = now(),
+        lost_at = case when w.status = &#x27;taken&#x27; then now() else lost_at end
+      where id = w.id;
+    if nt is not null then
+      wake := array[nt];
+    else
+      select array_agg(h) into wake from public.c__helpers(w.from_id) h
+        where h &lt;&gt; all (array_append(w.skip, coalesce(w.taker_id, w.target_id)));
+    end if;
+    perform public.c__fcm(wake, &#x27;relay&#x27;);
+  end loop;
+  return coalesce((
+    select json_agg(json_build_object(&#x27;id&#x27;, r.id, &#x27;status&#x27;, r.status, &#x27;media&#x27;, r.media, &#x27;size&#x27;, r.size, &#x27;prog&#x27;, r.prog, &#x27;tries&#x27;, r.tries,
+        &#x27;lost&#x27;, (r.status = &#x27;open&#x27; and r.lost_at is not null),
+        &#x27;quiet&#x27;, case when r.status = &#x27;taken&#x27; and r.beat_at is not null then floor(extract(epoch from now() - r.beat_at))::int else 0 end,
+        &#x27;by&#x27;, (select username from public.c_profiles where id = r.taker_id)))
+    from public.c_relay r where r.id = any(p_ids) and r.from_id = auth.uid()), &#x27;[]&#x27;::json);
+end $$;
+create or replace function public.c__ping_stale(p_from uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform public.c__ping(array(select public.c__helpers(p_from)));
+end $$;
+
+revoke all on function public.c__helpers(uuid), public.c__can(uuid, uuid), public.c__pick_server(uuid, uuid[]), public.c__ping_stale(uuid) from public, anon;
+grant execute on function public.c_relay_open(), public.c_relay_take(bigint), public.c_relay_create(text,text,text,text,int,text,text), public.c_relay_status(bigint[]) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

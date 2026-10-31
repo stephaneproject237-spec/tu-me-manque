@@ -1,0 +1,141 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : relais « le premier ami Android disponible télécharge ».
+-- Un utilisateur iPhone demande une chanson ou une vidéo : la demande est visible par tous ses amis qui ont Free tune
+-- sur Android. Le premier dont le téléphone est libre la prend, la télécharge et la renvoie. À lancer une seule fois.
+
+create table if not exists public.c_relay (
+  id bigint generated always as identity primary key,
+  from_id uuid not null references public.c_profiles(id) on delete cascade,
+  yid text, q text, ti text, ch text, d int default 0, art text, fmt text default &#x27;a&#x27;,
+  status text not null default &#x27;open&#x27;,            -- open | taken | done | fail
+  taker_id uuid references public.c_profiles(id) on delete set null,
+  taken_at timestamptz,
+  tries int not null default 0,
+  media text, size bigint,
+  created_at timestamptz not null default now()
+);
+alter table public.c_relay enable row level security;
+revoke all on public.c_relay from anon, authenticated;
+create index if not exists c_relay_open_idx on public.c_relay (status, created_at);
+
+-- L&#x27;iPhone demande : combien d&#x27;amis Android peuvent l&#x27;aider ?
+create or replace function public.c_relay_create(p_yid text, p_q text, p_ti text, p_ch text, p_d int, p_art text, p_fmt text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare me uuid := auth.uid(); n int; rid bigint; notified boolean; nurl text; nsecret text;
+begin
+  if me is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  select count(*) into n from public.c_friends f join public.c_profiles p on p.id = f.friend_id
+    where f.user_id = me and p.fcm_token is not null;
+  if n = 0 then return json_build_object(&#x27;status&#x27;, &#x27;no_helper&#x27;); end if;
+  select id into rid from public.c_relay
+    where from_id = me and status in (&#x27;open&#x27;, &#x27;taken&#x27;) and fmt = coalesce(p_fmt, &#x27;a&#x27;)
+      and ((p_yid is not null and p_yid &lt;&gt; &#x27;&#x27; and yid = p_yid) or (coalesce(p_yid, &#x27;&#x27;) = &#x27;&#x27; and q = left(p_q, 120)))
+    order by id desc limit 1;
+  if rid is not null then return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n); end if;
+  notified := exists (select 1 from public.c_relay where from_id = me and status in (&#x27;open&#x27;, &#x27;taken&#x27;) and created_at &gt; now() - interval &#x27;40 seconds&#x27;);
+  insert into public.c_relay (from_id, yid, q, ti, ch, d, art, fmt)
+    values (me, nullif(left(p_yid, 20), &#x27;&#x27;), left(p_q, 120), left(p_ti, 120), left(p_ch, 60), greatest(coalesce(p_d, 0), 0), left(p_art, 300), coalesce(nullif(left(p_fmt, 3), &#x27;&#x27;), &#x27;a&#x27;))
+    returning id into rid;
+  -- Notification silencieuse : le téléphone de chaque ami Android se réveille, même si Free tune est fermé,
+  -- et télécharge pour l&#x27;iPhone. L&#x27;adresse et le mot de passe de la fonction « notify » sont ceux déjà utilisés
+  -- par les notifications de Free tune (on les relit dans la fonction c_push_on_notification).
+  if not notified then
+    select (regexp_match(prosrc, $re$url := &#x27;([^&#x27;]+)&#x27;$re$))[1], (regexp_match(prosrc, $re$x-webhook-secret&#x27;, &#x27;([^&#x27;]+)&#x27;$re$))[1]
+      into nurl, nsecret from pg_proc where proname = &#x27;c_push_on_notification&#x27; limit 1;
+    if nurl is not null and nsecret is not null then
+      perform net.http_post(
+        url := nurl,
+        headers := jsonb_build_object(&#x27;Content-Type&#x27;, &#x27;application/json&#x27;, &#x27;x-webhook-secret&#x27;, nsecret),
+        body := jsonb_build_object(&#x27;token&#x27;, p.fcm_token, &#x27;silent&#x27;, true, &#x27;data&#x27;, jsonb_build_object(&#x27;type&#x27;, &#x27;relay&#x27;))
+      ) from public.c_friends f join public.c_profiles p on p.id = f.friend_id
+        where f.user_id = me and p.fcm_token is not null;
+    end if;
+  end if;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;id&#x27;, rid, &#x27;helpers&#x27;, n);
+end $$;
+
+-- L&#x27;Android regarde ce que ses amis attendent.
+create or replace function public.c_relay_open()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  return coalesce((
+    select json_agg(x) from (
+      select r.id, r.yid, r.q, r.ti, r.ch, r.d, r.art, r.fmt
+      from public.c_relay r
+      where r.from_id in (select friend_id from public.c_friends where user_id = auth.uid())
+        and r.created_at &gt; now() - interval &#x27;1 day&#x27;
+        and (r.status = &#x27;open&#x27; or (r.status = &#x27;taken&#x27; and r.taken_at &lt; now() - interval &#x27;4 minutes&#x27;))
+      order by r.id limit 3
+    ) x), &#x27;[]&#x27;::json);
+end $$;
+
+-- Le premier qui la prend la garde (les autres reçoivent « gone »).
+create or replace function public.c_relay_take(p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set status = &#x27;taken&#x27;, taker_id = auth.uid(), taken_at = now(), tries = tries + 1
+    where id = p_id and from_id in (select friend_id from public.c_friends where user_id = auth.uid())
+      and (status = &#x27;open&#x27; or (status = &#x27;taken&#x27; and taken_at &lt; now() - interval &#x27;4 minutes&#x27;));
+  get diagnostics k = row_count;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+
+create or replace function public.c_relay_done(p_id bigint, p_media text, p_size bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set status = &#x27;done&#x27;, media = p_media, size = p_size
+    where id = p_id and taker_id = auth.uid() and status = &#x27;taken&#x27;;
+  get diagnostics k = row_count;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+
+-- Échec : la demande repasse à un autre ami (3 essais au maximum).
+create or replace function public.c_relay_fail(p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set status = case when tries &gt;= 3 then &#x27;fail&#x27; else &#x27;open&#x27; end, taker_id = null, taken_at = null
+    where id = p_id and taker_id = auth.uid() and status = &#x27;taken&#x27;;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- L&#x27;iPhone suit ses demandes.
+create or replace function public.c_relay_status(p_ids bigint[])
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  return coalesce((
+    select json_agg(json_build_object(&#x27;id&#x27;, r.id, &#x27;status&#x27;, r.status, &#x27;media&#x27;, r.media, &#x27;size&#x27;, r.size,
+                                      &#x27;by&#x27;, (select username from public.c_profiles where id = r.taker_id)))
+    from public.c_relay r where r.id = any(p_ids) and r.from_id = auth.uid()), &#x27;[]&#x27;::json);
+end $$;
+
+-- Le fichier a été récupéré : on le supprime du stockage.
+create or replace function public.c_relay_ack(p_id bigint)
+returns json language plpgsql security definer set search_path = public, storage as $$
+declare m text;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  select media into m from public.c_relay where id = p_id and from_id = auth.uid();
+  if m is not null then
+    delete from storage.objects where bucket_id = &#x27;chat&#x27; and name = m;
+    update public.c_relay set media = null where id = p_id;
+  end if;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+revoke all on function public.c_relay_create(text, text, text, text, int, text, text), public.c_relay_open(), public.c_relay_take(bigint),
+  public.c_relay_done(bigint, text, bigint), public.c_relay_fail(bigint), public.c_relay_status(bigint[]), public.c_relay_ack(bigint) from public, anon;
+grant execute on function public.c_relay_create(text, text, text, text, int, text, text), public.c_relay_open(), public.c_relay_take(bigint),
+  public.c_relay_done(bigint, text, bigint), public.c_relay_fail(bigint), public.c_relay_status(bigint[]), public.c_relay_ack(bigint) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>
