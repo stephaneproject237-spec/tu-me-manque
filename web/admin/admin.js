@@ -380,9 +380,13 @@
               : `<p class="muted" style="margin:0">Aucun serveur rattaché pour l'instant.</p>`
           }</div>` : "")
       : "";
+    // Noms des sous-serveurs juste à côté de l'identifiant : blanc par défaut, vert s'ils ont une tâche en cours.
+    const srvNames = pc && (owned || []).length
+      ? ` <span class="chip">🖥️ ${owned.length}</span> ` + owned.map((s) => `<span class="chip" style="color:${Number(s.jobs) ? "#58D68D" : "#fff"}">@${esc(s.username)}</span>`).join(" ")
+      : "";
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="${pc ? "ftexp" : "ftsel"}" data-id="${esc(u.id)}">
       <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${isPc(u) ? (pcOn(u) ? "on" : "") : st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
-        <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
+        <span class="name grow">@${esc(u.username)}</span>${srvNames}${jobs}${share}</div>
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${kind}</div>
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${ver}</div>
       ${lights}
