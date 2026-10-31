@@ -153,7 +153,6 @@
     S.accounts.forEach((a) => {
       const cls = a.state === "en ligne" ? "on" : a.state === "erreur" ? "err" : "wait";
       h.push("<div class='card row'><span class='dot " + cls + "'></span><div class='grow'><b>@" + esc(a.username) + "</b> <span class='pill'>" + esc(a.state) + "</span><div class='small sub'>" + (a.error ? "<span class='warn'>" + esc(a.error) + "</span> · " : "") + (a.jobs ? "⏳ " + a.jobs + " tâche(s) en cours · " : "") + a.helped + " titre(s) envoyé(s) depuis le lancement</div></div>" +
-        "<span class='small sub'>Aider les iPhone</span><button class='sw " + (a.share ? "on" : "") + "' data-sh='" + esc(a.username) + "' aria-label='Aider les iPhone'></button>" +
         "<button class='btn sm out' data-cp='" + esc(a.username) + "'>Copier le code</button><button class='btn sm red' data-rm='" + esc(a.username) + "'>Retirer</button></div>");
     });
     const el = $("t-acc"); el.innerHTML = h.join("");
@@ -169,7 +168,6 @@
       $("nb-go").disabled = true; toast("Création en cours…");
       R.bulk = await window.ft.invoke("acc:bulk", { prefix: $("nb-p").value, count: $("nb-n").value }); draw();
     };
-    el.querySelectorAll("[data-sh]").forEach((b) => (b.onclick = () => window.ft.invoke("acc:share", { username: b.dataset.sh, on: !b.classList.contains("on") })));
     el.querySelectorAll("[data-cp]").forEach((b) => (b.onclick = async () => { const c = await window.ft.invoke("acc:code", b.dataset.cp); try { await navigator.clipboard.writeText(c); toast("Code copié"); } catch (e) { toast("Code : " + c); } }));
     el.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = async () => { if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Confirmer ?"; setTimeout(() => { b.dataset.sure = ""; b.textContent = "Retirer"; }, 3000); return; } await window.ft.invoke("acc:remove", b.dataset.rm); toast("Compte retiré de ce PC"); }));
   }

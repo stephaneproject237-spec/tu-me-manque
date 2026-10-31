@@ -361,7 +361,7 @@
           <span class="lt ${st === "app" ? "a" : ""}">Dans Free tune</span><span class="lt ${st === "net" ? "a" : ""}">Sur internet</span><span class="lt ${st === "off" ? "a" : ""}">Hors ligne</span></div>`
       : "";
     const share = android
-      ? `<span class="chip" style="${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Partage accepté" : "⛔ Partage refusé"}</span>` : "";
+      ? `<button class="chip" data-a="ftshare" data-id="${esc(u.id)}" data-on="${u.share ? 0 : 1}" style="border:none;cursor:pointer;${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Serveur activé" : "⛔ Serveur désactivé"}</button>` : "";
     const jobs = Number(u.jobs) ? `<span class="chip">⏳ ${u.jobs} en cours</span>` : "";
     const dlN = Number(u.dl) || 0, helpN = Number(u.dl_helped) || 0;
     const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span> <span class="chip">⬇️ ${dlN} téléchargement${dlN > 1 ? "s" : ""}</span>` +
@@ -751,6 +751,12 @@
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
       case "ftexp": if (ev.target.closest("[data-a=ftfr]")) break; if (S.exp[id]) delete S.exp[id]; else S.exp[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
+      case "ftshare": {
+        const on = t.dataset.on === "1";
+        try { await call("admin_ft_share", { p_id: id, p_on: on }); await loadFt(); }
+        catch (e) { alert("Impossible : " + (e.message || e)); }
+        break;
+      }
       case "ftclear": S.sel = {}; renderContent(); break;
       case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs) break; const n = await ftDo("admin_ft_link", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
       case "ftunlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs || !await ask("Retirer ces amitiés ?\nLes conversations sont conservées.")) break; const n = await ftDo("admin_ft_unlink", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }
