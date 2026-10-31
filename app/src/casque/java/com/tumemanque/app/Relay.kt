@@ -48,10 +48,12 @@ object Relay {
     suspend fun drain(ctx: Context) {
         if (Backend.hasSession()) Backend.heartbeat(enabled(ctx), Presence.foreground)
         var guard = 0
+        val t0 = System.currentTimeMillis()
         while (guard++ < 600 && enabled(ctx) && Backend.hasSession()) {
             val launched = runCatching { step(ctx) }.getOrDefault(false)
             runCatching { p2pStep(ctx) }
-            if (!launched && active.isEmpty() && p2pActive.isEmpty()) break
+            // p2p : le premier téléphone doit d'abord annoncer le découpage ; on reste donc à l'écoute au moins 30 s pour aider.
+            if (!launched && active.isEmpty() && p2pActive.isEmpty() && System.currentTimeMillis() - t0 > 30_000) break
             delay(if (launched) 600 else 2_000)
         }
     }
@@ -115,6 +117,8 @@ object Relay {
             val fid = init.optString("fid"); val size = init.optLong("size")
             val yid = init.optString("yid").ifEmpty { song.id }
             p2pActive[id] = true
+            // Laisse aux autres téléphones le temps de se réveiller et de choisir leur morceau avant de commencer (sinon il fait tout seul).
+            delay(7_000)
             try { p2pWork(ctx, id, yid, light, fid, size, st.takeIf { it.fid == fid && it.size == size }) } catch (_: Exception) { } finally { p2pActive.remove(id) }
             return true
         } finally { beat.cancel() }
