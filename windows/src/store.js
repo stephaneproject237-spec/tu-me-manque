@@ -8,7 +8,8 @@ class Store {
     this.crypt = crypt || { enc: (s) => Buffer.from(s, "utf8").toString("base64"), dec: (s) => Buffer.from(s, "base64").toString("utf8") };
     this.data = { settings: {}, accounts: [] };
     try { this.data = Object.assign(this.data, JSON.parse(fs.readFileSync(this.file, "utf8"))); } catch (e) { /* premier lancement */ }
-    this.data.settings = Object.assign({ enrollKey: "", dlDir: "", maxJobs: 3, autostart: true }, this.data.settings);
+    this.data.settings = Object.assign({ dlDir: "", maxJobs: 3, autostart: true, deviceId: "", autoDone: false, admHash: "", autoUpdate: true }, this.data.settings);
+    delete this.data.settings.enrollKey;
   }
   save() {
     try { fs.mkdirSync(path.dirname(this.file), { recursive: true }); fs.writeFileSync(this.file + ".tmp", JSON.stringify(this.data)); fs.renameSync(this.file + ".tmp", this.file); } catch (e) { /* disque plein : on réessaiera */ }

@@ -1,5 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
-const OK = new Set(["state", "acc:add", "acc:bulk", "acc:remove", "acc:share", "acc:code", "settings:set", "settings:dir", "search:yt", "dl:start", "dl:show", "dl:ctl", "play:file", "play:yt", "open:url"]);
+const OK = new Set(["state", "acc:add", "acc:bulk", "acc:remove", "acc:share", "acc:code", "settings:set", "settings:dir", "search:yt", "dl:start", "dl:show", "dl:ctl", "upd:check", "upd:install", "adm:unlock", "adm:lock", "adm:setpw", "dev:id", "hist:missing", "play:file", "play:yt", "open:url"]);
 contextBridge.exposeInMainWorld("ft", {
   invoke: (ch, arg) => (OK.has(ch) ? ipcRenderer.invoke(ch, arg) : Promise.reject(new Error("canal inconnu"))),
   onState: (fn) => ipcRenderer.on("state", (_e, s) => fn(s)),
