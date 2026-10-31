@@ -35,8 +35,8 @@ class Worker {
     this.stopped = false;
     while (!this.stopped) {
       try {
-        if (this.state !== "en ligne") { await this.client.ensure(false); this.state = "en ligne"; this.error = ""; this.touch(); this.client.rpc("set_version", { p_ver: "windows " + this.eng.version }).catch(() => {}); }
-        if (Date.now() - this.lastBeat > BEAT_MS) { this.lastBeat = Date.now(); this.client.rpc("heartbeat", { p_platform: "windows", p_share: this.share, p_in_app: true }).catch(() => {}); }
+        if (this.state !== "en ligne") { await this.client.ensure(false); this.state = "en ligne"; this.error = ""; this.touch(); this.client.rpc("set_version", { p_ver: this.eng.platform + " " + this.eng.version }).catch(() => {}); }
+        if (Date.now() - this.lastBeat > BEAT_MS) { this.lastBeat = Date.now(); this.client.rpc("heartbeat", { p_platform: this.eng.platform, p_share: this.share, p_in_app: true }).catch(() => {}); }
         if (this.share) { await this.step(); await this.p2pStep(); }
       } catch (e) {
         const bad = /invalid|credentials|400|401|403/i.test(String(e.message));
@@ -148,6 +148,7 @@ class Engine extends EventEmitter {
     super();
     this.store = store; this.tools = tools; this.opts = opts || {};
     this.version = (opts && opts.version) || "1.0";
+    this.platform = (opts && opts.platform) || "windows";   // windows | mac (annoncé au serveur)
     this.tmpDir = (opts && opts.tmpDir) || path.join(os.tmpdir(), "freetune-windows");
     this.workers = new Map();
     this.running = 0;

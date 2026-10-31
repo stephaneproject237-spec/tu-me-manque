@@ -4,15 +4,15 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const IS_WIN = process.platform === "win32";
-const YT_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+const YT_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + (IS_WIN ? "yt-dlp.exe" : process.platform === "darwin" ? "yt-dlp_macos" : "yt-dlp_linux");
 const FF_URL = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip";
 
 class Tools {
-  constructor(dir, log) {
+  constructor(dir, log, ffmpegDir) {
     this.dir = dir;
     this.log = log || (() => {});
     this.ytdlp = process.env.FT_YTDLP || path.join(dir, IS_WIN ? "yt-dlp.exe" : "yt-dlp");
-    this.ffmpegDir = dir;
+    this.ffmpegDir = ffmpegDir || dir;   // sur Mac, ffmpeg est fourni dans l'application
     this.ready = null;
     this.status = "";
   }
@@ -25,6 +25,7 @@ class Tools {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest + ".part", buf);
     fs.renameSync(dest + ".part", dest);
+    if (!IS_WIN) fs.chmodSync(dest, 0o755);
     return buf.length;
   }
   /** Prépare yt-dlp (et le met à jour s'il date de plus d'un jour). */
@@ -46,6 +47,7 @@ class Tools {
   /** ffmpeg sert à fusionner image + son (vidéo) et à convertir en MP3. Téléchargé seulement si on en a besoin. */
   async ensureFfmpeg() {
     if (this.hasFfmpeg()) return;
+    if (!IS_WIN) throw new Error("ffmpeg est introuvable dans l'application");
     if (this._ff) return this._ff;
     this._ff = (async () => {
       const AdmZip = require("adm-zip");

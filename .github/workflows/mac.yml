@@ -1,0 +1,71 @@
+name: Compiler Free tune Mac
+
+on:
+  push:
+    branches: [main, brouillon-gros]
+    paths:
+      - 'windows/**'
+      - '.github/workflows/mac.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Numéro de version
+        run: npm version "1.${{ github.run_number }}.0" --no-git-tag-version
+
+      - name: Installer les dépendances
+        run: npm install --no-audit --no-fund
+
+      - name: Tester le moteur (faux serveur, faux yt-dlp)
+        run: npm test
+
+      - name: Récupérer ffmpeg pour ${{ matrix.arch }}
+        run: |
+          mkdir -p /tmp/ffs && cd /tmp/ffs && npm init -y >/dev/null
+          npm_config_arch=${{ matrix.arch }} npm_config_platform=darwin npm install --no-audit --no-fund ffmpeg-static@5.2.0
+          mkdir -p "$GITHUB_WORKSPACE/windows/resources-mac"
+          cp /tmp/ffs/node_modules/ffmpeg-static/ffmpeg "$GITHUB_WORKSPACE/windows/resources-mac/ffmpeg"
+          chmod +x "$GITHUB_WORKSPACE/windows/resources-mac/ffmpeg"
+          file "$GITHUB_WORKSPACE/windows/resources-mac/ffmpeg"
+
+      - name: Construire l'application
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac zip --${{ matrix.arch }} --publish never --config.productName="Free tune Mac"
+
+      - name: Signature locale (sans compte Apple) et archive
+        run: |
+          APP=$(ls -d dist/mac*/*.app | head -1)
+          codesign --force -s - "$APP/Contents/Resources/bin/ffmpeg"
+          codesign --force --deep -s - "$APP"
+          codesign --verify --deep --strict "$APP" && echo signature-ok
+          rm -f dist/*.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/FreeTune-Mac-${{ matrix.arch }}.zip"
+          ls -la dist
+
+      - name: Publier
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-${{ github.run_number }}
+          name: Free tune Mac ${{ github.run_number }}
+          files: windows/dist/FreeTune-Mac-${{ matrix.arch }}.zip
+          make_latest: false

@@ -8,6 +8,8 @@ const { Downloads } = require("./src/downloads");
 const { register } = require("./src/supa");
 const { Client } = require("./src/supa");
 const cfg = require("./src/config");
+const MAC = process.platform === "darwin";
+const PLAT = MAC ? "mac" : "windows";
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
@@ -20,12 +22,12 @@ const crypt = {
 app.whenReady().then(() => {
   const ud = app.getPath("userData");
   const store = new Store(ud, crypt);
-  const tools = new Tools(path.join(ud, "tools"));
-  const engine = new Engine(store, tools, { version: app.getVersion(), tmpDir: path.join(app.getPath("temp"), "freetune-windows") });
+  const tools = new Tools(path.join(ud, "tools"), null, MAC ? path.join(process.resourcesPath, "bin") : undefined);
+  const engine = new Engine(store, tools, { version: app.getVersion(), platform: PLAT, tmpDir: path.join(app.getPath("temp"), "freetune-windows") });
   const dlDir = () => store.settings.dlDir || path.join(app.getPath("music"), "Free tune");
   const downloads = new Downloads(tools, dlDir);
 
-  const snapshot = () => Object.assign(engine.snapshot(), { settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, hasFfmpeg: tools.hasFfmpeg() });
+  const snapshot = () => Object.assign(engine.snapshot(), { settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
   let t = null;
   const push = () => { if (t || !win || win.isDestroyed()) return; t = setTimeout(() => { t = null; if (win && !win.isDestroyed()) win.webContents.send("state", snapshot()); }, 400); };
   engine.on("update", push); downloads.on("update", push);
@@ -47,7 +49,7 @@ app.whenReady().then(() => {
 
   try {
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: 16, height: 16 }));
-    tray.setToolTip("Free tune Windows : comptes en ligne");
+    tray.setToolTip("Free tune : comptes en ligne");
     tray.setContextMenu(Menu.buildFromTemplate([{ label: "Ouvrir", click: show }, { label: "Quitter (les comptes passent hors ligne)", click: () => { quitting = true; app.quit(); } }]));
     tray.on("click", show);
   } catch (e) { /* pas d'icône dans la zone de notification */ }
@@ -60,7 +62,7 @@ app.whenReady().then(() => {
     const u = String(username || "").toLowerCase().trim();
     if (!store.settings.enrollKey) return { ok: false, msg: "Entre d'abord la clé d'activation dans les Réglages." };
     let st;
-    try { st = await register(store.settings.enrollKey, u, code); } catch (e) { return { ok: false, msg: "Impossible de joindre le serveur : " + e.message }; }
+    try { st = await register(store.settings.enrollKey, u, code, undefined, PLAT); } catch (e) { return { ok: false, msg: "Impossible de joindre le serveur : " + e.message }; }
     if (st === "taken") {   // compte déjà créé auparavant : on l'ajoute si le code est le bon
       try { await new Client({ username: u, code }, null).login(); } catch (e) { return { ok: false, msg: MSG.taken + " Si c'est un de tes comptes, vérifie son code." }; }
     } else if (st !== "ok") return { ok: false, msg: MSG[st] || "Création refusée (" + st + ")." };
@@ -111,10 +113,11 @@ app.whenReady().then(() => {
       const l = await r.json();
       const cur = +String(app.getVersion()).split(".")[1] || 0;
       let best = null;
-      for (const x of Array.isArray(l) ? l : []) { const m = /^win-(\d+)$/.exec(x.tag_name || ""); if (m && !x.draft && +m[1] > cur && (!best || +m[1] > best.n)) { const a = (x.assets || []).find((y) => /\.exe$/.test(y.name)); if (a) best = { n: +m[1], url: a.browser_download_url }; } }
+      for (const x of Array.isArray(l) ? l : []) { const m = new RegExp("^" + (MAC ? "mac" : "win") + "-(\\d+)$").exec(x.tag_name || ""); if (m && !x.draft && +m[1] > cur && (!best || +m[1] > best.n)) { const a = (x.assets || []).find((y) => (MAC ? /\.zip$/ : /\.exe$/).test(y.name) && (!MAC || y.name.includes(process.arch === "arm64" ? "arm64" : "x64"))); if (a) best = { n: +m[1], url: a.browser_download_url }; } }
       upd = best; push();
     } catch (e) { /* hors ligne */ }
   };
   check(); setInterval(check, 6 * 3600 * 1000);
 });
 app.on("window-all-closed", () => { /* on reste en arrière-plan */ });
+app.on("activate", () => { const w = BrowserWindow.getAllWindows()[0]; if (w) { w.show(); w.focus(); } });

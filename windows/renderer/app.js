@@ -16,14 +16,14 @@
     document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.t === tab));
     ["search", "acc", "dl", "set"].forEach((t) => { $("t-" + t).hidden = t !== tab; });
     if (!S) return;
-    $("ver").textContent = S.version || "";
+    $("ver").textContent = S.version || ""; $("plat").textContent = S.platform === "mac" ? "Mac" : "Windows";
     const on = S.accounts.filter((a) => a.state === "en ligne").length;
     $("nacc").textContent = S.accounts.length ? on + "/" + S.accounts.length : "";
     const act = S.downloads.filter((d) => d.state === "en cours" || d.state === "attente").length;
     $("ndl").textContent = act ? String(act) : "";
-    $("side-state").innerHTML = (S.tool ? "⏳ " + esc(S.tool) + "<br>" : "") + "Demandes en cours : <b>" + S.running + "</b> / " + S.maxJobs + "<br>Les comptes restent en ligne même fenêtre fermée (icône près de l'horloge).";
+    $("side-state").innerHTML = (S.tool ? "⏳ " + esc(S.tool) + "<br>" : "") + "Demandes en cours : <b>" + S.running + "</b> / " + S.maxJobs + "<br>Les comptes restent en ligne même fenêtre fermée (icône dans la barre d'état).";
     const u = $("upd");
-    if (S.update) { u.hidden = false; u.innerHTML = "<span>🎉 Une nouvelle version de Free tune Windows est disponible.</span><button class='btn sm' id='upd-go'>Télécharger</button>"; $("upd-go").onclick = () => window.ft.invoke("open:url", S.update.url); } else u.hidden = true;
+    if (S.update) { u.hidden = false; u.innerHTML = "<span>🎉 Une nouvelle version de Free tune est disponible.</span><button class='btn sm' id='upd-go'>Télécharger</button>"; $("upd-go").onclick = () => window.ft.invoke("open:url", S.update.url); } else u.hidden = true;
     if (tab === "search") drawSearch(); else if (tab === "acc") drawAcc(); else if (tab === "dl") drawDl(); else drawSet();
   }
   // les champs de saisie ne doivent pas être effacés quand l'état se met à jour
@@ -156,7 +156,7 @@
       "<div class='card'><div class='field'><label>Dossier des téléchargements</label><div class='row'><span class='grow'>" + esc(s.dlDirShown) + "</span><button class='btn sm out' id='s-dir'>Changer</button></div></div></div>",
       "<div class='card'><div class='field'><label>Demandes d'iPhone traitées en même temps (1 à 12)</label><input class='in' id='s-max' type='number' min='1' max='12' value='" + esc(s.maxJobs) + "' style='width:120px'></div>" +
       "<div class='row' style='margin-top:6px'><span class='grow'>Démarrer avec Windows (comptes en ligne dès l'allumage)</span><button class='sw " + (s.autostart ? "on" : "") + "' id='s-auto' aria-label='Démarrage automatique'></button></div></div>",
-      "<div class='card'><b>Outils</b><div class='small sub' style='margin-top:6px'>yt-dlp : téléchargé et mis à jour automatiquement.<br>ffmpeg : " + (S.hasFfmpeg ? "installé" : "sera téléchargé la première fois qu'une vidéo ou un MP3 est demandé (environ 130 Mo)") + ".</div></div>",
+      "<div class='card'><b>Outils</b><div class='small sub' style='margin-top:6px'>yt-dlp : téléchargé et mis à jour automatiquement.<br>ffmpeg : " + (S.hasFfmpeg ? "installé" : S.platform === "mac" ? "indisponible" : "sera téléchargé la première fois qu'une vidéo ou un MP3 est demandé (environ 130 Mo)") + ".</div></div>",
       "<h2>Journal</h2><pre class='log'>" + (S.logs.length ? esc(S.logs.join("\n")) : "Rien à signaler.") + "</pre>"];
     const el = $("t-set"); el.innerHTML = h.join("");
     $("s-keysave").onclick = () => window.ft.invoke("settings:set", { enrollKey: $("s-key").value }).then(() => toast("Clé enregistrée"));
