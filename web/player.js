@@ -2075,39 +2075,39 @@
     }
   }
   setInterval(subGuard, 60000); setTimeout(subGuard, 3500);
+  setTimeout(() => queueSoon(3000), 0); document.addEventListener("visibilitychange", () => { if (!document.hidden) queueSoon(1000); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) subGuard(); });
+  // Demande au serveur (un Android en ligne, choisi automatiquement). Jamais de message dans un chat, jamais vers un iPhone.
+  function relCall(A, o, f) {
+    return A.authed("POST", "/rest/v1/rpc/relay_create", { p_yid: o.src === "yt" ? o.id : "", p_q: o.src === "yt" ? "" : String(o.q || o.ti).slice(0, 120), p_ti: String(o.ti).slice(0, 120), p_ch: String(o.ch || "").slice(0, 60), p_d: o.d || 0, p_art: String(o.th || "").slice(0, 300), p_fmt: f });
+  }
   async function sendDl(o, f) {
     const A = API();
     if (!A || !A.casque.ready || !A.casque.ready()) { toast("Connexion en cours, réessaie dans un instant."); return; }
     const old = dlFor(o, f);
     if (old && (old.st === "sent" || old.st === "wait" || old.st === "recv")) { U.sec = "dl"; lsSet("casque_sec", "dl"); draw(); return; }
     if (old) DL = DL.filter((d) => d !== old);
-    // 1) Le premier ami Android disponible télécharge (rien à demander à personne en particulier).
     let rel = null;
-    try {
-      rel = await A.authed("POST", "/rest/v1/rpc/relay_create", { p_yid: o.src === "yt" ? o.id : "", p_q: o.src === "yt" ? "" : String(o.q || o.ti).slice(0, 120), p_ti: String(o.ti).slice(0, 120), p_ch: String(o.ch || "").slice(0, 60), p_d: o.d || 0, p_art: String(o.th || "").slice(0, 300), p_fmt: f });
-    } catch (e) { rel = null; }
+    try { rel = await relCall(A, o, f); } catch (e) { rel = null; }
     if (rel && rel.status === "pay") { openPaywall("dl", () => sendDl(o, f), true); return; }
-    if (rel && rel.status === "ok") {
-      DL.unshift({ mid: rel.id, app: "rel", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: rel.helpers || 0, at: Date.now(), st: "sent", p: 0 });
-      saveDl(); draw(); pollSoon(2500);
-      return;
+    const d = { mid: rel && rel.status === "ok" ? rel.id : "q" + Date.now(), app: "rel", yid: o.src === "yt" ? o.id : "", q: o.q || "", src: o.src, ti: o.ti, ch: o.ch || "", th: o.th || "", d: o.d || 0, f, fr: "tes amis", n: (rel && rel.helpers) || 0, at: Date.now(), st: "sent", p: 0 };
+    // Aucun serveur en ligne pour l'instant : la demande attend ici et repart toute seule dès qu'un Android est en ligne.
+    if (!(rel && rel.status === "ok")) { d.qd = true; d.lost = true; }
+    DL.unshift(d); saveDl(); draw();
+    if (d.qd) queueSoon(5000); else pollSoon(2500);
+  }
+  let queueT = null;
+  function queueSoon(ms) { clearTimeout(queueT); if (DL.some((d) => d.qd && d.st === "sent")) queueT = setTimeout(retryQueued, ms || 5000); }
+  async function retryQueued() {
+    const A = API();
+    if (!A || !A.casque.ready || !A.casque.ready() || document.hidden) { queueSoon(8000); return; }
+    for (const d of DL.filter((x) => x.qd && x.st === "sent")) {
+      let rel = null;
+      try { rel = await relCall(A, { src: d.src || (d.yid ? "yt" : "it"), id: d.yid, q: d.q || (d.ch + " " + d.ti), ti: d.ti, ch: d.ch, d: d.d, th: d.th }, d.f); } catch (e) { rel = null; }
+      if (rel && rel.status === "pay") { DL = DL.filter((x) => x !== d); openPaywall("dl", null, true); continue; }
+      if (rel && rel.status === "ok") { d.mid = rel.id; d.qd = false; d.lost = false; d.n = rel.helpers || 0; }
     }
-    // 2) Sinon : le partenaire Android de « Tu me manques » (même abonnement ; l'essai est décompté quand le fichier est reçu).
-    try {
-      const ud = await A.authed("POST", "/rest/v1/rpc/sub_can", {});
-      if (ud && ud.status === "pay") { openPaywall("dl", () => sendDl(o, f), true); return; }
-    } catch (e) { /* serveur pas prêt : on ne bloque pas */ }
-    if (TP.st !== "ok") { await loadPartner(true); if (TP.st !== "ok") { toast("Ajoute d'abord un ami qui a Free tune sur Android."); draw(); return; } }
-    const body = "📥 @music : peux-tu télécharger " + (isV(f) ? "la vidéo" : "la chanson") + " « " + o.ti + " »" + (o.ch ? " (" + o.ch + ")" : "") + " pour mon Free tune ? Ouvre cette conversation sur ton Android.";
-    const bot = { t: "dlreq", id: o.src === "yt" ? o.id : "", q: o.src === "yt" ? "" : (o.q || o.ti).slice(0, 120), ti: String(o.ti).slice(0, 90), ch: String(o.ch || "").slice(0, 40), d: o.d || 0, art: String(o.th || "").slice(0, 300), f, dev: "w" };
-    const d = { mid: 0, app: "tmm", yid: o.src === "yt" ? o.id : "", ti: o.ti, ch: o.ch || "", th: o.th || "", f, fr: TP.p.username, at: Date.now(), st: "sending", p: 0 };
-    DL.unshift(d); draw();
-    try {
-      d.mid = await A.casque.sendToTmm(body, { bot });
-      d.st = "sent"; saveDl(); draw();
-      pollSoon();
-    } catch (e) { DL = DL.filter((x) => x !== d); toast("Demande non envoyée. Vérifie ta connexion."); draw(); }
+    saveDl(); draw(); pollSoon(2500); queueSoon(5000);
   }
   // Présence en ligne (vue par l'administrateur, et pour les amis automatiques) : toutes les 40 secondes quand l'appli est ouverte.
   function beat() {
@@ -2229,7 +2229,7 @@
     if (!A || !A.casque.ready || !A.casque.ready() || document.hidden) { pollSoon(15000); return; }
     polling = true;
     try {
-      const rel = list.filter((d) => d.app === "rel" && d.mid);
+      const rel = list.filter((d) => d.app === "rel" && d.mid && !d.qd);
       if (rel.length) {
         const rows = (await A.authed("POST", "/rest/v1/rpc/relay_status", { p_ids: rel.map((d) => Number(d.mid)) })) || [];
         for (const r of rows) {
@@ -2424,6 +2424,7 @@
     if (d.app === "rel") {
       if (d.st === "done") return kind + (d.size ? " · " + (d.size / 1048576).toFixed(1) + " Mo" : "") + " · dans " + (isV(d.f) ? "Vidéos" : "Audios");
       if (d.st === "fail") return "Téléchargement impossible";
+      if (d.qd && d.st === "sent") return "Aucun serveur en ligne, recherche d'un serveur…";
       if (d.lost && (d.st === "sent" || d.st === "wait")) return "Le serveur n'est plus en ligne, recherche d'un autre serveur…";
       if (d.quiet >= 3 && d.st === "wait") return "Connexion avec le serveur perdue, reconnexion…";
       if (d.st === "recv") return kind + " · " + dlPct(d) + " %";
