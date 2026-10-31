@@ -169,4 +169,7 @@ dependencies {
 
     // Effet « verre » flou façon iOS 26.
     "casqueImplementation"("dev.chrisbanes.haze:haze:1.0.0")
+
+    // Les 2 serveurs cachés de Free tune (moteur commun avec « Free tune server »).
+    "casqueImplementation"(project(":srvcore"))
 }

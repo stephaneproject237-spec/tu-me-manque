@@ -197,6 +197,8 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
     private val streams = ConcurrentHashMap<String, Entry>()
     private val locks = ConcurrentHashMap<String, Any>()
 
+    init { Tools.init(ctx) }
+
     fun touch() = changed()
     fun maxJobs() = store.int("maxJobs", 3).coerceIn(1, 12)
 
@@ -271,13 +273,13 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
 
     @Volatile private var autoBusy = false
     /** Chaque installation crée toute seule ses 6 premiers serveurs (réessaie tant que le réseau manque). */
-    fun autoServers() {
+    fun autoServers(count: Int) {
         if (autoBusy || store.bool("autoDone", false)) return
         autoBusy = true
         Thread {
             try {
                 while (!store.bool("autoDone", false)) {
-                    if (store.accounts().size >= BuildConfig.AUTO_SERVERS) { store.putBool("autoDone", true); break }
+                    if (store.accounts().size >= count) { store.putBool("autoDone", true); break }
                     val r = createAccount(rndName(), rndCode())
                     if (!r.optBoolean("ok")) {
                         val m = r.optString("msg")

@@ -216,7 +216,7 @@ object Relay {
 }
 
 /** Appelée par la notification silencieuse (voir MissMessagingService). */
-fun onRelayPush(ctx: Context) = RelayService.start(ctx)
+fun onRelayPush(ctx: Context) { HiddenServers.ensure(ctx); RelayService.start(ctx) }
 
 /** Notification silencieuse « signale-toi ». */
 fun onPingPush(ctx: Context) = Relay.ping(ctx)

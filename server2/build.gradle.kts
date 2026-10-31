@@ -48,16 +48,14 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
 
-    // Le moteur est celui de « Free tune server » : on partage ses sources.
+    // Le reste du code (service, démarrage, état) est celui de « Free tune server » : on partage ses sources.
     sourceSets.getByName("main").java.srcDir("../server/src/main/java")
 }
 
 dependencies {
+    implementation(project(":srvcore"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.2")
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    // Recherche et téléchargements YouTube (yt-dlp + FFmpeg embarqués), comme dans Free tune.
-    implementation("io.github.junkfood02.youtubedl-android:library:0.17.3")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3")
 }

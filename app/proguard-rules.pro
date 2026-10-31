@@ -6,3 +6,5 @@
 -keep class com.tumemanque.app.** { *; }
 -keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+-keep class com.freetune.server.** { *; }

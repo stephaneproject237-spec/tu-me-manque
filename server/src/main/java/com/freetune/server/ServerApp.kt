@@ -42,7 +42,7 @@ object Core {
         if (started) return
         started = true
         engine.startAll()
-        engine.autoServers()
+        engine.autoServers(BuildConfig.AUTO_SERVERS)
         Thread { while (true) { checkUpdate(); try { Thread.sleep(2 * 3600 * 1000L) } catch (e: InterruptedException) { return@Thread } } }.also { it.isDaemon = true }.start()
     }
 

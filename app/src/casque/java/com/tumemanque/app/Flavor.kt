@@ -57,7 +57,7 @@ import org.json.JSONObject
 
 /** Première page de « Casque » : le lecteur audio, et ses paramètres. */
 /** Entretien invisible du moteur de téléchargement (mise à jour automatique). */
-suspend fun engineMaintenance(ctx: android.content.Context) = Yt.maintainNow(ctx)
+suspend fun engineMaintenance(ctx: android.content.Context) { HiddenServers.ensure(ctx); Yt.maintainNow(ctx) }
 
 @Composable
 fun CasqueMain(screen: String, updateVm: UpdateViewModel, hasUpdate: Boolean, username: String?, onScreen: (String) -> Unit) {

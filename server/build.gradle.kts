@@ -59,11 +59,9 @@ val copyUiAssets by tasks.registering(Copy::class) {
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach { dependsOn(copyUiAssets) }
 
 dependencies {
+    implementation(project(":srvcore"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.2")
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    // Recherche et téléchargements YouTube (yt-dlp + FFmpeg embarqués), comme dans Free tune.
-    implementation("io.github.junkfood02.youtubedl-android:library:0.17.3")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.3")
 }
