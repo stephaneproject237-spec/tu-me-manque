@@ -49,7 +49,12 @@ jobs:
       - name: Construire l'application
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --mac zip --${{ matrix.arch }} --publish never --config.productName="Free tune Mac"
+        run: |
+          set +e
+          npx electron-builder --mac zip --${{ matrix.arch }} --publish never --config.productName="Free tune Mac" 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then tail -15 build.log | while read -r l; do echo "::error::$l"; done; fi
+          exit $code
 
       - name: Signature locale (sans compte Apple) et archive
         run: |
