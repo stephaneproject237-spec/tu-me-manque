@@ -61,7 +61,7 @@
     modal: null,           // { type: "delete" | "history" | "update", user }
     targets: null,         // nombre de personnes à prévenir par application et appareil
     busy: false,
-    subsMode: false, subs: null, subsView: "main", ref: null, proof: {}, ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
+    subsMode: false, subs: null, subsView: "main", ref: null, proof: {}, ftMode: false, ft: null, sel: {}, exp: {}, fq: "",   // page « Clients Free tune »
   };
 
   const call = (name, args) => authed("POST", "/rest/v1/rpc/" + name, args || {});
@@ -349,8 +349,10 @@
   const ICON = { ios: "🍎", android: "🤖", pcwin: "🪟", pcmac: "🍏", pcsrv: "📲", windows: "🖥️", mac: "🖥️", srvdroid: "🖥️" };
   const KIND = { ios: "iPhone", android: "Android", pcwin: "PC Windows", pcmac: "Mac", pcsrv: "Free tune server", windows: "Serveur PC", mac: "Serveur Mac", srvdroid: "Serveur Android" };
   const pcOn = (u) => !!u.last_seen && Date.now() - new Date(u.last_seen).getTime() < 90000;
-  function ftCard(u, byId) {
-    const sel = !!S.sel[u.id];
+  function ftCard(u, owned) {
+    const pc = isPc(u);
+    const exp = pc && !!S.exp[u.id];
+    const sel = !pc && !!S.sel[u.id];
     const nf = (u.friends || []).length;
     const st = u.state || (u.online ? "app" : "off");
     const android = isHelper(u);
@@ -366,14 +368,27 @@
       (helpN ? ` <span class="chip">🤝 ${helpN} pour des amis</span>` : "");
     const where = isPc(u) ? (pcOn(u) ? "connecté maintenant" : ago(u.last_seen)) : st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
     const kind = `<span class="chip">${ICON[u.platform] || "🍎"} ${KIND[u.platform] || "iPhone"}</span>` + (u.sponsor ? ` <span class="chip">🎁 parrain : @${esc(u.sponsor)}</span>` : "") + (u.owner ? ` <span class="chip">👤 serveur de @${esc(u.owner)}</span>` : "");
-    return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
+    // Clients PC / Mac / Free tune server : un clic déplie ses serveurs automatiques (en bas de la carte).
+    const srvList = pc
+      ? `<div class="row" style="margin-top:6px"><span class="k grow">🖥️ ${(owned || []).length} serveur${(owned || []).length > 1 ? "s" : ""} automatique${(owned || []).length > 1 ? "s" : ""}</span><span class="k">${exp ? "▲" : "▼"}</span></div>`
+        + (exp ? `<div class="ftsub" style="margin-top:6px;display:flex;flex-direction:column;gap:6px">${
+            (owned || []).length
+              ? owned.map((s) => `<div class="row" style="background:rgba(255,255,255,.04);border-radius:10px;padding:8px 10px">
+                  <span class="ond ${s.online ? "on" : ""}"></span><span class="name grow">@${esc(s.username)}</span>
+                  <span class="chip">${ICON[s.platform] || "🖥️"} ${KIND[s.platform] || "Serveur"}</span>
+                  <span class="k">${esc(s.online ? "en ligne" : ago(s.last_seen))}</span></div>`).join("")
+              : `<p class="muted" style="margin:0">Aucun serveur rattaché pour l'instant.</p>`
+          }</div>` : "")
+      : "";
+    return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="${pc ? "ftexp" : "ftsel"}" data-id="${esc(u.id)}">
       <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${isPc(u) ? (pcOn(u) ? "on" : "") : st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
         <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${kind}</div>
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${ver}</div>
       ${lights}
       <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
-        <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div></div>`;
+        <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div>
+      ${srvList}</div>`;
   }
   function ftHtml() {
     if (!S.ft) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
@@ -405,9 +420,9 @@
       <input class="q" id="fq" placeholder="Rechercher un pseudo ou un e-mail…" value="${esc(S.fq)}" autocomplete="off">
       <h2>🍎 Comptes iPhone (${ios.length})</h2>${ios.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte iPhone.</p>'}
       <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}
-      <h2>🪟 Clients PC (${pcw.length})</h2>${pcw.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client PC.</p>'}
-      <h2>🍏 Clients Mac (${pcm.length})</h2>${pcm.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client Mac.</p>'}
-      <h2>📲 Clients Free tune server (${pcs.length})</h2>${pcs.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client Free tune server.</p>'}
+      <h2>🪟 Clients PC (${pcw.length})</h2>${pcw.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client PC.</p>'}
+      <h2>🍏 Clients Mac (${pcm.length})</h2>${pcm.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Mac.</p>'}
+      <h2>📲 Clients Free tune server (${pcs.length})</h2>${pcs.map((u) => ftCard(u, srvs.filter((s) => s.owner === u.username))).join("") || '<p class="muted">Aucun client Free tune server.</p>'}
       <h2>🖥️ Serveurs automatiques (${srvs.length})</h2>${srvs.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun serveur.</p>'}`;
   }
   async function ftDo(fn, a, b, ok) {
@@ -730,6 +745,7 @@
       }
       case "ftback": if (window.NativeAdmin) window.NativeAdmin.back(); break;
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
+      case "ftexp": if (ev.target.closest("[data-a=ftfr]")) break; if (S.exp[id]) delete S.exp[id]; else S.exp[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
       case "ftclear": S.sel = {}; renderContent(); break;
       case "ftlink": { const A = ftIds("android"), I = ftIds("ios"); const pairs = A.length && I.length ? [I, A] : A.length > 1 ? [A, A] : I.length > 1 ? [I, I] : null; if (!pairs) break; const n = await ftDo("admin_ft_link", pairs[0], pairs[1]); if (n != null) { S.sel = {}; renderContent(); } break; }

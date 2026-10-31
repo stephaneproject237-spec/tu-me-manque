@@ -180,18 +180,6 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
         }
         Spacer(Modifier.height(14.dp))
 
-        // ------------------------------------------------------------ aider les amis iPhone
-        SettingsCard {
-            var help by remember { mutableStateOf(Relay.enabled(ctx)) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Aider mes amis iPhone", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
-                androidx.compose.material3.Switch(checked = help, onCheckedChange = { help = it; Relay.setEnabled(ctx, it) })
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-
         // ------------------------------------------------------------ où sont les fichiers
         SettingsCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
