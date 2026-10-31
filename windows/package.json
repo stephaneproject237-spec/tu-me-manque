@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node test/engine.test.js",
+    "test": "node test/engine.test.js && node test/player.test.js",
     "dist": "electron-builder --win portable --x64 --publish never"
   },
   "dependencies": {

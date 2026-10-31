@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src https://itunes.apple.com; script-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src https://itunes.apple.com; media-src ftmedia:; script-src 'self'">
 <title>Free tune</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -26,6 +26,20 @@
     <section id="t-dl" hidden></section>
     <section id="t-set" hidden></section>
   </main>
+</div>
+<div id="player" hidden>
+  <div id="pv-wrap" hidden><video id="pv" playsinline></video><div class="pv-ctl"><button id="pv-fs" class="ib" title="Plein écran">⛶</button><button id="pv-min" class="ib" title="Masquer l'image (le son continue)">▾</button></div></div>
+  <div class="pbar">
+    <div class="pinfo"><b id="p-title"></b><span id="p-sub" class="small sub"></span></div>
+    <button id="p-prev" class="ib" title="Précédent">⏮</button>
+    <button id="p-play" class="ib big" title="Lecture / pause">▶</button>
+    <button id="p-next" class="ib" title="Suivant">⏭</button>
+    <span id="p-cur" class="small">0:00</span><input type="range" id="p-seek" min="0" max="1000" value="0"><span id="p-dur" class="small">0:00</span>
+    <button id="p-mute" class="ib" title="Son">🔊</button><input type="range" id="p-vol" min="0" max="100" value="100">
+    <button id="p-vid" class="ib" title="Afficher l'image" hidden>📺</button>
+    <button id="p-dl" class="btn sm out" title="Télécharger ce titre" hidden>⬇</button>
+    <button id="p-x" class="ib" title="Fermer le lecteur">✕</button>
+  </div>
 </div>
 <div id="toast" class="toast" hidden></div>
 <script src="app.js"></script>

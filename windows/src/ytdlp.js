@@ -108,13 +108,13 @@ async function downloadAudio(tools, id, dir, name, opts) {
   const onLine = (l) => { const m = PROG.exec(l); if (m && o.onProgress) o.onProgress(Math.min(1, +m[1] / 100)); };
   const url = "https://www.youtube.com/watch?v=" + id;
   try {
-    await tools.run(["--no-playlist", "--no-mtime", "--newline", "-f", fmt, "-o", base + ".%(ext)s", url], { onLine, timeout: 600000 });
+    await tools.run(["--no-playlist", "--no-mtime", "--newline", "-f", fmt, "-o", base + ".%(ext)s", url], { onLine, timeout: 600000, signal: o.signal });
     const f = base + ".m4a";
     if (fs.existsSync(f) && fs.statSync(f).size > 1000) return f;
-  } catch (e) { if (o.noMp3) throw e; }
+  } catch (e) { if (o.noMp3 || (o.signal && o.signal.aborted)) throw e; }
   if (o.noMp3) throw new Error("pas de flux m4a");
   await tools.ensureFfmpeg();
-  await tools.run(["--no-playlist", "--no-mtime", "--newline", "-f", "bestaudio[ext=m4a]/bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", (o.kbps || 192) + "K", "-o", base + ".%(ext)s", url], { onLine, timeout: 900000 });
+  await tools.run(["--no-playlist", "--no-mtime", "--newline", "-f", "bestaudio[ext=m4a]/bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", (o.kbps || 192) + "K", "-o", base + ".%(ext)s", url], { onLine, timeout: 900000, signal: o.signal });
   const f = base + ".mp3";
   if (!fs.existsSync(f)) throw new Error("fichier introuvable");
   return f;
@@ -130,11 +130,11 @@ async function downloadVideo(tools, id, dir, name, height, opts) {
   const onLine = (l) => { const m = PROG.exec(l); if (m && o.onProgress) o.onProgress(Math.min(1, +m[1] / 100)); };
   const heights = [720, 480, 360].filter((h) => h <= height);
   for (const h of heights.length ? heights : [360]) {
-    try { fs.unlinkSync(base + ".mp4"); } catch (e) { /* ignoré */ }
+    if (o.maxBytes) { try { fs.unlinkSync(base + ".mp4"); } catch (e) { /* ignoré */ } }
     const args = ["--no-playlist", "--no-mtime", "--newline", "-f", "bv*[height<=" + h + "]+ba/b[height<=" + h + "]/bv*+ba/b", "-S", "res:" + h + ",vcodec:h264,acodec:m4a,ext:mp4:m4a", "--merge-output-format", "mp4"];
     if (o.maxBytes) args.push("--max-filesize", String(o.maxBytes));
     args.push("-o", base + ".%(ext)s", "https://www.youtube.com/watch?v=" + id);
-    try { await tools.run(args, { onLine, timeout: 1800000 }); } catch (e) { if (!o.maxBytes) throw e; }
+    try { await tools.run(args, { onLine, timeout: 1800000, signal: o.signal }); } catch (e) { if (!o.maxBytes || (o.signal && o.signal.aborted)) throw e; }
     if (fs.existsSync(base + ".mp4")) return base + ".mp4";
   }
   throw new Error("vidéo trop lourde ou introuvable");
@@ -169,4 +169,16 @@ async function fetchRange(st, a, b) {
   return buf;
 }
 
-module.exports = { Tools, downloadAudio, downloadVideo, resolveStream, fetchRange, safeName };
+/** Lecture sans télécharger : adresse directe d'un flux (vidéo MP4 avec son, ou audio). */
+async function resolveMedia(tools, yid, video) {
+  await tools.ensureYtdlp();
+  const sel = video
+    ? "b[ext=mp4][height<=720][vcodec!=none][acodec!=none][protocol=https]/b[ext=mp4][vcodec!=none][acodec!=none][protocol=https]/18"
+    : "bestaudio[ext=m4a][protocol=https]/bestaudio[protocol=https]";
+  const r = await tools.run(["--no-playlist", "-f", sel, "--dump-json", "https://www.youtube.com/watch?v=" + yid], { timeout: 60000 });
+  const o = JSON.parse(r.out.trim().split("\n").pop());
+  if (!String(o.url || "").startsWith("https://")) throw new Error("flux introuvable");
+  return { url: o.url, headers: o.http_headers || {}, ext: String(o.ext || "").toLowerCase(), title: o.title || "", duration: o.duration || 0, video: !!video };
+}
+
+module.exports = { Tools, downloadAudio, downloadVideo, resolveStream, resolveMedia, fetchRange, safeName };

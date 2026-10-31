@@ -78,7 +78,7 @@
       h.push('<div class="hero"><img src="' + esc(art(a.artworkUrl100, 400)) + '" alt=""><div class="grow"><h1 style="margin:0">' + esc(a.collectionName) + "</h1><div class='sub'>" + esc(a.artistName) + " · " + esc((a.releaseDate || "").slice(0, 4)) + " · " + (a.trackCount || "") + " titres</div>" +
         '<div style="margin-top:12px"><button class="btn" id="aall"' + (R.albumTracks ? "" : " disabled") + ">⬇ Tout télécharger (audio)</button></div></div></div>");
       if (!R.albumTracks) h.push('<div class="spin"></div>');
-      else h.push(R.albumTracks.map((t, i) => '<div class="trk"><span class="n">' + (t.trackNumber || i + 1) + '</span><div class="grow"><b>' + esc(t.trackName) + '</b><span class="sub small">' + esc(t.artistName) + " · " + mmss(Math.round((t.trackTimeMillis || 0) / 1000)) + '</span></div><button class="btn sm" data-trk="' + i + '">⬇ Audio</button></div>').join(""));
+      else h.push(R.albumTracks.map((t, i) => '<div class="trk"><span class="n">' + (t.trackNumber || i + 1) + '</span><div class="grow"><b>' + esc(t.trackName) + '</b><span class="sub small">' + esc(t.artistName) + " · " + mmss(Math.round((t.trackTimeMillis || 0) / 1000)) + '</span></div><button class="btn sm out" data-tp="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm" data-trk="' + i + '">⬇ Audio</button><button class="btn sm out" data-trv="' + i + '">⬇ Vidéo</button></div>').join(""));
     } else if (R.busy) h.push('<div class="spin"></div>');
     else if (!R.done) h.push('<div class="empty">Cherche un artiste pour voir ses albums, ou un titre.<br>Les résultats viennent de YouTube et d\'iTunes ; les fichiers sont enregistrés dans <b>' + esc(S ? S.settings.dlDirShown : "") + "</b>.</div>");
     else {
@@ -86,7 +86,7 @@
         h.push("<h2>" + (R.artist ? "Albums de " + esc(R.artist) : "Albums") + "</h2><div class='albums'>" + R.albums.map((a) => '<button class="alb" data-alb="' + a.collectionId + '"><img loading="lazy" src="' + esc(art(a.artworkUrl100, 300)) + '" alt=""><b>' + esc(a.collectionName) + "</b><small>" + esc(a.artistName) + " · " + esc((a.releaseDate || "").slice(0, 4)) + "</small></button>").join("") + "</div>");
       }
       if (R.yt.length) {
-        h.push("<h2>Titres et vidéos</h2>" + R.yt.map((v, i) => '<div class="trk"><img loading="lazy" src="' + esc(v.thumb) + '" alt=""><div class="grow"><b>' + esc(v.title) + '</b><span class="sub small">' + esc(v.channel) + (v.duration ? " · " + mmss(v.duration) : "") + (v.views ? " · " + num(v.views) + " vues" : "") + '</span></div><button class="btn sm" data-ya="' + i + '">⬇ Audio</button><button class="btn sm out" data-yv="' + i + '">🎬 Vidéo</button></div>').join(""));
+        h.push("<h2>Titres et vidéos</h2>" + R.yt.map((v, i) => '<div class="trk"><img loading="lazy" src="' + esc(v.thumb) + '" alt=""><div class="grow"><b>' + esc(v.title) + '</b><span class="sub small">' + esc(v.channel) + (v.duration ? " · " + mmss(v.duration) : "") + (v.views ? " · " + num(v.views) + " vues" : "") + '</span></div><button class="btn sm out" data-pa="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm out" data-pv="' + i + '" title="Regarder sans télécharger">📺 Regarder</button><button class="btn sm" data-ya="' + i + '">⬇ Audio</button><button class="btn sm out" data-yv="' + i + '">⬇ Vidéo</button></div>').join(""));
       }
       if (!R.albums.length && !R.yt.length) h.push('<div class="empty">' + (R.msg ? "Recherche impossible : " + esc(R.msg) : "Aucun résultat.") + "</div>");
     }
@@ -95,6 +95,12 @@
     el.querySelectorAll("[data-alb]").forEach((b) => (b.onclick = () => openAlbum(b.dataset.alb)));
     el.querySelectorAll("[data-ya]").forEach((b) => (b.onclick = () => { const v = R.yt[+b.dataset.ya]; dl({ yid: v.id, title: v.title, artist: "", kind: "audio" }); }));
     el.querySelectorAll("[data-yv]").forEach((b) => (b.onclick = () => { const v = R.yt[+b.dataset.yv]; dl({ yid: v.id, title: v.title, artist: "", kind: "video", height: 720 }); }));
+    const ytItem = (v, video) => ({ yid: v.id, title: v.title, sub: v.channel, video: !!video, thumb: v.thumb });
+    el.querySelectorAll("[data-pa]").forEach((b) => (b.onclick = () => playList(R.yt.map((v) => ytItem(v, false)), +b.dataset.pa)));
+    el.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => playList([ytItem(R.yt[+b.dataset.pv], true)], 0)));
+    const trkItem = (t) => ({ yid: "", title: t.trackName, artist: t.artistName, sub: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), video: false });
+    el.querySelectorAll("[data-tp]").forEach((b) => (b.onclick = () => playList(R.albumTracks.map(trkItem), +b.dataset.tp)));
+    el.querySelectorAll("[data-trv]").forEach((b) => (b.onclick = () => { const t = R.albumTracks[+b.dataset.trv]; dl({ title: t.trackName, artist: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), kind: "video", height: 720 }); }));
     const trkDl = (t) => dl({ title: t.trackName, artist: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), kind: "audio" });
     el.querySelectorAll("[data-trk]").forEach((b) => (b.onclick = () => trkDl(R.albumTracks[+b.dataset.trk])));
     if ($("aback")) $("aback").onclick = () => { R.album = null; drawSearch(); };
@@ -137,16 +143,86 @@
 
   // ---------- téléchargements ----------
   function drawDl() {
-    const h = ["<h1>Téléchargements</h1><div class='row' style='margin-bottom:12px'><span class='sub grow'>Dossier : " + esc(S.settings.dlDirShown) + "</span><button class='btn out sm' id='dl-open'>Ouvrir le dossier</button></div>"];
+    const h = ["<h1>Téléchargements</h1><div class='row' style='margin-bottom:12px;gap:8px'><span class='sub grow'>Dossier : " + esc(S.settings.dlDirShown) + "</span>" + (S.downloads.some((d) => d.state !== "en cours" && d.state !== "attente" && d.state !== "en pause") ? "<button class='btn out sm' id='dl-clear'>Vider la liste</button>" : "") + "<button class='btn out sm' id='dl-open'>Ouvrir le dossier</button></div>"];
     if (!S.downloads.length) h.push("<div class='empty'>Rien pour l'instant. Utilise la page Recherche.</div>");
     S.downloads.slice().reverse().forEach((d) => {
-      h.push("<div class='card'><div class='row'><div class='grow'><b>" + esc(d.artist ? d.artist + " - " : "") + esc(d.title) + "</b><div class='small sub'>" + (d.kind === "video" ? "🎬 Vidéo" : "🎧 Audio") + " · " + esc(d.state) + (d.err ? " · <span class='warn'>" + esc(d.err) + "</span>" : "") + "</div></div>" +
-        (d.state === "terminé" && d.file ? "<button class='btn sm out' data-sf='" + esc(d.file) + "'>Afficher</button>" : "") + "</div>" + (d.state === "en cours" ? "<div class='bar'><i style='width:" + Math.round(d.pct * 100) + "%'></i></div>" : "") + "</div>");
+      const live = d.state === "en cours" || d.state === "attente" || d.state === "en pause";
+      h.push("<div class='card'><div class='row'><div class='grow'><b>" + esc(d.artist ? d.artist + " - " : "") + esc(d.title) + "</b><div class='small sub'>" + (d.kind === "video" ? "🎬 Vidéo" : "🎧 Audio") + " · " + esc(d.state) + (live && d.pct ? " · " + Math.round(d.pct * 100) + " %" : "") + (d.err ? " · <span class='warn'>" + esc(d.err) + "</span>" : "") + "</div></div>" +
+        (d.state === "terminé" && d.file ? "<button class='btn sm' data-pl='" + d.id + "'>▶ Lire</button><button class='btn sm out' data-sf='" + esc(d.file) + "'>Afficher</button>" : "") +
+        (d.state === "en cours" || d.state === "attente" ? "<button class='btn sm pa' data-ctl='pause' data-id='" + d.id + "'>⏸ Pause</button>" : "") +
+        (d.state === "en pause" ? "<button class='btn sm' data-ctl='resume' data-id='" + d.id + "'>▶ Reprendre</button>" : "") +
+        (d.state === "échec" || d.state === "annulé" ? "<button class='btn sm' data-ctl='resume' data-id='" + d.id + "'>↻ Réessayer</button>" : "") +
+        (live ? "<button class='btn sm red' data-ctl='cancel' data-id='" + d.id + "' title='Annuler'>✕</button>" : "") +
+        "</div>" + (live ? "<div class='bar'><i style='width:" + Math.round(d.pct * 100) + "%'></i></div>" : "") + "</div>");
     });
     const el = $("t-dl"); el.innerHTML = h.join("");
     $("dl-open").onclick = () => window.ft.invoke("dl:show", "");
+    if ($("dl-clear")) $("dl-clear").onclick = () => window.ft.invoke("dl:ctl", { op: "clear" });
     el.querySelectorAll("[data-sf]").forEach((b) => (b.onclick = () => window.ft.invoke("dl:show", b.dataset.sf)));
+    el.querySelectorAll("[data-ctl]").forEach((b) => (b.onclick = () => window.ft.invoke("dl:ctl", { op: b.dataset.ctl, id: +b.dataset.id })));
+    el.querySelectorAll("[data-pl]").forEach((b) => (b.onclick = () => {
+      const done = S.downloads.filter((d) => d.state === "terminé" && d.file).reverse();
+      const list = done.map((d) => ({ file: d.file, title: d.title, sub: d.artist, video: d.kind === "video" }));
+      playList(list, Math.max(0, done.findIndex((d) => String(d.id) === b.dataset.pl)));
+    }));
   }
+
+
+  // ---------- lecteur intégré ----------
+  const P = { q: [], i: -1, seq: 0, drag: false, showVid: true };
+  const pv = $("pv");
+  function playerOpen(on) { $("player").hidden = !on; document.body.classList.toggle("hasplayer", !!on); }
+  function vidShow(video) { $("pv-wrap").hidden = !(video && P.showVid); $("p-vid").hidden = !video || P.showVid; }
+  async function playList(list, i) {
+    P.q = list.slice(0, 200); P.i = Math.max(0, Math.min(i, P.q.length - 1)); P.showVid = true;
+    await loadCur();
+  }
+  async function loadCur() {
+    const it = P.q[P.i]; if (!it) return;
+    const my = ++P.seq;
+    playerOpen(true);
+    $("p-title").textContent = (it.artist ? it.artist + " - " : "") + it.title;
+    $("p-sub").textContent = "Chargement…";
+    $("p-dl").hidden = !!it.file;
+    pv.pause(); pv.removeAttribute("src"); pv.load(); $("p-seek").value = 0; $("p-cur").textContent = "0:00"; $("p-dur").textContent = "0:00"; $("p-play").textContent = "▶";
+    const r = it.file ? await window.ft.invoke("play:file", it.file) : await window.ft.invoke("play:yt", { yid: it.yid, title: it.title, artist: it.artist, dur: it.dur, video: it.video });
+    if (my !== P.seq) return;
+    if (!r.ok) { $("p-sub").textContent = r.msg || "Lecture impossible"; vidShow(false); return; }
+    it.yid = it.yid || r.yid || ""; it.isVideo = !!r.video;
+    $("p-sub").textContent = it.sub || "";
+    vidShow(r.video);
+    pv.src = r.src;
+    pv.play().catch(() => {});
+  }
+  function step(d) { const n = P.i + d; if (n < 0 || n >= P.q.length) return false; P.i = n; loadCur(); return true; }
+  const tfmt = (s) => (isFinite(s) && s > 0 ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00");
+  pv.addEventListener("play", () => { $("p-play").textContent = "⏸"; });
+  pv.addEventListener("pause", () => { $("p-play").textContent = "▶"; });
+  pv.addEventListener("loadedmetadata", () => { $("p-dur").textContent = tfmt(pv.duration); });
+  pv.addEventListener("timeupdate", () => {
+    $("p-cur").textContent = tfmt(pv.currentTime);
+    if (!P.drag && isFinite(pv.duration) && pv.duration > 0) $("p-seek").value = Math.round(pv.currentTime / pv.duration * 1000);
+  });
+  pv.addEventListener("ended", () => { if (!step(1)) { $("p-play").textContent = "▶"; $("p-seek").value = 0; } });
+  pv.addEventListener("error", () => { if (pv.getAttribute("src")) $("p-sub").textContent = "Lecture impossible pour ce titre"; });
+  $("p-play").onclick = () => { if (!pv.getAttribute("src")) { loadCur(); return; } if (pv.paused) pv.play().catch(() => {}); else pv.pause(); };
+  $("p-prev").onclick = () => { if (pv.currentTime > 4 || !step(-1)) pv.currentTime = 0; };
+  $("p-next").onclick = () => { step(1); };
+  $("p-seek").addEventListener("input", () => { P.drag = true; });
+  $("p-seek").addEventListener("change", () => { if (isFinite(pv.duration)) pv.currentTime = $("p-seek").value / 1000 * pv.duration; P.drag = false; });
+  $("p-vol").oninput = () => { pv.volume = $("p-vol").value / 100; pv.muted = false; $("p-mute").textContent = pv.volume === 0 ? "🔇" : "🔊"; };
+  $("p-mute").onclick = () => { pv.muted = !pv.muted; $("p-mute").textContent = pv.muted ? "🔇" : "🔊"; };
+  $("pv-fs").onclick = () => { const w = $("pv-wrap"); if (document.fullscreenElement) document.exitFullscreen(); else w.requestFullscreen().catch(() => {}); };
+  $("pv-min").onclick = () => { P.showVid = false; vidShow(true); };
+  $("p-vid").onclick = () => { P.showVid = true; vidShow(true); };
+  pv.addEventListener("dblclick", () => $("pv-fs").onclick());
+  pv.addEventListener("click", () => $("p-play").onclick());
+  $("p-x").onclick = () => { P.seq++; pv.pause(); pv.removeAttribute("src"); pv.load(); P.q = []; P.i = -1; playerOpen(false); };
+  $("p-dl").onclick = () => {
+    const it = P.q[P.i]; if (!it) return;
+    dl({ yid: it.yid, title: it.title, artist: it.artist || "", dur: it.dur, kind: it.video ? "video" : "audio", height: 720 });
+  };
+  document.addEventListener("keydown", (e) => { if (e.code === "Space" && !focused() && !$("player").hidden && !(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); $("p-play").onclick(); } });
 
   // ---------- réglages ----------
   function drawSet() {

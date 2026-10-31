@@ -1,10 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, safeStorage, protocol } = require("electron");
+const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Store } = require("./src/store");
 const { Tools } = require("./src/ytdlp");
 const { Engine } = require("./src/engine");
 const { Downloads } = require("./src/downloads");
+const { Media, MIME } = require("./src/media");
+const Y = require("./src/ytdlp");
 const { register } = require("./src/supa");
 const { Client } = require("./src/supa");
 const cfg = require("./src/config");
@@ -12,6 +15,7 @@ const MAC = process.platform === "darwin";
 const PLAT = MAC ? "mac" : "windows";
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
+protocol.registerSchemesAsPrivileged([{ scheme: "ftmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
 
 let win = null, tray = null, quitting = false, upd = null;
 const crypt = {
@@ -26,6 +30,8 @@ app.whenReady().then(() => {
   const engine = new Engine(store, tools, { version: app.getVersion(), platform: PLAT, tmpDir: path.join(app.getPath("temp"), "freetune-windows") });
   const dlDir = () => store.settings.dlDir || path.join(app.getPath("music"), "Free tune");
   const downloads = new Downloads(tools, dlDir);
+  const media = new Media();
+  protocol.handle("ftmedia", (req) => media.handle(req.url, req.headers.get("range")).catch(() => new Response("", { status: 502 })));
 
   const snapshot = () => Object.assign(engine.snapshot(), { settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
   let t = null;
@@ -101,6 +107,38 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("search:yt", async (_e, q) => { try { return { ok: true, list: await tools.search(String(q || ""), 15) }; } catch (e) { return { ok: false, msg: String(e.message || e).slice(0, 160) }; } });
   ipcMain.handle("dl:start", (_e, o) => downloads.start(o || {}));
+  ipcMain.handle("dl:ctl", (_e, a) => {
+    const id = a && a.id;
+    if (a && a.op === "pause") return downloads.pause(id);
+    if (a && a.op === "resume") return downloads.resume(id);
+    if (a && a.op === "cancel") return downloads.cancel(id);
+    if (a && a.op === "clear") { downloads.clear(); return true; }
+    return false;
+  });
+  // Lecteur intégré : fichier déjà téléchargé (dossier de téléchargement uniquement) ou lecture directe depuis YouTube.
+  ipcMain.handle("play:file", (_e, f) => {
+    try {
+      const file = path.resolve(String(f || "")), root = path.resolve(dlDir());
+      const known = downloads.list().some((x) => x.file && path.resolve(x.file) === file);
+      if (!(known || file.startsWith(root + path.sep)) || !MIME[path.extname(file).toLowerCase()] || !fs.existsSync(file)) return { ok: false, msg: "Fichier introuvable (déplacé ou supprimé ?)" };
+      const video = /^video\//.test(MIME[path.extname(file).toLowerCase()]);
+      return { ok: true, src: "ftmedia://m/" + media.add({ file }), video };
+    } catch (e) { return { ok: false, msg: String(e.message || e).slice(0, 140) }; }
+  });
+  ipcMain.handle("play:yt", async (_e, o) => {
+    try {
+      let yid = String((o && o.yid) || "");
+      if (!/^[A-Za-z0-9_-]{11}$/.test(yid)) {   // titre d'album : on cherche la meilleure vidéo correspondante
+        const r = await tools.search((String((o && o.artist) || "") + " " + String((o && o.title) || "")).trim(), 8);
+        if (!r.length) return { ok: false, msg: "Introuvable sur YouTube" };
+        const dur = +(o && o.dur) || 0;
+        yid = ((dur ? r.find((x) => Math.abs(x.duration - dur) <= 12) : null) || r[0]).id;
+      }
+      const video = !!(o && o.video);
+      const m = await Y.resolveMedia(tools, yid, video);
+      return { ok: true, src: "ftmedia://m/" + media.add({ url: m.url, headers: m.headers }), video, yid, duration: m.duration };
+    } catch (e) { return { ok: false, msg: String(e.message || e).split("\n").pop().slice(0, 160) }; }
+  });
   ipcMain.handle("dl:show", (_e, f) => { if (f) shell.showItemInFolder(String(f)); else shell.openPath(dlDir()); return true; });
   ipcMain.handle("open:url", (_e, u) => { if (/^https:\/\//.test(String(u))) shell.openExternal(String(u)); return true; });
 
