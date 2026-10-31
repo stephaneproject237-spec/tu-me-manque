@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebChromeClient
+import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -17,6 +19,13 @@ import androidx.webkit.WebViewAssetLoader
 /** Application « Admin » : la page d'administration du site, embarquée dans une application Android. */
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
+
+    // Choix d'une image (preuve de paiement) depuis la page.
+    private var fileCb: ValueCallback<Array<Uri>>? = null
+    private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        fileCb?.onReceiveValue(if (uri != null) arrayOf(uri) else null)
+        fileCb = null
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +46,14 @@ class MainActivity : ComponentActivity() {
         val loader = WebViewAssetLoader.Builder()
             .addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(view: WebView?, cb: ValueCallback<Array<Uri>>?, params: FileChooserParams?): Boolean {
+                fileCb?.onReceiveValue(null)
+                fileCb = cb
+                picker.launch("image/*")
+                return true
+            }
+        }
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                 loader.shouldInterceptRequest(request.url)

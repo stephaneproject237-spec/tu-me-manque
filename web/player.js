@@ -67,9 +67,48 @@
         if (r && r.status !== "error") lsSet("casque_p", "");
       }
       SP.loaded = true;
+      loadWallet();
     } catch (e) { /* hors ligne : on réessaiera */ }
     SP.busy = false;
     if (U.view === "settings") draw();
+  }
+  // ---------- Cagnotte de parrainage ----------
+  const WL = { d: null, form: false, msg: "" };
+  async function loadWallet() {
+    const A = API();
+    if (!A || !A.casque.ready()) return;
+    try {
+      const r = await A.authed("POST", "/rest/v1/rpc/ref_get", {});
+      if (r && r.status === "ok") { WL.d = r; if (U.view === "settings" && !WL.form) draw(); }
+    } catch (e) { /* hors ligne */ }
+  }
+  async function sendPayout() {
+    const ph = (host.querySelector("#wlph") || {}).value || "", nm = (host.querySelector("#wlnm") || {}).value || "";
+    const A = API();
+    try {
+      const r = await A.authed("POST", "/rest/v1/rpc/payout_request", { p_phone: ph, p_name: nm });
+      const st = r && r.status;
+      if (st === "ok") { WL.form = false; WL.msg = ""; await loadWallet(); }
+      else WL.msg = st === "bad_phone" ? "Numéro invalide : 9 chiffres, qui commencent par 6." : st === "bad_name" ? "Écris le nom qui apparaît lors de la transaction." : st === "too_low" ? "Il faut au moins 500 FCFA." : st === "already" ? "Une demande est déjà en attente." : "Impossible pour le moment.";
+    } catch (e) { WL.msg = "Impossible pour le moment. Vérifie ta connexion."; }
+    draw();
+  }
+  function walletHtml() {
+    const d = WL.d;
+    if (!d) return '<p class="sec">MA CAGNOTTE</p><div class="card l"><p class="note">…</p></div>';
+    const w = Number(d.wallet) || 0;
+    let h = '<p class="sec">MA CAGNOTTE</p><div class="card l"><p style="font-size:26px"><b>' + w + ' FCFA</b></p><p class="note">Tu gagnes 100 FCFA quand un ami que tu as invité paie son premier abonnement.<br>' + d.filleuls + " filleul(s) · " + d.payes + " ont payé</p>";
+    if (d.pending) h += "<p>⏳ Retrait de " + Number(d.pending.amount) + " FCFA demandé pour le " + esc(d.pending.phone) + " (" + esc(d.pending.name) + "). Il sera envoyé bientôt.</p>";
+    else if (w >= 500) {
+      if (!WL.form) h += '<button class="bt wide" data-a="walform">Retirer ma cagnotte</button>';
+      else h += '<p class="note">Numéro qui recevra l\'argent :</p><input id="wlph" class="ti2" inputmode="numeric" maxlength="12" placeholder="6XXXXXXXX" autocomplete="off"><p class="note">Nom qui doit apparaître lors de la transaction :</p><input id="wlnm" class="ti2" maxlength="60" placeholder="Nom et prénom" autocomplete="off"><button class="bt wide" data-a="walsend">Valider la demande</button>';
+      if (WL.msg) h += '<p class="note">' + esc(WL.msg) + "</p>";
+    } else h += '<p class="note">Retrait possible à partir de 500 FCFA.</p>';
+    if (d.last && !d.pending) {
+      h += "<p>✅ Dépôt effectué : " + Number(d.last.amount) + " FCFA envoyés au " + esc(d.last.phone) + ".</p>";
+      if (d.last.proof) h += '<a class="bt out wide" style="display:block;text-align:center;text-decoration:none" target="_blank" rel="noopener" href="' + (CFG.SUPABASE_URL || "") + "/storage/v1/object/public/chat/" + esc(d.last.proof) + '">Voir la preuve de paiement</a>';
+    }
+    return h + "</div>";
   }
   async function setSponsor() {
     const el = host.querySelector("#spin");
@@ -582,6 +621,7 @@
       '<p class="note" style="margin-top:14px"><b>Parrain</b></p>' +
       (SP.name ? '<p><b>@' + esc(SP.name) + "</b></p>" : SP.loaded ? '<p class="note">Tu n\'as pas de parrain. Si quelqu\'un t\'a fait découvrir Free tune, écris son pseudo :</p><input id="spin" class="ti2" maxlength="30" placeholder="Pseudo du parrain" autocapitalize="none" autocomplete="off"><button class="bt out wide" data-a="sponsorset">Valider</button>' : '<p class="note">…</p>') +
       (SP.msg ? '<p class="note">' + esc(SP.msg) + "</p>" : "") + "</div>" +
+      walletHtml() +
       '<p class="sec">APPLICATION</p><div class="card l"><button class="bt out wide" data-a="update">Rechercher une mise à jour</button>' + (U.upd ? '<p class="note">' + esc(U.upd) + "</p>" : "") + "</div>" +
       '<p class="sec">TCHAT</p><div class="card l"><button class="bt wide" data-a="help">' + I.chat + " Tchat</button></div>" +
       "</main>";
@@ -818,7 +858,7 @@
       case "selplay": playList([...U.sel], 0); U.sel = null; draw(); break;
       case "seladd": sheet({ kind: "addpl", ids: [...U.sel] }); break;
       case "seldel": { const ids = [...U.sel]; pending = () => removeTracks(ids).then(() => { U.sel = null; U.sheet = null; draw(); }); sheet({ kind: "confirm", title: "Supprimer " + ids.length + " titre(s) ?", text: "Ils seront retirés de la bibliothèque Free tune.", ok: "Supprimer" }); break; }
-      case "settings": window.TMM_API ? window.TMM_API.casque.screen("settings") : (U.view = "settings", draw()); break;
+      case "settings": window.TMM_API ? window.TMM_API.casque.screen("settings") : (U.view = "settings", draw()); loadWallet(); break;
       case "settingsback": window.TMM_API ? window.TMM_API.casque.screen("player") : (U.view = "player", draw()); break;
       case "help": if (window.TMM_API) window.TMM_API.casque.help(); break;
       case "clear": pending = () => removeTracks(L.tracks.map((t) => t.id)).then(() => { L.playlists = []; savePl(); U.sheet = null; toast("Bibliothèque vidée"); draw(); }); sheet({ kind: "confirm", title: "Vider la bibliothèque ?", text: "Tous les titres et playlists de Free tune seront supprimés de cet appareil.", ok: "Tout supprimer" }); break;
@@ -827,6 +867,8 @@
       case "tickstog": lsSet("casque_ticks", ticksOn() ? "0" : "1"); if (ticksOn()) feelTick(true); draw(); break;
       case "restore": if (!RS.busy) mediaSummary(); break;
       case "sponsorset": setSponsor(); break;
+      case "walform": WL.form = true; WL.msg = ""; draw(); break;
+      case "walsend": sendPayout(); break;
       default: break;
     }
   });

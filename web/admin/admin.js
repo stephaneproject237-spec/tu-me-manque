@@ -61,7 +61,7 @@
     modal: null,           // { type: "delete" | "history" | "update", user }
     targets: null,         // nombre de personnes à prévenir par application et appareil
     busy: false,
-    subsMode: false, subs: null, ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
+    subsMode: false, subs: null, subsView: "main", ref: null, proof: {}, ftMode: false, ft: null, sel: {}, fq: "",   // page « Clients Free tune »
   };
 
   const call = (name, args) => authed("POST", "/rest/v1/rpc/" + name, args || {});
@@ -128,7 +128,7 @@
     clearInterval(pollT);
     pollT = setInterval(async () => {
       if (document.hidden || S.stage !== "app" || S.modal) return;
-      if (S.subsMode) await loadSubs();
+      if (S.subsMode) { if (S.subsView === "ref") await loadRef(); else await loadSubs(); }
       else if (S.ftMode) await loadFt();
       else if (S.thread) await openThread(S.thread.id, S.thread.name, true);
       else await loadAll();
@@ -213,6 +213,41 @@
     catch (e) { S.err = "Chargement impossible : " + (e.message || e) + " (as-tu collé le code SQL « suivi des abonnements » dans Supabase ?)"; }
     renderContent();
   }
+  async function loadRef() {
+    try { S.ref = await call("admin_ref_overview"); S.err = null; }
+    catch (e) { S.err = "Chargement impossible : " + (e.message || e) + " (as-tu collé le code SQL « cagnotte » dans Supabase ?)"; }
+    renderContent();
+  }
+  // Réduit l'image (preuve de paiement) puis l'envoie dans le dossier de l'admin du stockage public « chat ».
+  async function uploadProof(file) {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.85));
+    const s = await session(false);
+    const uid = JSON.parse(atob(s.access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).sub;
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(12))).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const path = uid + "/preuve" + hex + ".jpg";
+    const res = await fetch(CFG.SUPABASE_URL + "/storage/v1/object/chat/" + path, { method: "POST", headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: "Bearer " + s.access, "Content-Type": "image/jpeg" }, body: blob });
+    if (!res.ok) throw new Error("envoi de l'image refusé (" + res.status + ")");
+    return path;
+  }
+  function refHtml() {
+    const d = S.ref;
+    if (!d) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
+    const rows = d.map((u) => {
+      const pend = u.pending_id ? `<div class="card" style="margin-top:8px;padding:10px;background:rgba(255,193,7,.14)">
+          <div><b>💸 Retrait demandé : ${fcfa(u.pending_amount)}</b></div>
+          <div class="k">Numéro : <b>${esc(u.pending_phone)}</b></div><div class="k">Nom sur la transaction : <b>${esc(u.pending_name)}</b></div><div class="k">Demandé le ${fdate(u.pending_at)}</div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="btn small" data-a="refproof" data-id="${u.pending_id}">📷 ${S.proof[u.pending_id] ? "Changer l'image" : "Joindre la preuve"}</button>
+            <button class="btn small" data-a="refdone" data-id="${u.pending_id}" data-n="${esc(u.username)}">✅ Dépôt effectué</button></div>
+          ${S.proof[u.pending_id] ? '<div class="k" style="margin-top:6px">✅ Preuve jointe</div>' : ""}</div>` : "";
+      return `<div class="card glass srow"><div class="row"><span class="name grow">@${esc(u.username || "?")}</span><b>${fcfa(u.wallet)}</b></div>
+        <div class="k" style="margin-top:4px">👥 ${u.filleuls} filleul${u.filleuls > 1 ? "s" : ""} · 💳 ${u.payes} ont payé le premier mois${Number(u.paid_out) ? " · déjà versé : " + fcfa(u.paid_out) : ""}</div>${pend}</div>`;
+    }).join("") || '<p class="muted">Personne n\'a encore de filleul.</p>';
+    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `<h2>🎁 Parrainage</h2>${rows}<input type="file" id="proofin" accept="image/*" style="display:none">`;
+  }
   const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
   const fcfa = (n) => new Intl.NumberFormat("fr-FR").format(Math.round(Number(n) || 0)).replace(/[\u202f\u00a0]/g, " ") + " FCFA";
   const kfmt = (n) => { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " M" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(".0", "") + " k" : String(n); };
@@ -221,6 +256,7 @@
   const dshort = (t) => t ? new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—";
   const inDays = (t) => { const d = Math.ceil((new Date(t) - Date.now()) / 86400000); return d <= 0 ? "aujourd'hui" : d === 1 ? "demain" : "dans " + d + " j"; };
   function subsHtml() {
+    if (S.subsView === "ref") return '<div class="row" style="gap:8px;margin-bottom:8px"><button class="btn small" data-a="subsview" data-id="main">‹ Abonnements</button></div>' + refHtml();
     const d = S.subs;
     if (!d) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
     const mo = d.month || {}, tot = d.total || {};
@@ -243,7 +279,7 @@
       return `<div class="card glass srow"><div class="row"><span class="name grow">${person(u)}</span><button class="btn small" data-a="subsreset" data-id="${esc(u.id)}" data-n="${esc(u.username || "")}">↺ Remettre à 0</button></div>
         <div class="k" style="margin-top:6px">${st}</div><div class="k">Numéro de test ${esc(u.phone || "")} · ${esc(u.email || "")}</div></div>`; }).join("") || '<p class="muted">Aucun compte n\'a actuellement un abonnement payé avec un numéro de test.</p>';
     const months = (d.months || []).slice().reverse().map((x) => `<div class="mrow"><span class="grow">${mlong(x.m)}</span><span class="k">${x.n} abonnement${x.n > 1 ? "s" : ""}</span><b>${fcfa(x.rev)}</b></div>`).join("");
-    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `
+    return '<div class="row" style="gap:8px;margin-bottom:8px"><button class="btn small" data-a="subsview" data-id="ref">🎁 Parrainage</button></div>' + (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `
       <div class="shero"><div class="sk">Chiffre d'affaires total</div><div class="sbig">${fcfa(tot.revenue)}</div>
         <div class="sk">${tot.payments || 0} abonnement${tot.payments > 1 ? "s" : ""} · ${tot.payers || 0} client${tot.payers > 1 ? "s" : ""}${tot.first ? " · depuis le " + dshort(tot.first) : ""}</div></div>
       <div class="sgrid">
@@ -657,7 +693,25 @@
         try { await call("admin_test_reset", { p_user: id }); } catch (e) { await ask("Remise à zéro impossible : " + (e.message || e) + "\n(As-tu collé le dernier code SQL « suivi des abonnements » dans Supabase ?)", "OK"); }
         await loadSubs(true); break;
       }
-      case "subsrefresh": await loadSubs(true); break;
+      case "subsrefresh": if (S.subsView === "ref") await loadRef(); else await loadSubs(true); break;
+      case "subsview": S.subsView = id; if (id === "ref") { S.ref = null; renderContent(); await loadRef(); } else renderContent(); break;
+      case "refproof": {
+        const inp = document.getElementById("proofin"); if (!inp) break;
+        inp.value = "";
+        inp.onchange = async () => {
+          const f = inp.files && inp.files[0]; if (!f) return;
+          try { S.proof[id] = await uploadProof(f); } catch (e) { await ask("Image non envoyée : " + (e.message || e), "OK"); }
+          renderContent();
+        };
+        inp.click(); break;
+      }
+      case "refdone": {
+        const nm = t.dataset.n || "ce compte";
+        if (!await ask("Confirmer que le dépôt a été fait à @" + nm + " ?\nSon solde diminuera du montant versé et il verra « Dépôt effectué »" + (S.proof[id] ? " avec ta preuve de paiement." : " (sans image de preuve)."), "Dépôt effectué")) break;
+        try { const r = await call("admin_payout_done", { p_id: Number(id), p_proof: S.proof[id] || null }); if (r && r.status !== "ok") await ask("Impossible : " + r.status, "OK"); else delete S.proof[id]; }
+        catch (e) { await ask("Impossible : " + (e.message || e), "OK"); }
+        await loadRef(); break;
+      }
       case "ftback": if (window.NativeAdmin) window.NativeAdmin.back(); break;
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -292,6 +293,77 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
                     if (typed.isNotBlank()) scope.launch { msg = Sponsor.set(typed) }
                 }
                 if (msg.isNotEmpty()) Text(msg, color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+
+        // ------------------------------------------------------------ cagnotte de parrainage
+        SettingsCard {
+            var ref by remember { mutableStateOf<JSONObject?>(null) }
+            var form by remember { mutableStateOf(false) }
+            var ph by remember { mutableStateOf("") }
+            var nm by remember { mutableStateOf("") }
+            var rmsg by remember { mutableStateOf("") }
+            LaunchedEffect(Unit) { while (true) { ref = Backend.refGet() ?: ref; delay(15_000) } }
+            Text("Ma cagnotte", color = P.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            val wallet = ref?.optInt("wallet") ?: 0
+            Text("$wallet FCFA", color = P.blueSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            Text(
+                "Tu gagnes 100 FCFA quand un ami que tu as invité paie son premier abonnement." +
+                    (ref?.let { "\n${it.optInt("filleuls")} filleul(s) · ${it.optInt("payes")} ont payé" } ?: ""),
+                color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+            )
+            val pend = ref?.optJSONObject("pending")
+            val last = ref?.optJSONObject("last")
+            if (pend != null) {
+                Text("⏳ Retrait de ${pend.optInt("amount")} FCFA demandé pour le ${pend.optString("phone")} (${pend.optString("name")}). Il sera envoyé bientôt.", color = P.text, fontSize = 14.sp)
+            } else if (wallet >= 500) {
+                if (!form) {
+                    BlueButton("Retirer ma cagnotte", Modifier.fillMaxWidth()) { form = true; rmsg = "" }
+                } else {
+                    Text("Numéro qui recevra l'argent :", color = P.sub, fontSize = 13.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(P.card2).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        if (ph.isEmpty()) Text("6XXXXXXXX", color = P.sub, fontSize = 15.sp)
+                        BasicTextField(value = ph, onValueChange = { ph = it.filter { c -> c.isDigit() }.take(12) }, singleLine = true,
+                            textStyle = TextStyle(color = P.text, fontSize = 15.sp), cursorBrush = SolidColor(P.blueSoft), modifier = Modifier.fillMaxWidth())
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Nom qui doit apparaître lors de la transaction :", color = P.sub, fontSize = 13.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(P.card2).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        if (nm.isEmpty()) Text("Nom et prénom", color = P.sub, fontSize = 15.sp)
+                        BasicTextField(value = nm, onValueChange = { nm = it.take(60) }, singleLine = true,
+                            textStyle = TextStyle(color = P.text, fontSize = 15.sp), cursorBrush = SolidColor(P.blueSoft), modifier = Modifier.fillMaxWidth())
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    BlueButton("Valider la demande", Modifier.fillMaxWidth()) {
+                        scope.launch {
+                            rmsg = when (Backend.payoutRequest(ph, nm)) {
+                                "ok" -> { form = false; ref = Backend.refGet() ?: ref; "" }
+                                "bad_phone" -> "Numéro invalide : 9 chiffres, qui commencent par 6."
+                                "bad_name" -> "Écris le nom qui apparaît lors de la transaction."
+                                "too_low" -> "Il faut au moins 500 FCFA."
+                                "already" -> "Une demande est déjà en attente."
+                                else -> "Impossible pour le moment. Vérifie ta connexion."
+                            }
+                        }
+                    }
+                    if (rmsg.isNotEmpty()) Text(rmsg, color = P.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            } else {
+                Text("Retrait possible à partir de 500 FCFA.", color = P.sub, fontSize = 13.sp)
+            }
+            if (last != null && pend == null) {
+                Spacer(Modifier.height(10.dp))
+                Text("✅ Dépôt effectué : ${last.optInt("amount")} FCFA envoyés au ${last.optString("phone")}.", color = P.text, fontSize = 14.sp)
+                val pr = last.optString("proof")
+                if (pr.isNotBlank() && pr != "null") {
+                    Spacer(Modifier.height(6.dp))
+                    BlueButton("Voir la preuve de paiement", Modifier.fillMaxWidth(), outlined = true) {
+                        runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(Config.SUPABASE_URL + "/storage/v1/object/public/chat/" + pr)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
+                }
             }
         }
         Spacer(Modifier.height(14.dp))

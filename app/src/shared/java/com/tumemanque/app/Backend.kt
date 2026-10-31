@@ -513,6 +513,14 @@ object Backend {
         o.optString("status", "error") to (if (o.isNull("name")) null else o.optString("name"))
     } catch (e: Exception) { "error" to null }
 
+    /** Free tune : ma cagnotte de parrainage (solde, filleuls, demande de retrait). */
+    suspend fun refGet(): JSONObject? = runCatching { JSONObject(authed("POST", "/rest/v1/rpc/ref_get", "{}")).takeIf { it.optString("status") == "ok" } }.getOrNull()
+
+    /** Free tune : demande de retrait de la cagnotte. Renvoie le statut du serveur. */
+    suspend fun payoutRequest(phone: String, name: String): String = try {
+        JSONObject(authed("POST", "/rest/v1/rpc/payout_request", JSONObject().put("p_phone", phone).put("p_name", name).toString())).optString("status", "error")
+    } catch (e: Exception) { "error" }
+
     suspend fun supportSend(body: String): String = rpc("support_send", JSONObject().put("p_body", body))
 
     suspend fun supportMarkRead() { rpc("support_mark_read") }
