@@ -160,7 +160,7 @@ end $$;
 
 create or replace function public.c_relay_create(p_yid text, p_q text, p_ti text, p_ch text, p_d int, p_art text, p_fmt text)
 returns json language plpgsql security definer set search_path = public, extensions as $$
-declare me uuid := auth.uid(); n int; rid bigint; notified boolean; tgt uuid; ids uuid[]; sb public.c_subs; inflight int; v_p2p boolean := false;
+declare me uuid := auth.uid(); n int; on_n int; rid bigint; notified boolean; tgt uuid; ids uuid[]; sb public.c_subs; inflight int; v_p2p boolean := false;
         v_yid text := nullif(btrim(coalesce(p_yid, '')), '');
         v_q text := left(btrim(coalesce(p_q, '')), 120);
         v_fmt text := coalesce(nullif(btrim(coalesce(p_fmt, '')), ''), 'a');
@@ -180,7 +180,8 @@ begin
   if (select count(*) from public.c_relay where from_id = me and status in ('open', 'taken')) >= 8 then
     return json_build_object('status', 'rate_limited');
   end if;
-  select count(*) into n from public.c__helpers(me);
+  select count(*), count(*) filter (where public.c__avail(p) <> 'off') into n, on_n
+    from public.c_profiles p where p.id in (select h from public.c__helpers(me) h);
   if n = 0 then return json_build_object('status', 'no_helper'); end if;
   select id into rid from public.c_relay
     where from_id = me and status in ('open', 'taken') and fmt = v_fmt
@@ -198,8 +199,10 @@ begin
       end if;
     end if;
   end if;
-  -- Mode p2p (réglage de l'administrateur) : audio m4a (formats a / al) et au moins 2 Android en ligne -> la demande est ouverte à tous, qui se partagent les morceaux.
-  v_p2p := public.c__setting('p2p', false) and v_fmt in ('a', 'al') and n >= 2;
+  -- Mode p2p (réglage de l'administrateur) : audio m4a (formats a / al) et au moins 3 serveurs EN LIGNE -> la demande est ouverte à tous,
+  -- qui se partagent les morceaux (le fichier n'est réellement découpé qu'au-dessus de 15 Mo, sinon un seul le télécharge en entier).
+  -- Moins de 3 en ligne : pas de découpage, un seul serveur s'en charge comme avant.
+  v_p2p := public.c__setting('p2p', false) and v_fmt in ('a', 'al') and on_n >= 3;
   if not v_p2p and public.c__setting('random_dispatch', true) then tgt := public.c__pick_server(me, '{}'); end if;
   notified := exists (select 1 from public.c_relay where from_id = me and status in ('open', 'taken') and created_at > now() - interval '40 seconds' and target_id is null);
   insert into public.c_relay (from_id, yid, q, ti, ch, d, art, fmt, target_id, assigned_at, p2p)
