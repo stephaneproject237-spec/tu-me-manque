@@ -16,3 +16,4 @@ rootProject.name = "TuMeManque"
 include(":app")
 include(":admin")
 include(":voice")
+include(":server")

@@ -13,6 +13,11 @@ on:
       - 'README.md'
       - 'tools/casque-android.json'
       - 'tools/build-casque-web.py'
+      - 'windows/**'
+      - 'server/**'
+      - '.github/workflows/server.yml'
+      - '.github/workflows/windows.yml'
+      - '.github/workflows/mac.yml'
   workflow_dispatch:
     inputs:
       split:
