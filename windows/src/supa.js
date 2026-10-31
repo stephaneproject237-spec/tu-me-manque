@@ -68,15 +68,15 @@ class Client {
   }
 }
 
-/** Création d'un compte serveur (sans clé : l'installation est identifiée par un numéro, 30 serveurs au maximum). */
-async function registerAuto(device, username, code, opts, platform) {
+/** Création d'un compte serveur (clé d'activation + pseudo + code). */
+async function register(key, username, code, opts, platform) {
   const url = (opts && opts.url) || cfg.SUPABASE_URL, anon = (opts && opts.anon) || cfg.SUPABASE_ANON_KEY;
-  const res = await fetch(url + "/rest/v1/rpc/srv_auto", {
+  const res = await fetch(url + "/rest/v1/rpc/srv_register", {
     method: "POST", headers: { apikey: anon, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_device: device, p_username: username, p_code: code, p_platform: platform || "windows" }), signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({ p_key: key, p_username: username, p_code: code, p_platform: platform || "windows" }), signal: AbortSignal.timeout(30000),
   });
   const t = await res.text();
   if (!res.ok) throw new Error("HTTP " + res.status + " : " + t.slice(0, 160));
   return JSON.parse(t).status;
 }
-module.exports = { Client, registerAuto };
+module.exports = { Client, register };

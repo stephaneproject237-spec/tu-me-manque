@@ -4,4 +4,6 @@ module.exports = {
   SUPABASE_ANON_KEY: "sb_publishable_Q8zNDzwWjXlnlazogk3k9A_YbmxI_qM",
   REPO: "stephaneproject237-spec/tu-me-manque",
   EMAIL_DOMAIN: "srv.freetune.app",
+  // Clé d'activation : installée automatiquement, la personne n'a rien à saisir.
+  ENROLL_KEY: "1a6519f6fe94b2faa5222eee319f8d4dd0e47d42f7abd539",
 };

@@ -6,7 +6,7 @@ on:
     paths:
       - 'server/**'
       - 'srvcore/**'
-      - 'windows/renderer/**'
+      - 'windows/renderer-srv/**'
       - '.github/workflows/server.yml'
   workflow_dispatch:
 

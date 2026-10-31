@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src https://itunes.apple.com https://*.supabase.co; media-src ftmedia: https:; script-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src https://itunes.apple.com; media-src ftmedia:; script-src 'self'">
 <title>Free tune</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -13,12 +13,10 @@
     <div class="brand"><div class="lg">🎧</div><div><b>Free tune</b><small><span id="plat">Windows</span> <span id="ver"></span></small></div></div>
     <nav id="nav">
       <button data-t="search" class="on">🔎 Recherche</button>
+      <button data-t="acc">🖥️ Comptes serveur <i id="nacc"></i></button>
       <button data-t="dl">⬇️ Téléchargements <i id="ndl"></i></button>
-      <button data-t="me">👤 Mon compte</button>
       <button data-t="set">⚙️ Réglages</button>
-      <button data-t="acc" id="nav-srv" hidden>🖥️ Gestion des serveurs <i id="nacc"></i></button>
     </nav>
-    <button class="lockb" id="lock-btn" title="Gestion des serveurs (mot de passe)">🔒 Gestion des serveurs</button>
     <div id="side-state" class="side-state"></div>
   </aside>
   <main>
@@ -26,7 +24,6 @@
     <section id="t-search"></section>
     <section id="t-acc" hidden></section>
     <section id="t-dl" hidden></section>
-    <section id="t-me" hidden></section>
     <section id="t-set" hidden></section>
   </main>
 </div>
@@ -44,12 +41,8 @@
     <button id="p-x" class="ib" title="Fermer le lecteur">✕</button>
   </div>
 </div>
-<div id="gate" hidden></div>
-<div id="modal" hidden></div>
+<div id="modal" class="modal" hidden></div>
 <div id="toast" class="toast" hidden></div>
-<script src="config.js"></script>
-<script src="shim.js"></script>
-<script src="api.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

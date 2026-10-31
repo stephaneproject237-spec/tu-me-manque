@@ -11,16 +11,11 @@ class Downloads extends EventEmitter {
     this.tools = tools; this.getDir = getDir;
     this.items = []; this.seq = 0; this.running = 0;
   }
-  list() { return this.items.slice(-80).map((x) => ({ id: x.id, title: x.title, artist: x.artist, kind: x.kind, state: x.state, pct: x.pct, file: x.file, err: x.err, yid: x.rid || x.yid, tag: x.tag })); }
+  list() { return this.items.slice(-80).map((x) => ({ id: x.id, title: x.title, artist: x.artist, kind: x.kind, state: x.state, pct: x.pct, file: x.file, err: x.err, yid: x.rid || x.yid })); }
   start(o) {
-    const it = { id: ++this.seq, yid: o.yid || "", rid: "", title: String(o.title || "titre").slice(0, 120), artist: String(o.artist || "").slice(0, 80), dur: +o.dur || 0, tag: +o.tag || 0, kind: o.kind === "video" ? "video" : "audio", height: +o.height || 720, state: "attente", pct: 0, file: "", err: "", stop: "", ctrl: null };
+    const it = { id: ++this.seq, yid: o.yid || "", rid: "", title: String(o.title || "titre").slice(0, 120), artist: String(o.artist || "").slice(0, 80), dur: +o.dur || 0, kind: o.kind === "video" ? "video" : "audio", height: +o.height || 720, state: "attente", pct: 0, file: "", err: "", stop: "", ctrl: null };
     this.items.push(it); this.emit("update"); this.pump();
     return it.id;
-  }
-  /** Ce titre est-il déjà dans le dossier de téléchargement ? (pour l'historique du compte) */
-  has(artist, title, kind) {
-    const name = Y.safeName(artist ? artist + " - " + title : title), dir = this.getDir();
-    return (kind === "video" ? [".mp4"] : [".m4a", ".mp3"]).some((e) => fs.existsSync(path.join(dir, name + e)));
   }
   find(id) { return this.items.find((x) => x.id === +id); }
   /** Pause : arrête yt-dlp en gardant ce qui est déjà téléchargé. */

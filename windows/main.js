@@ -8,8 +8,8 @@ const { Engine } = require("./src/engine");
 const { Downloads } = require("./src/downloads");
 const { Media, MIME } = require("./src/media");
 const Y = require("./src/ytdlp");
+const { register, Client } = require("./src/supa");
 const Upd = require("./src/updater");
-const { registerAuto, Client } = require("./src/supa");
 const cfg = require("./src/config");
 const MAC = process.platform === "darwin";
 const PLAT = MAC ? "mac" : "windows";
@@ -33,7 +33,7 @@ app.whenReady().then(() => {
   const media = new Media();
   protocol.handle("ftmedia", (req) => media.handle(req.url, req.headers.get("range")).catch(() => new Response("", { status: 502 })));
 
-  const snapshot = () => Object.assign(engine.snapshot(), { unlocked: unlocked(), deviceId: store.settings.deviceId, settings: { maxJobs: store.settings.maxJobs, autostart: store.settings.autostart, autoUpdate: store.settings.autoUpdate !== false, dlDirShown: dlDir() }, downloads: downloads.list(), version: app.getVersion(), update: upd, updMsg, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
+  const snapshot = () => Object.assign(engine.snapshot(), { unlocked: unlocked(), settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, updMsg, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
   let t = null;
   const push = () => { if (t || !win || win.isDestroyed()) return; t = setTimeout(() => { t = null; if (win && !win.isDestroyed()) win.webContents.send("state", snapshot()); }, 400); };
   engine.on("update", push); downloads.on("update", push);
@@ -44,7 +44,7 @@ app.whenReady().then(() => {
   const show = () => { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); };
   win = new BrowserWindow({
     width: 1100, height: 780, minWidth: 820, minHeight: 600, show: false, backgroundColor: "#0A0D13", title: "Free tune Windows", autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
@@ -63,13 +63,12 @@ app.whenReady().then(() => {
   app.on("before-quit", () => { quitting = true; engine.stopAll(); });
 
   const rndCode = () => crypto.randomBytes(9).toString("base64").replace(/[+/=]/g, "x").slice(0, 12);
-  const rndName = () => "fts" + crypto.randomBytes(6).toString("hex").slice(0, 8);
-  if (!store.settings.deviceId) { store.settings.deviceId = crypto.randomBytes(16).toString("hex"); store.save(); }
-  const MSG = { rate_limited: "Trop de créations d'un coup : attends quelques minutes.", invalid: "Pseudo invalide : 3 à 20 caractères (a-z, 0-9, _).", bad_code: "Code trop court (8 caractères minimum).", taken: "Ce pseudo existe déjà.", limit: "Limite de serveurs atteinte sur cet ordinateur (30)." };
+  // La clé d'activation est installée automatiquement avec le logiciel : rien à saisir.
+  const MSG = { bad_key: "Clé d'activation incorrecte (contacte le support).", rate_limited: "Trop de créations d'un coup : attends quelques minutes.", invalid: "Pseudo invalide : 3 à 20 caractères (a-z, 0-9, _).", bad_code: "Code trop court (8 caractères minimum).", taken: "Ce pseudo existe déjà." };
   async function createAccount(username, code) {
     const u = String(username || "").toLowerCase().trim();
     let st;
-    try { st = await registerAuto(store.settings.deviceId, u, code, undefined, PLAT); } catch (e) { return { ok: false, msg: "Impossible de joindre le serveur : " + e.message }; }
+    try { st = await register(cfg.ENROLL_KEY, u, code, undefined, PLAT); } catch (e) { return { ok: false, msg: "Impossible de joindre le serveur : " + e.message }; }
     if (st === "taken") {   // compte déjà créé auparavant : on l'ajoute si le code est le bon
       try { await new Client({ username: u, code }, null).login(); } catch (e) { return { ok: false, msg: MSG.taken + " Si c'est un de tes comptes, vérifie son code." }; }
     } else if (st !== "ok") return { ok: false, msg: MSG[st] || "Création refusée (" + st + ")." };
@@ -77,41 +76,25 @@ app.whenReady().then(() => {
     engine.add({ username: u, code, share: true, session: null });
     return { ok: true, username: u, code };
   }
-  // Chaque installation crée toute seule ses 6 premiers serveurs (réessaie tant que le réseau manque).
-  let autoBusy = false;
-  async function autoServers() {
-    if (autoBusy || store.settings.autoDone) return;
-    autoBusy = true;
-    try {
-      while (!store.settings.autoDone) {
-        if (store.accounts().length >= 6) { store.settings.autoDone = true; store.save(); break; }
-        const r = await createAccount(rndName(), rndCode());
-        if (!r.ok) { if (/Limite/.test(r.msg || "")) { store.settings.autoDone = true; store.save(); break; } if (/Impossible|Trop/.test(r.msg || "")) { await new Promise((ok) => setTimeout(ok, 60000)); } }
-      }
-    } finally { autoBusy = false; }
-  }
 
-  // Gestion des serveurs : cachée derrière un mot de passe (par défaut : alpha4500v), valable 15 minutes.
+  // Réglages : protégés par un mot de passe (par défaut 4580), valable 15 minutes.
   const hashPw = (pw) => crypto.createHash("sha256").update("ft-adm:" + String(pw)).digest("hex");
-  const DEFAULT_HASH = hashPw("alpha4500v");
+  const DEFAULT_HASH = hashPw("4580");
   let unlockedUntil = 0;
   const unlocked = () => Date.now() < unlockedUntil;
   const need = () => { if (!unlocked()) throw new Error("verrouillé"); unlockedUntil = Date.now() + 15 * 60000; };
 
   ipcMain.handle("state", () => snapshot());
-  ipcMain.handle("dev:id", () => store.settings.deviceId);
   ipcMain.handle("adm:unlock", (_e, a) => { const ok = hashPw(a && a.pw) === (store.settings.admHash || DEFAULT_HASH); unlockedUntil = ok ? Date.now() + 15 * 60000 : 0; push(); return { ok }; });
   ipcMain.handle("adm:lock", () => { unlockedUntil = 0; push(); return true; });
   ipcMain.handle("adm:setpw", (_e, a) => {
     if (!unlocked()) return { ok: false, msg: "Verrouillé" };
     if (hashPw(a && a.old) !== (store.settings.admHash || DEFAULT_HASH)) return { ok: false, msg: "Ancien mot de passe incorrect" };
-    const n = String((a && a.pw) || ""); if (n.length < 6 || n.length > 60) return { ok: false, msg: "Nouveau mot de passe : 6 caractères minimum" };
+    const n = String((a && a.pw) || ""); if (n.length < 4 || n.length > 60) return { ok: false, msg: "Nouveau mot de passe : 4 caractères minimum" };
     store.settings.admHash = hashPw(n); store.save(); return { ok: true };
   });
-  ipcMain.handle("hist:missing", (_e, items) => (Array.isArray(items) ? items : []).slice(0, 600).map((x) => downloads.has(x && x.artist, x && x.title, x && x.kind)));
-  ipcMain.handle("acc:add", (_e, a) => { need(); return createAccount(a && a.username, a && a.code); });
+  ipcMain.handle("acc:add", (_e, a) => createAccount(a && a.username, a && a.code));
   ipcMain.handle("acc:bulk", async (_e, a) => {
-    need();
     const prefix = String((a && a.prefix) || "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 14);
     const n = Math.max(1, Math.min(30, +(a && a.count) || 1));
     const out = [];
@@ -122,10 +105,11 @@ app.whenReady().then(() => {
     }
     return out;
   });
-  ipcMain.handle("acc:remove", (_e, u) => { need(); engine.remove(String(u)); return true; });
-  ipcMain.handle("acc:share", (_e, a) => { need(); engine.setShare(String(a.username), !!a.on); return true; });
-  ipcMain.handle("acc:code", (_e, u) => { need(); const a = store.accounts().find((x) => x.username === u); return a ? a.code : ""; });
+  ipcMain.handle("acc:remove", (_e, u) => { engine.remove(String(u)); return true; });
+  ipcMain.handle("acc:share", (_e, a) => { engine.setShare(String(a.username), !!a.on); return true; });
+  ipcMain.handle("acc:code", (_e, u) => { const a = store.accounts().find((x) => x.username === u); return a ? a.code : ""; });
   ipcMain.handle("settings:set", (_e, s) => {
+    need();
     const p = store.settings;
     if (s.maxJobs != null) p.maxJobs = Math.max(1, Math.min(12, +s.maxJobs || 3));
     if (s.autostart != null) { p.autostart = !!s.autostart; applyAutostart(); }
@@ -133,6 +117,7 @@ app.whenReady().then(() => {
     store.save(); push(); return true;
   });
   ipcMain.handle("settings:dir", async () => {
+    need();
     const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
     if (!r.canceled && r.filePaths[0]) { store.settings.dlDir = r.filePaths[0]; store.save(); push(); }
     return true;
@@ -175,9 +160,8 @@ app.whenReady().then(() => {
   ipcMain.handle("open:url", (_e, u) => { if (/^https:\/\//.test(String(u))) shell.openExternal(String(u)); return true; });
 
   engine.startAll();
-  autoServers();
 
-  // Nouvelle version ? (on regarde les publications GitHub « win-<numéro> » / « mac-<numéro> »)
+  // Nouvelle version ? (on regarde les publications GitHub « win-<numéro> » / « mac-<numéro> »), et on l'installe toute seule.
   const check = async () => {
     try {
       const cur = +String(app.getVersion()).split(".")[1] || 0;
@@ -199,7 +183,7 @@ app.whenReady().then(() => {
       return true;
     } catch (e) { updMsg = "Mise à jour impossible : " + String(e.message || e).slice(0, 100); installing = false; push(); return false; }
   }
-  // Mises à jour automatiques : on attend qu'aucune demande ni téléchargement ne soit en cours avant de redémarrer.
+  // Mise à jour automatique : on attend qu'aucune demande ni téléchargement ne soit en cours avant de redémarrer.
   const idle = () => engine.running === 0 && !downloads.list().some((d) => d.state === "en cours" || d.state === "attente");
   function autoInstall() {
     if (!upd || store.settings.autoUpdate === false || installing) return;

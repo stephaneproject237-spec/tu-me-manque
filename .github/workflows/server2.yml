@@ -7,7 +7,7 @@ on:
       - 'server2/**'
       - 'server/**'
       - 'srvcore/**'
-      - 'windows/renderer/**'
+      - 'windows/renderer-srv/**'
       - '.github/workflows/server2.yml'
   workflow_dispatch:
 

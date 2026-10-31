@@ -48,12 +48,12 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
 
-    // L'interface est EXACTEMENT celle des logiciels Mac et Windows (windows/renderer) : on la copie dans l'application.
+    // L'interface est EXACTEMENT celle des logiciels Mac et Windows (windows/renderer-srv : copie indépendante, pour ne pas suivre les futurs changements du PC/Mac) : on la copie dans l'application.
     sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/uiAssets"))
 }
 
 val copyUiAssets by tasks.registering(Copy::class) {
-    from("../windows/renderer") { into("ui") }
+    from("../windows/renderer-srv") { into("ui") }
     into(layout.buildDirectory.dir("generated/uiAssets"))
 }
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach { dependsOn(copyUiAssets) }
