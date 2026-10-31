@@ -2,7 +2,7 @@ name: Compiler Free tune Windows
 
 on:
   push:
-    branches: [main, brouillon-gros]
+    branches: [main]
     paths:
       - 'windows/**'
       - '.github/workflows/windows.yml'
