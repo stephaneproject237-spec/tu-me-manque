@@ -86,6 +86,10 @@ begin
     order by coalesce(p.done_at, p.created_at) desc limit 1;
   if ph is null or ph not in ('699999999', '677777770', '677777777', '699999990') then raise exception 'not_test'; end if;
   update public.c_subs set trial_dl = 0, trial_start = now(), paid_until = null, updated_at = now() where user_id = p_user;
+  -- Parrainage : on efface aussi ses paiements de test et la récompense déjà versée à son parrain, pour pouvoir retester.
+  delete from public.c_payments where user_id = p_user and phone in ('699999999', '677777770', '677777777', '699999990');
+  with r as (delete from public.c_referral_reward where filleul_id = p_user returning sponsor_id, amount)
+    update public.c_profiles pr set wallet = greatest(0, pr.wallet - r.amount) from r where pr.id = r.sponsor_id;
   return json_build_object('status', 'ok');
 end $$;
 revoke all on function public.admin_test_reset(uuid) from public, anon;
