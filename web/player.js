@@ -846,6 +846,7 @@
     }, 520);
   }, { passive: true });
   ["touchend", "touchmove", "touchcancel"].forEach((e) => host.addEventListener(e, () => clearTimeout(lpT), { passive: true }));
+  host.addEventListener("contextmenu", (ev) => { if (!ev.target.closest("input,textarea")) ev.preventDefault(); });
   host.addEventListener("click", (ev) => { if (lpDone) { ev.stopPropagation(); ev.preventDefault(); lpDone = false; } }, true);
   host.addEventListener("input", (ev) => {
     if (ev.target.id === "q") { U.q = ev.target.value; draw(); }
