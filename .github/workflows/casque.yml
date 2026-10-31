@@ -53,7 +53,7 @@ jobs:
 
       - name: Compiler l'APK
         env:
-          APK_URL: https://github.com/${{ github.repository }}/releases/download/casque-${{ github.run_number }}/casque.apk
+          APK_URL: https://github.com/${{ github.repository }}/releases/download/casque-${{ github.run_number }}/Free-tune.apk
         shell: bash
         run: |
           set +e
@@ -66,20 +66,20 @@ jobs:
       - name: Préparer le fichier
         run: |
           d=app/build/outputs/apk/casque/debug
-          if [ -f $d/app-casque-debug.apk ]; then cp $d/app-casque-debug.apk casque.apk; fi
-          if [ -f $d/app-casque-arm64-v8a-debug.apk ]; then cp $d/app-casque-arm64-v8a-debug.apk casque-64bits.apk; cp $d/app-casque-armeabi-v7a-debug.apk casque-32bits.apk; fi
+          if [ -f $d/app-casque-debug.apk ]; then cp $d/app-casque-debug.apk Free-tune.apk; fi
+          if [ -f $d/app-casque-arm64-v8a-debug.apk ]; then cp $d/app-casque-arm64-v8a-debug.apk Free-tune-64bits.apk; cp $d/app-casque-armeabi-v7a-debug.apk Free-tune-32bits.apk; fi
 
       - name: Signer avec la clé privée Free tune
         env:
           SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
           SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
           REQUIRE_SIGN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
-        run: tools/resign.sh casque*.apk
+        run: tools/resign.sh Free-tune*.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: casque
-          path: casque*.apk
+          path: Free-tune*.apk
           if-no-files-found: error
 
       - name: Publier l'APK (lien de téléchargement)
@@ -87,5 +87,5 @@ jobs:
         with:
           tag_name: casque-${{ github.run_number }}
           name: Casque ${{ github.run_number }}
-          files: casque*.apk
+          files: Free-tune*.apk
           make_latest: false

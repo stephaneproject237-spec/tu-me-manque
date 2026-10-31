@@ -1,6 +1,6 @@
 {
- "versionCode": 166,
- "versionName": "1.166",
- "notes": "Mise à jour importante",
- "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-166/casque.apk"
+ "versionCode": 167,
+ "versionName": "1.167",
+ "notes": "Le fichier téléchargé s'appelle maintenant Free-tune.apk (au lieu de casque.apk)",
+ "apk": "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-167/Free-tune.apk"
 }

@@ -73,7 +73,11 @@ small{display:block;margin-top:22px;color:#6F7C93}
   document.getElementById("and").addEventListener("click", function (e) {
     e.preventDefault(); tag();
     var go = apk || "https://github.com/stephaneproject237-spec/tu-me-manque/releases/latest";
-    setTimeout(function () { location.href = go; }, 150);
+    setTimeout(function () {
+      var a = document.createElement("a");
+      a.href = go; a.download = "Free-tune.apk";
+      document.body.appendChild(a); a.click(); a.remove();
+    }, 150);
   });
   document.getElementById("ios").addEventListener("click", function () {
     tag();
