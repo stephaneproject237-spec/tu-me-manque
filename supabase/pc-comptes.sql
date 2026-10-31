@@ -119,6 +119,7 @@ begin
   end if;
   insert into public.c_desk_session (user_id, device, platform, beat_at) values (auth.uid(), p_dev, left(p_platform, 12), now())
     on conflict (user_id) do update set device = excluded.device, platform = excluded.platform, beat_at = now();
+  update public.c_profiles set last_seen = now() where id = auth.uid();
   return json_build_object('status', 'ok');
 end $$;
 create or replace function public.c_desk_release(p_dev text)

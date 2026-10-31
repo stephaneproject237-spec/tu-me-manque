@@ -236,17 +236,18 @@
   function refHtml() {
     const d = S.ref;
     if (!d) return S.err ? '<p class="muted err">' + esc(S.err) + "</p>" : '<div class="center" style="min-height:50vh"><div class="spin"></div></div>';
-    const rows = d.map((u) => {
-      const pend = u.pending_id ? `<div class="card" style="margin-top:8px;padding:10px;background:rgba(255,193,7,.14)">
-          <div><b>💸 Retrait demandé : ${fcfa(u.pending_amount)}</b></div>
+    const pendBox = (u) => `<div class="card" style="margin-top:8px;padding:10px;background:rgba(255,193,7,.14)">
+          <div><b>💸 @${esc(u.username)} : ${fcfa(u.pending_amount)}</b></div>
           <div class="k">Numéro : <b>${esc(u.pending_phone)}</b></div><div class="k">Nom sur la transaction : <b>${esc(u.pending_name)}</b></div><div class="k">Demandé le ${fdate(u.pending_at)}</div>
           <div class="row" style="margin-top:8px;gap:8px"><button class="btn small" data-a="refproof" data-id="${u.pending_id}">📷 ${S.proof[u.pending_id] ? "Changer l'image" : "Joindre la preuve"}</button>
             <button class="btn small" data-a="refdone" data-id="${u.pending_id}" data-n="${esc(u.username)}">✅ Dépôt effectué</button></div>
-          ${S.proof[u.pending_id] ? '<div class="k" style="margin-top:6px">✅ Preuve jointe</div>' : ""}</div>` : "";
-      return `<div class="card glass srow"><div class="row"><span class="name grow">@${esc(u.username || "?")}</span><b>${fcfa(u.wallet)}</b></div>
-        <div class="k" style="margin-top:4px">👥 ${u.filleuls} filleul${u.filleuls > 1 ? "s" : ""} · 💳 ${u.payes} ont payé le premier mois${Number(u.paid_out) ? " · déjà versé : " + fcfa(u.paid_out) : ""}</div>${pend}</div>`;
-    }).join("") || '<p class="muted">Personne n\'a encore de filleul.</p>';
-    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + `<h2>🎁 Parrainage</h2>${rows}<input type="file" id="proofin" accept="image/*" style="display:none">`;
+          ${S.proof[u.pending_id] ? '<div class="k" style="margin-top:6px">✅ Preuve jointe</div>' : ""}</div>`;
+    const pend = d.filter((u) => u.pending_id).sort((a, b) => new Date(a.pending_at) - new Date(b.pending_at));
+    const total = pend.reduce((n, u) => n + (Number(u.pending_amount) || 0), 0);
+    const recap = `<h2>💸 Retraits en cours (${pend.length})</h2>` + (pend.length ? `<div class="k">Total à envoyer : <b>${fcfa(total)}</b> · du plus ancien au plus récent. Chaque dépôt se valide à la main.</div>${pend.map(pendBox).join("")}` : '<p class="muted">Aucune demande de retrait en cours.</p>');
+    const rows = d.map((u) => `<div class="card glass srow"><div class="row"><span class="name grow">@${esc(u.username || "?")}</span><b>${fcfa(u.wallet)}</b>${u.pending_id ? '<span class="chip">💸 retrait demandé</span>' : ""}</div>
+        <div class="k" style="margin-top:4px">👥 ${u.filleuls} filleul${u.filleuls > 1 ? "s" : ""} · 💳 ${u.payes} ont payé le premier mois${Number(u.paid_out) ? " · déjà versé : " + fcfa(u.paid_out) : ""}</div></div>`).join("") || '<p class="muted">Personne n\'a encore de filleul.</p>';
+    return (S.err ? '<p class="err muted">' + esc(S.err) + "</p>" : "") + recap + `<h2>🎁 Parrainage</h2>${rows}<input type="file" id="proofin" accept="image/*" style="display:none">`;
   }
   const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
   const fcfa = (n) => new Intl.NumberFormat("fr-FR").format(Math.round(Number(n) || 0)).replace(/[\u202f\u00a0]/g, " ") + " FCFA";
@@ -341,11 +342,18 @@
     const m = Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
     return m < 1 ? "à l'instant" : m < 60 ? "vu il y a " + m + " min" : m < 1440 ? "vu il y a " + Math.round(m / 60) + " h" : "vu il y a " + Math.round(m / 1440) + " j";
   };
+  // Types de comptes : iPhone, Android (Free tune), PC / Mac / Free tune server (clients avec identifiant + mot de passe), et les serveurs automatiques de chaque logiciel.
+  const isHelper = (u) => u.platform === "android" || u.platform === "windows" || u.platform === "mac" || u.platform === "srvdroid";
+  const isPc = (u) => u.platform === "pcwin" || u.platform === "pcmac" || u.platform === "pcsrv";
+  const isIos = (u) => !isHelper(u) && !isPc(u);
+  const ICON = { ios: "🍎", android: "🤖", pcwin: "🪟", pcmac: "🍏", pcsrv: "📲", windows: "🖥️", mac: "🖥️", srvdroid: "🖥️" };
+  const KIND = { ios: "iPhone", android: "Android", pcwin: "PC Windows", pcmac: "Mac", pcsrv: "Free tune server", windows: "Serveur PC", mac: "Serveur Mac", srvdroid: "Serveur Android" };
+  const pcOn = (u) => !!u.last_seen && Date.now() - new Date(u.last_seen).getTime() < 90000;
   function ftCard(u, byId) {
     const sel = !!S.sel[u.id];
     const nf = (u.friends || []).length;
     const st = u.state || (u.online ? "app" : "off");
-    const android = u.platform === "android" || u.platform === "windows" || u.platform === "mac";
+    const android = isHelper(u);
     const lights = android
       ? `<div class="row" style="gap:6px;margin-top:6px">
           <span class="lt ${st === "app" ? "a" : ""}">Dans Free tune</span><span class="lt ${st === "net" ? "a" : ""}">Sur internet</span><span class="lt ${st === "off" ? "a" : ""}">Hors ligne</span></div>`
@@ -356,10 +364,12 @@
     const dlN = Number(u.dl) || 0, helpN = Number(u.dl_helped) || 0;
     const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span> <span class="chip">⬇️ ${dlN} téléchargement${dlN > 1 ? "s" : ""}</span>` +
       (helpN ? ` <span class="chip">🤝 ${helpN} pour des amis</span>` : "");
-    const where = st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
+    const where = isPc(u) ? (pcOn(u) ? "connecté maintenant" : ago(u.last_seen)) : st === "app" ? "dans Free tune" : st === "net" ? "sur internet (hors de Free tune)" : ago(u.last_seen);
+    const kind = `<span class="chip">${ICON[u.platform] || "🍎"} ${KIND[u.platform] || "iPhone"}</span>` + (u.sponsor ? ` <span class="chip">🎁 parrain : @${esc(u.sponsor)}</span>` : "") + (u.owner ? ` <span class="chip">👤 serveur de @${esc(u.owner)}</span>` : "");
     return `<div class="card glass ftc${sel ? " sel" : ""}" data-a="ftsel" data-id="${esc(u.id)}">
-      <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
+      <div class="row"><span class="ck">${sel ? "✓" : ""}</span><span class="ond ${isPc(u) ? (pcOn(u) ? "on" : "") : st === "app" ? "on" : st === "net" ? "net" : ""}"></span>
         <span class="name grow">@${esc(u.username)}</span>${jobs}${share}</div>
+      <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${kind}</div>
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${ver}</div>
       ${lights}
       <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
@@ -371,8 +381,10 @@
     const all = S.ft.users || [];
     const list = q ? all.filter((u) => [u.username, u.email].some((x) => x && String(x).toLowerCase().includes(q))) : all;
     const sortU = (a, b) => (b.online - a.online) || String(a.username).localeCompare(String(b.username), "fr");
-    const ios = list.filter((u) => !(u.platform === "android" || u.platform === "windows" || u.platform === "mac")).sort(sortU), and = list.filter((u) => u.platform === "android" || u.platform === "windows" || u.platform === "mac").sort(sortU);
-    const nI = all.filter((u) => !(u.platform === "android" || u.platform === "windows" || u.platform === "mac") && S.sel[u.id]).length, nA = all.filter((u) => (u.platform === "android" || u.platform === "windows" || u.platform === "mac") && S.sel[u.id]).length;
+    const sortP = (a, b) => (pcOn(b) - pcOn(a)) || String(a.username).localeCompare(String(b.username), "fr");
+    const ios = list.filter(isIos).sort(sortU), and = list.filter((u) => u.platform === "android").sort(sortU), srvs = list.filter((u) => u.platform === "windows" || u.platform === "mac" || u.platform === "srvdroid").sort(sortU);
+    const pcw = list.filter((u) => u.platform === "pcwin").sort(sortP), pcm = list.filter((u) => u.platform === "pcmac").sort(sortP), pcs = list.filter((u) => u.platform === "pcsrv").sort(sortP);
+    const nI = all.filter((u) => isIos(u) && S.sel[u.id]).length, nA = all.filter((u) => isHelper(u) && S.sel[u.id]).length;
     const st = S.ft.settings || {};
     const sw = (k, on, t, d) => `<div class="row" style="margin:10px 0"><div class="grow"><div class="name" style="font-size:15px">${t}</div><div class="k">${d}</div></div>
       <button class="swt ${on ? "on" : ""}" data-a="ftset" data-k="${k}" data-v="${on ? 0 : 1}" aria-label="${t}"><i></i></button></div>`;
@@ -392,7 +404,11 @@
         <div class="row" style="margin-top:8px"><button class="p grow" data-a="ftlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>🔗 Lier la sélection</button><button class="d grow" data-a="ftunlink" ${(nI && nA) || nI > 1 || nA > 1 ? (S.busy ? "disabled" : "") : "disabled"}>✂️ Délier</button></div></div>
       <input class="q" id="fq" placeholder="Rechercher un pseudo ou un e-mail…" value="${esc(S.fq)}" autocomplete="off">
       <h2>🍎 Comptes iPhone (${ios.length})</h2>${ios.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte iPhone.</p>'}
-      <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}`;
+      <h2>🤖 Comptes Android (${and.length})</h2>${and.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun compte Android.</p>'}
+      <h2>🪟 Clients PC (${pcw.length})</h2>${pcw.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client PC.</p>'}
+      <h2>🍏 Clients Mac (${pcm.length})</h2>${pcm.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client Mac.</p>'}
+      <h2>📲 Clients Free tune server (${pcs.length})</h2>${pcs.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun client Free tune server.</p>'}
+      <h2>🖥️ Serveurs automatiques (${srvs.length})</h2>${srvs.map((u) => ftCard(u)).join("") || '<p class="muted">Aucun serveur.</p>'}`;
   }
   async function ftDo(fn, a, b, ok) {
     if (S.busy) return;
@@ -400,7 +416,7 @@
     try { const n = await call(fn, { p_a: a, p_b: b }); S.busy = false; await loadFt(); return n; }
     catch (e) { S.busy = false; renderContent(); alert("Impossible : " + (e.message || e)); }
   }
-  const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? (u.platform === "android" || u.platform === "windows" || u.platform === "mac") : !(u.platform === "android" || u.platform === "windows" || u.platform === "mac"))).map((u) => u.id);
+  const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? isHelper(u) : isIos(u))).map((u) => u.id);
 
   // ---------- Affichage ----------
   function render() {
@@ -627,7 +643,7 @@
       if (!me) { el.innerHTML = ""; return; }
       const fr = (me.friends || []).map((id) => S.ft.users.find((x) => x.id === id)).filter(Boolean);
       el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amis de @${esc(me.username)}</h2>
-        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.state === "app" ? "on" : f.state === "net" ? "net" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : (f.platform === "windows" || f.platform === "mac") ? "🖥️" : "🍎"} @${esc(f.username)}</b><div class="k">${f.state === "app" ? "dans Free tune" : f.state === "net" ? "sur internet" : esc(ago(f.last_seen))}</div></span>
+        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.state === "app" ? "on" : f.state === "net" ? "net" : ""}"></span><span class="grow"><b>${ICON[f.platform] || "🍎"} @${esc(f.username)}</b><div class="k">${f.state === "app" ? "dans Free tune" : f.state === "net" ? "sur internet" : esc(ago(f.last_seen))}</div></span>
           <button class="d" data-a="ftrm" data-id="${esc(f.id)}" style="padding:6px 12px">Retirer</button></div>`).join("") || '<p class="muted">Aucun ami.</p>'}
         <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Fermer</button></div></div></div>`;
       return;
