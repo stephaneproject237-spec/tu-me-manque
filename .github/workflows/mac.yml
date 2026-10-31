@@ -2,7 +2,7 @@ name: Compiler Free tune Mac
 
 on:
   push:
-    branches: [main, brouillon-gros]
+    branches: [main]
     paths:
       - 'windows/**'
       - '.github/workflows/mac.yml'
