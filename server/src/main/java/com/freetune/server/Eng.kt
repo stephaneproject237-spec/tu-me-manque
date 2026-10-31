@@ -32,7 +32,7 @@ class Worker(private val eng: Engine, acc: Acc) {
         thread = Thread { loop() }.also { it.isDaemon = true; it.start() }
     }
     fun stop() { stopped = true; thread?.interrupt() }
-    fun setShare(on: Boolean) { share = on; lastBeat = 0; eng.touch() }
+    fun applyShare(on: Boolean) { share = on; lastBeat = 0; eng.touch() }
 
     private fun sleep(ms: Long) { try { Thread.sleep(ms) } catch (e: InterruptedException) { /* arrêt demandé */ } }
 
@@ -230,7 +230,7 @@ class Engine(ctx: Context, val store: Store, private val changed: () -> Unit) {
         val w = Worker(this, a); workers[a.username] = w; w.start(); changed()
     }
     @Synchronized fun remove(u: String) { workers.remove(u)?.stop(); store.removeAccount(u); changed() }
-    @Synchronized fun setShare(u: String, on: Boolean) { store.setShare(u, on); workers[u]?.setShare(on) }
+    @Synchronized fun setShare(u: String, on: Boolean) { store.setShare(u, on); workers[u]?.applyShare(on) }
     @Synchronized fun stopAll() { workers.values.forEach { it.stop() } }
 
     @Synchronized fun snapshot(): JSONObject {
