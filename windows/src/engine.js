@@ -44,7 +44,7 @@ class Worker {
         await sleep(bad ? 30000 : 8000);
         continue;
       }
-      await sleep(POLL_MS);
+      await sleep(Date.now() - this.eng.hot < 90000 ? 1000 : POLL_MS);   // p2p en cours : on regarde chaque seconde
     }
   }
   stop() { this.stopped = true; }
@@ -55,6 +55,7 @@ class Worker {
     const jobs = await this.client.rpc("relay_open", {});
     for (const j of Array.isArray(jobs) ? jobs : []) {
       if (this.eng.running >= this.eng.maxJobs()) break;
+      if (j.p2p && j.yid && (j.fmt === "a" || j.fmt === "al")) { this.eng.hot = Date.now(); this.eng.stream(j.yid, j.fmt === "al", null).catch(() => {}); }   // prépare le flux tout de suite
       if (this.jobs.has(j.id)) continue;
       const t = await this.client.rpc("relay_take", { p_id: j.id }).catch(() => null);
       if (!t || t.status !== "ok") continue;
@@ -100,7 +101,7 @@ class Worker {
   async p2pLead(id, yid, light) {
     const beat = setInterval(() => this.client.rpc("relay_beat", { p_id: id }).catch(() => {}), 1500);
     try {
-      const st = await Y.resolveStream(this.eng.tools, yid, light, null).catch(() => null);
+      const st = await this.eng.stream(yid, light, null).catch(() => null);
       if (!st || st.size < P2P_MIN) return false;
       const init = await this.client.rpc("relay_p2p_init", { p_id: id, p_yid: yid, p_fid: st.fid, p_size: st.size }).catch(() => null);
       if (!init || init.status !== "ok") return false;
@@ -116,14 +117,15 @@ class Worker {
     const jobs = await this.client.rpc("relay_p2p_jobs", {}).catch(() => []);
     for (const j of Array.isArray(jobs) ? jobs : []) {
       if (this.jobs.has(j.id) || this.p2p.has(j.id) || this.p2p.size >= 3) continue;
-      this.p2p.add(j.id); this.touch();
-      this.p2pWork(j.id, j.yid, j.fmt === "al", j.p2p_fid, +j.p2p_size, null).catch(() => {}).finally(() => { this.p2p.delete(j.id); this.touch(); });
+      this.p2p.add(j.id); this.eng.hot = Date.now(); this.touch();
+      this.eng.log("[" + this.username + "] p2p : j'aide la demande " + j.id);
+      this.p2pWork(j.id, j.yid, j.fmt === "al", j.p2p_fid, +j.p2p_size, null).catch((e) => this.eng.log("[" + this.username + "] p2p : " + (e.message || e))).finally(() => { this.p2p.delete(j.id); this.touch(); });
     }
   }
   async p2pWork(id, yid, light, fid, size, known) {
     if (!yid || yid.length !== 11 || !fid || !(size > 0)) return;
-    const st = known || await Y.resolveStream(this.eng.tools, yid, light, fid);
-    if (!st || st.size !== size) return;
+    const st = known || await this.eng.stream(yid, light, fid);
+    if (!st || st.size !== size) { this.eng.log("[" + this.username + "] p2p : flux indisponible ou différent, je n'aide pas"); return; }
     let idle = 0, fails = 0;
     while (idle < 40 && fails < 3 && this.share && !this.stopped) {
       const c = await this.client.rpc("relay_chunk_take", { p_id: id }).catch(() => ({ status: "error" }));
@@ -134,8 +136,8 @@ class Worker {
           const buf = await Y.fetchRange(st, +c.a, +c.b);
           const media = await this.client.upload(buf, "m4a", "audio/mp4");
           await this.client.rpc("relay_chunk_done", { p_id: id, p_idx: c.idx, p_media: media, p_size: buf.length });
-          fails = 0;
-        } catch (e) { fails++; await this.client.rpc("relay_chunk_fail", { p_id: id, p_idx: c.idx }).catch(() => {}); }
+          fails = 0; this.helped++; this.touch();
+        } catch (e) { fails++; this.eng.log("[" + this.username + "] p2p : morceau " + c.idx + " échoué (" + (e.message || e) + ")"); await this.client.rpc("relay_chunk_fail", { p_id: id, p_idx: c.idx }).catch(() => {}); }
         finally { clearInterval(beat); }
       } else if (c.status === "wait" || c.status === "error") { idle++; await sleep(1500); }
       else return;
@@ -153,6 +155,18 @@ class Engine extends EventEmitter {
     this.workers = new Map();
     this.running = 0;
     this.logs = [];
+    this.hot = 0;                    // dernière activité p2p (accélère l'écoute)
+    this.streams = new Map();        // flux déjà résolus (partagés entre tous les comptes de cet ordinateur)
+  }
+  /** Résout le flux m4a d'une vidéo (une seule fois pour tous les comptes, gardé 10 minutes). */
+  async stream(yid, light, fid) {
+    const k = yid + "|" + (light ? 1 : 0), now = Date.now();
+    for (const [kk, v] of this.streams) if (now - v.at > 600000) this.streams.delete(kk);
+    let e = this.streams.get(k);
+    if (!e) { e = { at: now, p: Y.resolveStream(this.tools, yid, light, null) }; this.streams.set(k, e); e.p.catch(() => this.streams.delete(k)); }
+    const st = await e.p;
+    if (st && (!fid || st.fid === fid)) return st;
+    return Y.resolveStream(this.tools, yid, light, fid);
   }
   maxJobs() { return Math.max(1, Math.min(12, +this.store.settings.maxJobs || 3)); }
   log(m) { this.logs.push(new Date().toLocaleTimeString("fr-FR") + " " + m); if (this.logs.length > 200) this.logs.shift(); this.emit("update"); }
