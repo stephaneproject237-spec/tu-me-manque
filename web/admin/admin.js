@@ -362,7 +362,9 @@
       : "";
     const share = android
       ? `<button class="chip" data-a="ftshare" data-id="${esc(u.id)}" data-on="${u.share ? 0 : 1}" style="border:none;cursor:pointer;${u.share ? "background:rgba(46,204,113,.18);color:#58D68D" : "background:rgba(255,138,128,.18);color:#FF8A80"}">${u.share ? "✅ Serveur activé" : "⛔ Serveur désactivé"}</button>` : "";
-    const jobs = Number(u.jobs) ? `<span class="chip">⏳ ${u.jobs} en cours</span>` : "";
+    const jobs = Number(u.jobs)
+      ? `<span class="chip">⏳ ${u.jobs} en cours</span><button class="chip" data-a="ftcancel" data-id="${esc(u.id)}" style="border:none;cursor:pointer;background:rgba(255,138,128,.18);color:#FF8A80">✖ Annuler</button>`
+      : "";
     const dlN = Number(u.dl) || 0, helpN = Number(u.dl_helped) || 0;
     const ver = `<span class="chip">${u.app_ver ? "📱 " + esc(u.app_ver) : "📱 version inconnue"}</span> <span class="chip">⬇️ ${dlN} téléchargement${dlN > 1 ? "s" : ""}</span>` +
       (helpN ? ` <span class="chip">🤝 ${helpN} pour des amis</span>` : "");
@@ -754,6 +756,11 @@
       case "ftshare": {
         const on = t.dataset.on === "1";
         try { await call("admin_ft_share", { p_id: id, p_on: on }); await loadFt(); }
+        catch (e) { alert("Impossible : " + (e.message || e)); }
+        break;
+      }
+      case "ftcancel": {
+        try { await call("admin_ft_cancel", { p_id: id }); await loadFt(); }
         catch (e) { alert("Impossible : " + (e.message || e)); }
         break;
       }
