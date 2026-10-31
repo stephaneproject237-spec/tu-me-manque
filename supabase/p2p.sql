@@ -299,7 +299,9 @@ begin
         'share', p.relay_share, 'app_ver', p.app_ver,
         'dl', greatest((select count(*) from public.c_media m where m.user_id = p.id), (select count(*) from public.c_relay r where r.from_id = p.id and r.status = 'done')),
         'dl_helped', (select count(*) from public.c_relay r where r.taker_id = p.id and r.status = 'done'),
-        'jobs', (select count(*) from public.c_relay r where (r.status = 'taken' and r.taker_id = p.id) or (r.status = 'open' and r.target_id = p.id)),
+        'jobs', (select count(*) from public.c_relay r where (r.status = 'taken' and r.taker_id = p.id) or (r.status = 'open' and r.target_id = p.id))
+                 + (select count(distinct k.relay_id) from public.c_relay_chunk k join public.c_relay r on r.id = k.relay_id
+                    where k.taker_id = p.id and k.status = 'taken' and k.beat_at > now() - interval '15 seconds' and r.status in ('open', 'taken') and not (r.status = 'taken' and r.taker_id = p.id)),
         'friends', coalesce((select json_agg(f.friend_id) from public.c_friends f where f.user_id = p.id), '[]'::json)
       ) order by lower(p.username))
       from public.c_profiles p left join auth.users u on u.id = p.id where p.username is not null), '[]'::json));
