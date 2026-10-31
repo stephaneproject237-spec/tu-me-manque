@@ -1,0 +1,28 @@
+{
+  "name": "free-tune-windows",
+  "version": "1.0.0",
+  "description": "Free tune pour Windows : comptes serveur, recherche et téléchargement",
+  "main": "main.js",
+  "author": "Free tune",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/engine.test.js",
+    "dist": "electron-builder --win portable --x64 --publish never"
+  },
+  "dependencies": {
+    "adm-zip": "0.5.16"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.freetune.windows",
+    "productName": "Free tune Windows",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "src/**", "renderer/**", "icon.png", "package.json"],
+    "win": { "target": [{ "target": "portable", "arch": ["x64"] }], "icon": "icon.png", "artifactName": "FreeTune-Windows.exe" }
+  }
+}

@@ -345,7 +345,7 @@
     const sel = !!S.sel[u.id];
     const nf = (u.friends || []).length;
     const st = u.state || (u.online ? "app" : "off");
-    const android = u.platform === "android";
+    const android = u.platform === "android" || u.platform === "windows";
     const lights = android
       ? `<div class="row" style="gap:6px;margin-top:6px">
           <span class="lt ${st === "app" ? "a" : ""}">Dans Free tune</span><span class="lt ${st === "net" ? "a" : ""}">Sur internet</span><span class="lt ${st === "off" ? "a" : ""}">Hors ligne</span></div>`
@@ -371,8 +371,8 @@
     const all = S.ft.users || [];
     const list = q ? all.filter((u) => [u.username, u.email].some((x) => x && String(x).toLowerCase().includes(q))) : all;
     const sortU = (a, b) => (b.online - a.online) || String(a.username).localeCompare(String(b.username), "fr");
-    const ios = list.filter((u) => u.platform !== "android").sort(sortU), and = list.filter((u) => u.platform === "android").sort(sortU);
-    const nI = all.filter((u) => u.platform !== "android" && S.sel[u.id]).length, nA = all.filter((u) => u.platform === "android" && S.sel[u.id]).length;
+    const ios = list.filter((u) => !(u.platform === "android" || u.platform === "windows")).sort(sortU), and = list.filter((u) => u.platform === "android" || u.platform === "windows").sort(sortU);
+    const nI = all.filter((u) => !(u.platform === "android" || u.platform === "windows") && S.sel[u.id]).length, nA = all.filter((u) => (u.platform === "android" || u.platform === "windows") && S.sel[u.id]).length;
     const st = S.ft.settings || {};
     const sw = (k, on, t, d) => `<div class="row" style="margin:10px 0"><div class="grow"><div class="name" style="font-size:15px">${t}</div><div class="k">${d}</div></div>
       <button class="swt ${on ? "on" : ""}" data-a="ftset" data-k="${k}" data-v="${on ? 0 : 1}" aria-label="${t}"><i></i></button></div>`;
@@ -400,7 +400,7 @@
     try { const n = await call(fn, { p_a: a, p_b: b }); S.busy = false; await loadFt(); return n; }
     catch (e) { S.busy = false; renderContent(); alert("Impossible : " + (e.message || e)); }
   }
-  const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? u.platform === "android" : u.platform !== "android")).map((u) => u.id);
+  const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? (u.platform === "android" || u.platform === "windows") : !(u.platform === "android" || u.platform === "windows"))).map((u) => u.id);
 
   // ---------- Affichage ----------
   function render() {
@@ -627,7 +627,7 @@
       if (!me) { el.innerHTML = ""; return; }
       const fr = (me.friends || []).map((id) => S.ft.users.find((x) => x.id === id)).filter(Boolean);
       el.innerHTML = `<div class="fond"><div class="box"><h2 style="margin:0">Amis de @${esc(me.username)}</h2>
-        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.state === "app" ? "on" : f.state === "net" ? "net" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : "🍎"} @${esc(f.username)}</b><div class="k">${f.state === "app" ? "dans Free tune" : f.state === "net" ? "sur internet" : esc(ago(f.last_seen))}</div></span>
+        ${fr.map((f) => `<div class="row card glass" style="margin:4px 0"><span class="ond ${f.state === "app" ? "on" : f.state === "net" ? "net" : ""}"></span><span class="grow"><b>${f.platform === "android" ? "🤖" : f.platform === "windows" ? "🖥️" : "🍎"} @${esc(f.username)}</b><div class="k">${f.state === "app" ? "dans Free tune" : f.state === "net" ? "sur internet" : esc(ago(f.last_seen))}</div></span>
           <button class="d" data-a="ftrm" data-id="${esc(f.id)}" style="padding:6px 12px">Retirer</button></div>`).join("") || '<p class="muted">Aucun ami.</p>'}
         <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Fermer</button></div></div></div>`;
       return;

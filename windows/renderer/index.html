@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src https://itunes.apple.com; script-src 'self'">
+<title>Free tune Windows</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="brand"><div class="lg">🎧</div><div><b>Free tune</b><small>Windows <span id="ver"></span></small></div></div>
+    <nav id="nav">
+      <button data-t="search" class="on">🔎 Recherche</button>
+      <button data-t="acc">🖥️ Comptes serveur <i id="nacc"></i></button>
+      <button data-t="dl">⬇️ Téléchargements <i id="ndl"></i></button>
+      <button data-t="set">⚙️ Réglages</button>
+    </nav>
+    <div id="side-state" class="side-state"></div>
+  </aside>
+  <main>
+    <div id="upd" class="banner" hidden></div>
+    <section id="t-search"></section>
+    <section id="t-acc" hidden></section>
+    <section id="t-dl" hidden></section>
+    <section id="t-set" hidden></section>
+  </main>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
