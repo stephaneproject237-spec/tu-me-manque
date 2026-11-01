@@ -12,20 +12,20 @@
 
   // ---------- onglets ----------
   document.querySelectorAll("#nav button").forEach((b) => b.addEventListener("click", () => {
-    if (b.dataset.t === "set" && S && !S.unlocked) { askPw(); return; }
+    if (b.dataset.t === "acc" && S && !S.unlocked) { askPw(); return; }
     tab = b.dataset.t; draw();
   }));
   function closeModal() { $("modal").hidden = true; $("modal").innerHTML = ""; }
   function askPw() {
     const m = $("modal");
     m.hidden = false;
-    m.innerHTML = "<div class='box'><h3>Réglages verrouillés</h3><p class='sub small'>Entre le mot de passe pour accéder aux réglages.</p>" +
+    m.innerHTML = "<div class='box'><h3>Comptes serveur verrouillés</h3><p class='sub small'>Entre le mot de passe pour accéder aux comptes serveur.</p>" +
       "<input class='in' id='m-pw' type='password' placeholder='Mot de passe' autocomplete='off'><div class='err' id='m-er'></div>" +
       "<div class='row'><button class='btn sm out' id='m-cancel'>Annuler</button><button class='btn sm' id='m-go'>Valider</button></div></div>";
     $("m-cancel").onclick = closeModal;
     const go = async () => {
       const r = await window.ft.invoke("adm:unlock", { pw: $("m-pw").value });
-      if (r.ok) { closeModal(); S.unlocked = true; tab = "set"; draw(); } else { $("m-er").textContent = "Mot de passe incorrect."; $("m-pw").select(); }
+      if (r.ok) { closeModal(); S.unlocked = true; tab = "acc"; draw(); } else { $("m-er").textContent = "Mot de passe incorrect."; $("m-pw").select(); }
     };
     $("m-go").onclick = go;
     $("m-pw").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
@@ -40,14 +40,14 @@
     $("nacc").textContent = S.accounts.length ? on + "/" + S.accounts.length : "";
     const act = S.downloads.filter((d) => d.state === "en cours" || d.state === "attente").length;
     $("ndl").textContent = act ? String(act) : "";
-    $("side-state").innerHTML = (S.tool ? "⏳ " + esc(S.tool) + "<br>" : "") + "Demandes en cours : <b>" + S.running + "</b> / " + S.maxJobs + "<br>Les comptes restent en ligne même fenêtre fermée (icône dans la barre d'état).";
+    $("side-state").innerHTML = "Les comptes restent en ligne même fenêtre fermée (icône dans la barre d'état).";
     const u = $("upd");
     if (S.update || S.updMsg) {
       u.hidden = false;
       u.innerHTML = "<span>🎉 " + esc(S.updMsg || "Une nouvelle version de Free tune est disponible : elle s'installe automatiquement dès que plus rien n'est en cours.") + "</span>" + (S.update ? "<button class='btn sm' id='upd-go'>Installer maintenant</button>" : "");
       if (S.update) $("upd-go").onclick = () => window.ft.invoke("upd:install");
     } else u.hidden = true;
-    if (tab === "set" && !S.unlocked) { tab = "search"; closeModal(); }
+    if (tab === "acc" && !S.unlocked) { tab = "search"; closeModal(); }
     if (tab === "search") drawSearch(); else if (tab === "acc") drawAcc(); else if (tab === "dl") drawDl(); else drawSet();
   }
   // les champs de saisie ne doivent pas être effacés quand l'état se met à jour
@@ -137,6 +137,7 @@
     if (!R.newAcc) R.newAcc = rnd();
     const h = ["<h1>Comptes serveur</h1>",
       "<p class='sub'>Chaque compte reste en ligne sur ce PC et sert les iPhone comme un Android : il reçoit leurs demandes, télécharge la musique et la renvoie. Ils aident aussi au partage p2p.</p>"];
+    h.push("<div class='card'><div class='small sub'>" + (S.tool ? "⏳ " + esc(S.tool) + "<br>" : "") + "Demandes en cours : <b>" + S.running + "</b> / " + S.maxJobs + "</div></div>");
     h.push("<div class='card'><b>Ajouter un compte</b><div class='row' style='margin-top:10px;gap:10px;flex-wrap:wrap'><div class='field grow' style='margin:0'><label>Pseudo (3-20 : a-z 0-9 _)</label><input class='in' id='na-u' maxlength='20'></div><div class='field grow' style='margin:0'><label>Code (8 caractères minimum)</label><div class='row'><input class='in' id='na-c' maxlength='40' value='" + esc(R.newAcc) + "'></div></div><button class='btn' id='na-go' style='align-self:flex-end'>Créer</button></div>" +
       "<div class='sub small' style='margin-top:8px'>Si le pseudo existe déjà et que le code est le bon, le compte est simplement ajouté à ce PC.</div></div>");
     h.push("<div class='card'><b>Créer plusieurs comptes d'un coup</b><div class='row' style='margin-top:10px;gap:10px;flex-wrap:wrap'><div class='field grow' style='margin:0'><label>Début du pseudo (ex : serveur → serveur01, serveur02…)</label><input class='in' id='nb-p' maxlength='14' value='serveur'></div><div class='field' style='margin:0;width:110px'><label>Nombre (1-30)</label><input class='in' id='nb-n' type='number' min='1' max='30' value='5'></div><button class='btn' id='nb-go' style='align-self:flex-end'>Créer</button></div>" + (R.bulk ? "<div class='small' style='margin-top:10px'>" + R.bulk.map((r) => (r.ok ? "✅ " : "❌ ") + esc(r.username) + (r.ok ? "" : " : " + esc(r.msg))).join("<br>") + "</div>" : "") + "</div>");
@@ -147,6 +148,9 @@
       h.push("<div class='card row'><span class='dot " + cls + "'></span><div class='grow'><b>@" + esc(a.username) + "</b> <span class='pill'>" + esc(a.state) + "</span><div class='small sub'>" + (a.error ? "<span class='warn'>" + esc(a.error) + "</span> · " : "") + (a.jobs ? "⏳ " + a.jobs + " tâche(s) en cours · " : "") + a.helped + " titre(s) envoyé(s) depuis le lancement</div></div>" +
         "<button class='btn sm out' data-cp='" + esc(a.username) + "'>Copier le code</button><button class='btn sm red' data-rm='" + esc(a.username) + "'>Retirer</button></div>");
     });
+    h.push("<div class='card'><b>Mot de passe des comptes serveur</b><div class='row' style='margin-top:10px;gap:10px;flex-wrap:wrap'>" +
+      "<input class='in' id='s-pwold' type='password' placeholder='Mot de passe actuel' style='flex:1'><input class='in' id='s-pwnew' type='password' placeholder='Nouveau mot de passe' style='flex:1'><button class='btn sm' id='s-pwgo'>Changer</button></div>" +
+      "<div class='row' style='margin-top:10px'><button class='btn sm out' id='s-lock'>Verrouiller les comptes serveur</button></div></div>");
     const el = $("t-acc"); el.innerHTML = h.join("");
     $("na-go").onclick = async () => {
       const u = $("na-u").value, c = $("na-c").value; $("na-go").disabled = true;
@@ -160,6 +164,8 @@
     };
     el.querySelectorAll("[data-cp]").forEach((b) => (b.onclick = async () => { const c = await window.ft.invoke("acc:code", b.dataset.cp); try { await navigator.clipboard.writeText(c); toast("Code copié"); } catch (e) { toast("Code : " + c); } }));
     el.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = async () => { if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Confirmer ?"; setTimeout(() => { b.dataset.sure = ""; b.textContent = "Retirer"; }, 3000); return; } await window.ft.invoke("acc:remove", b.dataset.rm); toast("Compte retiré de ce PC"); }));
+    $("s-pwgo").onclick = () => window.ft.invoke("adm:setpw", { old: $("s-pwold").value, pw: $("s-pwnew").value }).then((r) => { if (r.ok) { toast("Mot de passe changé"); $("s-pwold").value = ""; $("s-pwnew").value = ""; } else toast(r.msg || "Échec"); });
+    $("s-lock").onclick = () => window.ft.invoke("adm:lock").then(() => { S.unlocked = false; tab = "search"; draw(); });
   }
 
   // ---------- téléchargements ----------
@@ -250,22 +256,14 @@
     const s = S.settings;
     const h = ["<h1>Réglages</h1>",
       "<div class='card'><div class='field'><label>Dossier des téléchargements</label><div class='row'><span class='grow'>" + esc(s.dlDirShown) + "</span><button class='btn sm out' id='s-dir'>Changer</button></div></div></div>",
-      "<div class='card'><div class='field'><label>Demandes d'iPhone traitées en même temps (1 à 12)</label><input class='in' id='s-max' type='number' min='1' max='12' value='" + esc(s.maxJobs) + "' style='width:120px'></div>" +
-      "<div class='row' style='margin-top:6px'><span class='grow'>Démarrer avec " + (S.platform === "mac" ? "le Mac" : "Windows") + " (comptes en ligne dès l'allumage)</span><button class='sw " + (s.autostart ? "on" : "") + "' id='s-auto' aria-label='Démarrage automatique'></button></div></div>",
+      "<div class='card'><div class='row'><span class='grow'>Démarrer avec " + (S.platform === "mac" ? "le Mac" : "Windows") + " (comptes en ligne dès l'allumage)</span><button class='sw " + (s.autostart ? "on" : "") + "' id='s-auto' aria-label='Démarrage automatique'></button></div></div>",
       "<div class='card'><div class='row'><div class='grow'><b>Mises à jour automatiques</b><div class='small sub'>La nouvelle version s'installe toute seule dès que plus rien n'est en cours, puis Free tune redémarre.</div></div><button class='sw " + (s.autoUpdate ? "on" : "") + "' id='s-autoupd' aria-label='Mises à jour automatiques'></button></div>" +
       "<div class='row' style='margin-top:10px'><button class='btn sm out' id='s-updcheck'>Vérifier maintenant</button></div></div>",
-      "<div class='card'><b>Mot de passe des réglages</b><div class='row' style='margin-top:10px;gap:10px;flex-wrap:wrap'>" +
-      "<input class='in' id='s-pwold' type='password' placeholder='Mot de passe actuel' style='flex:1'><input class='in' id='s-pwnew' type='password' placeholder='Nouveau mot de passe' style='flex:1'><button class='btn sm' id='s-pwgo'>Changer</button></div>" +
-      "<div class='row' style='margin-top:10px'><button class='btn sm out' id='s-lock'>Verrouiller les réglages</button></div></div>",
-      "<div class='card'><b>Outils</b><div class='small sub' style='margin-top:6px'>yt-dlp : téléchargé et mis à jour automatiquement.<br>ffmpeg : " + (S.hasFfmpeg ? "installé" : S.platform === "mac" ? "indisponible" : "sera téléchargé la première fois qu'une vidéo ou un MP3 est demandé (environ 130 Mo)") + ".</div></div>",
       "<h2>Journal</h2><pre class='log'>" + (S.logs.length ? esc(S.logs.join("\n")) : "Rien à signaler.") + "</pre>"];
     const el = $("t-set"); el.innerHTML = h.join("");
     $("s-dir").onclick = () => window.ft.invoke("settings:dir");
-    $("s-max").onchange = () => window.ft.invoke("settings:set", { maxJobs: $("s-max").value });
     $("s-auto").onclick = () => window.ft.invoke("settings:set", { autostart: !s.autostart });
     $("s-autoupd").onclick = () => window.ft.invoke("settings:set", { autoUpdate: !s.autoUpdate });
     $("s-updcheck").onclick = () => window.ft.invoke("upd:check").then((has) => toast(has ? "Mise à jour disponible." : "Free tune est à jour."));
-    $("s-pwgo").onclick = () => window.ft.invoke("adm:setpw", { old: $("s-pwold").value, pw: $("s-pwnew").value }).then((r) => { if (r.ok) { toast("Mot de passe changé"); $("s-pwold").value = ""; $("s-pwnew").value = ""; } else toast(r.msg || "Échec"); });
-    $("s-lock").onclick = () => window.ft.invoke("adm:lock").then(() => { S.unlocked = false; tab = "search"; draw(); });
   }
 })();

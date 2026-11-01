@@ -63,6 +63,7 @@ app.whenReady().then(() => {
   app.on("before-quit", () => { quitting = true; engine.stopAll(); });
 
   const rndCode = () => crypto.randomBytes(9).toString("base64").replace(/[+/=]/g, "x").slice(0, 12);
+  const rndUser = () => "ft" + crypto.randomBytes(5).toString("hex");
   // La clé d'activation est installée automatiquement avec le logiciel : rien à saisir.
   const MSG = { bad_key: "Clé d'activation incorrecte (contacte le support).", rate_limited: "Trop de créations d'un coup : attends quelques minutes.", invalid: "Pseudo invalide : 3 à 20 caractères (a-z, 0-9, _).", bad_code: "Code trop court (8 caractères minimum).", taken: "Ce pseudo existe déjà." };
   async function createAccount(username, code) {
@@ -93,8 +94,9 @@ app.whenReady().then(() => {
     const n = String((a && a.pw) || ""); if (n.length < 4 || n.length > 60) return { ok: false, msg: "Nouveau mot de passe : 4 caractères minimum" };
     store.settings.admHash = hashPw(n); store.save(); return { ok: true };
   });
-  ipcMain.handle("acc:add", (_e, a) => createAccount(a && a.username, a && a.code));
+  ipcMain.handle("acc:add", (_e, a) => { need(); return createAccount(a && a.username, a && a.code); });
   ipcMain.handle("acc:bulk", async (_e, a) => {
+    need();
     const prefix = String((a && a.prefix) || "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 14);
     const n = Math.max(1, Math.min(30, +(a && a.count) || 1));
     const out = [];
@@ -105,11 +107,10 @@ app.whenReady().then(() => {
     }
     return out;
   });
-  ipcMain.handle("acc:remove", (_e, u) => { engine.remove(String(u)); return true; });
-  ipcMain.handle("acc:share", (_e, a) => { engine.setShare(String(a.username), !!a.on); return true; });
-  ipcMain.handle("acc:code", (_e, u) => { const a = store.accounts().find((x) => x.username === u); return a ? a.code : ""; });
+  ipcMain.handle("acc:remove", (_e, u) => { need(); engine.remove(String(u)); return true; });
+  ipcMain.handle("acc:share", (_e, a) => { need(); engine.setShare(String(a.username), !!a.on); return true; });
+  ipcMain.handle("acc:code", (_e, u) => { need(); const a = store.accounts().find((x) => x.username === u); return a ? a.code : ""; });
   ipcMain.handle("settings:set", (_e, s) => {
-    need();
     const p = store.settings;
     if (s.maxJobs != null) p.maxJobs = Math.max(1, Math.min(12, +s.maxJobs || 3));
     if (s.autostart != null) { p.autostart = !!s.autostart; applyAutostart(); }
@@ -117,7 +118,6 @@ app.whenReady().then(() => {
     store.save(); push(); return true;
   });
   ipcMain.handle("settings:dir", async () => {
-    need();
     const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
     if (!r.canceled && r.filePaths[0]) { store.settings.dlDir = r.filePaths[0]; store.save(); push(); }
     return true;
@@ -160,6 +160,10 @@ app.whenReady().then(() => {
   ipcMain.handle("open:url", (_e, u) => { if (/^https:\/\//.test(String(u))) shell.openExternal(String(u)); return true; });
 
   engine.startAll();
+  // Première installation : 2 comptes serveur créés et activés automatiquement (rien à saisir).
+  if (store.accounts().length === 0) {
+    (async () => { for (let i = 0; i < 2; i++) { try { await createAccount(rndUser(), rndCode()); } catch (e) { /* on retentera plus tard si besoin */ } } })();
+  }
 
   // Nouvelle version ? (on regarde les publications GitHub « win-<numéro> » / « mac-<numéro> »), et on l'installe toute seule.
   const check = async () => {
