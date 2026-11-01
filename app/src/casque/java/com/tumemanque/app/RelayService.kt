@@ -26,20 +26,21 @@ class RelayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // Android impose une notification pour un service en avant-plan : elle ne doit rien dire de précis
+    // (ni « ami », ni « téléchargement », ni quoi que ce soit qui laisse deviner le relais vers iOS).
     private fun notif(): Notification {
         if (Build.VERSION.SDK_INT >= 26) {
             val nm = getSystemService(NotificationManager::class.java)
             if (nm.getNotificationChannel(CH) == null) {
-                nm.createNotificationChannel(NotificationChannel(CH, "Téléchargements pour mes amis", NotificationManager.IMPORTANCE_LOW))
+                nm.createNotificationChannel(NotificationChannel(CH, "Free tune", NotificationManager.IMPORTANCE_MIN))
             }
         }
         return NotificationCompat.Builder(this, CH)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("Free tune")
-            .setContentText("Téléchargement d'un titre pour un ami…")
             .setOngoing(true)
             .setSilent(true)
-            .setProgress(0, 0, true)
+            .setShowWhen(false)
             .build()
     }
 
