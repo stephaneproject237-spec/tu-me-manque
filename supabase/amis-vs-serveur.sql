@@ -121,3 +121,13 @@ end $$;
 revoke all on function public.c__befriend(uuid, uuid, boolean), public.c__auto_friend_all(), public.admin_ft_link(uuid[], uuid[]),
   public.c_friends_list() from public, anon, authenticated;
 grant execute on function public.c_friends_list(), public.admin_ft_link(uuid[], uuid[]) to authenticated;
+
+-- ===== Rattrapage : les amitiés déjà créées avant ce script n'ont pas été marquées automatiquement =====
+-- (ajouter la colonne ne pouvait pas deviner lesquelles étaient « serveur » ; on les reconnaît ici au fait qu'un
+-- des deux comptes est un compte serveur (Windows, Mac, Free tune server/2, ou les 2 serveurs cachés créés par
+-- chaque Android pour aider les iPhone) plutôt qu'une vraie personne.)
+update public.c_friends f set server = true
+where not f.server and exists (
+  select 1 from public.c_profiles p
+  where p.id in (f.user_id, f.friend_id) and public.c__platform(p) in ('windows', 'mac', 'srvdroid')
+);
