@@ -20,13 +20,40 @@ async function findUpdate(repo, mac, cur, arch, fetchFn) {
   return best;
 }
 
-async function download(url, dest, fetchFn) {
-  const res = await (fetchFn || fetch)(url, { redirect: "follow" });
-  if (!res.ok) throw new Error("téléchargement refusé (" + res.status + ")");
-  const buf = Buffer.from(await res.arrayBuffer());
+// Télécharge en suivant la progression ; abandonne si plus aucune donnée n'arrive pendant 30 s (au lieu de rester bloqué pour rien).
+async function download(url, dest, fetchFn, onProgress) {
+  const ac = new AbortController();
+  let stall = setTimeout(() => ac.abort(), 30000);
+  const bump = () => { clearTimeout(stall); stall = setTimeout(() => ac.abort(), 30000); };
+  let res;
+  try { res = await (fetchFn || fetch)(url, { redirect: "follow", signal: ac.signal }); }
+  catch (e) { clearTimeout(stall); throw new Error("connexion impossible (" + (e.message || e) + ")"); }
+  if (!res.ok) { clearTimeout(stall); throw new Error("téléchargement refusé (" + res.status + ")"); }
+  const total = +res.headers.get("content-length") || 0;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, buf);
-  return buf.length;
+  const ws = fs.createWriteStream(dest);
+  let got = 0, lastAt = 0;
+  try {
+    if (res.body && typeof res.body.getReader === "function") {
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bump(); got += value.length; ws.write(Buffer.from(value));
+        const n = Date.now();
+        if (onProgress && total && n - lastAt > 200) { lastAt = n; onProgress(got / total); }
+      }
+    } else {
+      for await (const chunk of res.body) {
+        bump(); got += chunk.length; ws.write(chunk);
+        const n = Date.now();
+        if (onProgress && total && n - lastAt > 200) { lastAt = n; onProgress(got / total); }
+      }
+    }
+  } finally { clearTimeout(stall); }
+  await new Promise((ok, ko) => ws.end((e) => (e ? ko(e) : ok())));
+  if (onProgress) onProgress(1);
+  return got;
 }
 
 const q = (s) => '"' + String(s).replace(/"/g, "") + '"';
@@ -46,7 +73,7 @@ async function install(info, o) {
     if (!/\.app$/.test(cur)) return { ok: false, msg: "application introuvable" };
     const zip = path.join(tmp, "update.zip"), out = path.join(tmp, "update-app");
     fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
-    await download(info.url, zip, o.fetch);
+    await download(info.url, zip, o.fetch, o.onProgress);
     execFileSync("/usr/bin/ditto", ["-x", "-k", zip, out]);
     const app = fs.readdirSync(out).find((x) => x.endsWith(".app"));
     if (!app) return { ok: false, msg: "archive invalide" };
@@ -59,7 +86,7 @@ async function install(info, o) {
   const cur = o.portablePath;
   if (!cur) return { ok: false, msg: "version non portable" };
   const neu = path.join(path.dirname(cur), "FreeTune-update.exe");
-  const n = await download(info.url, neu, o.fetch);
+  const n = await download(info.url, neu, o.fetch, o.onProgress);
   const head = fs.readFileSync(neu).subarray(0, 2).toString();
   if (n < 20 * 1024 * 1024 || head !== "MZ") { try { fs.unlinkSync(neu); } catch (e) { /* ignoré */ } return { ok: false, msg: "fichier invalide" }; }
   const bat = path.join(tmp, "update.bat");

@@ -44,8 +44,10 @@
     const u = $("upd");
     if (S.update || S.updMsg) {
       u.hidden = false;
-      u.innerHTML = "<span>🎉 " + esc(S.updMsg || "Une nouvelle version de Free tune est disponible : elle s'installe automatiquement dès que plus rien n'est en cours.") + "</span>" + (S.update ? "<button class='btn sm' id='upd-go'>Installer maintenant</button>" : "");
-      if (S.update) $("upd-go").onclick = () => window.ft.invoke("upd:install");
+      u.innerHTML = "<div class='grow'><span>🎉 " + esc(S.updMsg || "Une nouvelle version de Free tune est disponible : elle s'installe automatiquement dès que plus rien n'est en cours.") + "</span>" +
+        (S.updInstalling ? "<div class='bar'><i style='width:" + Math.round((S.updPct || 0) * 100) + "%'></i></div>" : "") + "</div>" +
+        (S.update && !S.updInstalling ? "<button class='btn sm' id='upd-go'>Installer maintenant</button>" : "");
+      if (S.update && !S.updInstalling) $("upd-go").onclick = () => window.ft.invoke("upd:install");
     } else u.hidden = true;
     if (tab === "acc" && !S.unlocked) { tab = "search"; closeModal(); }
     if (tab === "search") drawSearch(); else if (tab === "acc") drawAcc(); else if (tab === "dl") drawDl(); else drawSet();

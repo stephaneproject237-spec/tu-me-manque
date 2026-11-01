@@ -17,7 +17,7 @@ const PLAT = MAC ? "mac" : "windows";
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 protocol.registerSchemesAsPrivileged([{ scheme: "ftmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
 
-let win = null, tray = null, quitting = false, upd = null, updMsg = "";
+let win = null, tray = null, quitting = false, upd = null, updMsg = "", updPct = 0, installing = false;
 const crypt = {
   enc: (s) => (safeStorage.isEncryptionAvailable() ? "e:" + safeStorage.encryptString(s).toString("base64") : "p:" + Buffer.from(s, "utf8").toString("base64")),
   dec: (s) => (s.startsWith("e:") ? safeStorage.decryptString(Buffer.from(s.slice(2), "base64")) : Buffer.from(s.replace(/^p:/, ""), "base64").toString("utf8")),
@@ -33,7 +33,7 @@ app.whenReady().then(() => {
   const media = new Media();
   protocol.handle("ftmedia", (req) => media.handle(req.url, req.headers.get("range")).catch(() => new Response("", { status: 502 })));
 
-  const snapshot = () => Object.assign(engine.snapshot(), { unlocked: unlocked(), settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, updMsg, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
+  const snapshot = () => Object.assign(engine.snapshot(), { unlocked: unlocked(), settings: Object.assign({}, store.settings, { dlDirShown: dlDir() }), downloads: downloads.list(), version: app.getVersion(), update: upd, updMsg, updPct, updInstalling: installing, hasFfmpeg: tools.hasFfmpeg(), platform: PLAT });
   let t = null;
   const push = () => { if (t || !win || win.isDestroyed()) return; t = setTimeout(() => { t = null; if (win && !win.isDestroyed()) win.webContents.send("state", snapshot()); }, 400); };
   engine.on("update", push); downloads.on("update", push);
@@ -175,17 +175,19 @@ app.whenReady().then(() => {
     } catch (e) { /* hors ligne */ }
     return upd;
   };
-  let installing = false;
   async function doInstall() {
     if (!upd || installing) return false;
-    installing = true; updMsg = "Téléchargement de la mise à jour…"; push();
+    installing = true; updPct = 0; updMsg = "Téléchargement de la mise à jour… (0 %)"; push();
     try {
-      const r = await Upd.install(upd, { mac: MAC, execPath: process.execPath, portablePath: process.env.PORTABLE_EXECUTABLE_FILE, tmpDir: path.join(app.getPath("temp"), "freetune-update") });
-      if (!r.ok) { updMsg = "Installation automatique impossible (" + r.msg + "). Télécharge la nouvelle version depuis le bouton."; installing = false; push(); return false; }
-      updMsg = "Redémarrage…"; push();
+      const r = await Upd.install(upd, {
+        mac: MAC, execPath: process.execPath, portablePath: process.env.PORTABLE_EXECUTABLE_FILE, tmpDir: path.join(app.getPath("temp"), "freetune-update"),
+        onProgress: (p) => { updPct = p; updMsg = "Téléchargement de la mise à jour… (" + Math.round(p * 100) + " %)"; push(); },
+      });
+      if (!r.ok) { updMsg = "Installation automatique impossible (" + r.msg + "). Télécharge la nouvelle version depuis le bouton."; installing = false; updPct = 0; push(); return false; }
+      updMsg = "Redémarrage…"; updPct = 1; push();
       setTimeout(() => { quitting = true; engine.stopAll(); app.quit(); }, 600);
       return true;
-    } catch (e) { updMsg = "Mise à jour impossible : " + String(e.message || e).slice(0, 100); installing = false; push(); return false; }
+    } catch (e) { updMsg = "Mise à jour impossible : " + String(e.message || e).slice(0, 100); installing = false; updPct = 0; push(); return false; }
   }
   // Mise à jour automatique : on attend qu'aucune demande ni téléchargement ne soit en cours avant de redémarrer.
   const idle = () => engine.running === 0 && !downloads.list().some((d) => d.state === "en cours" || d.state === "attente");
