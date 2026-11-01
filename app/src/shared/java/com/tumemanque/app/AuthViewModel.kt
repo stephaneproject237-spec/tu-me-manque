@@ -31,6 +31,8 @@ data class AuthState(
     val email: String = "",
     /** Le numéro est déjà connu (compte Google / Apple / SMS) : on ne le redemande pas. */
     val phoneKnown: Boolean = false,
+    /** Conditions d'utilisation acceptées (nouveaux comptes « Casque » uniquement). */
+    val termsAccepted: Boolean = false,
 ) {
     /** Date au format AAAA-MM-JJ, ou null si elle est invalide. */
     val birthIso: String? get() = parseBirth(birth)?.first
@@ -79,6 +81,7 @@ class AuthViewModel : ViewModel() {
     }
     fun setPhone(v: String) = _state.update { it.copy(phone = v.filter { c -> c.isDigit() || c in "+ ()-" }.take(20)) }
     fun setCode(v: String) = _state.update { it.copy(code = v.filter { c -> c.isDigit() }.take(8)) }
+    fun setTermsAccepted(v: Boolean) = _state.update { it.copy(termsAccepted = v) }
 
     fun setPseudo(raw: String) {
         val v = raw.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(20)
@@ -201,6 +204,11 @@ class AuthViewModel : ViewModel() {
     fun createProfile(onDone: () -> Unit) {
         viewModelScope.launch {
             val s = _state.value
+            // Nouveau compte « Casque » : impossible de continuer sans avoir accepté les conditions d'utilisation.
+            if (BuildConfig.CASQUE && !s.termsAccepted) {
+                _state.update { it.copy(msg = "Merci d'accepter les conditions d'utilisation pour continuer.") }
+                return@launch
+            }
             _state.update { it.copy(busy = true, msg = null) }
             try {
                 when (Backend.createAccount(s.pseudo, s.age ?: 0)) {
