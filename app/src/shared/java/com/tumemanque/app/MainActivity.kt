@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -206,6 +207,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     var fxTrigger by remember { mutableIntStateOf(0) }
     var loveTrigger by remember { mutableIntStateOf(0) }
     LaunchedEffect(chatVm) { chatVm.onLove = { loveTrigger++ } }
+    LaunchedEffect(chatVm) { chatVm.onOkOk = { playOkOk(context) } }
     LaunchedEffect(state.lastMiss?.at) {
         val at = state.lastMiss?.at
         if (!at.isNullOrEmpty()) {
@@ -474,4 +476,13 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, 
             },
         )
     }
+}
+
+/** Message « ok ok » dans le tchat : joue le petit son (fichier res/raw/ok_ok.m4a). */
+private fun playOkOk(context: Context) {
+    try {
+        val mp = MediaPlayer.create(context, R.raw.ok_ok) ?: return
+        mp.setOnCompletionListener { it.release() }
+        mp.start()
+    } catch (e: Exception) { /* pas de son : tant pis */ }
 }

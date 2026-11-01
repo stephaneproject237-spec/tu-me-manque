@@ -50,6 +50,9 @@ class ChatViewModel : ViewModel() {
     var onSticker: ((String) -> Unit)? = null
     var onGame: ((ChatMsg) -> Unit)? = null
 
+    /** Message exact « ok ok » (envoyé ou reçu) : joue un petit son. */
+    var onOkOk: (() -> Unit)? = null
+
     fun pollSoon() { viewModelScope.launch { poll() } }
     private var lastTyping = 0L
 
@@ -91,6 +94,8 @@ class ChatViewModel : ViewModel() {
     }
     private val loveRegex = Regex("\\bje\\s*t['’ ]?\\s*aime\\b|\\bjtm\\b", RegexOption.IGNORE_CASE)
     private fun isLove(m: ChatMsg) = m.kind == "text" && m.body?.let { loveRegex.containsMatchIn(it) } == true
+    private val okOkRegex = Regex("^ok\\s*ok$", RegexOption.IGNORE_CASE)
+    private fun isOkOk(m: ChatMsg) = m.kind == "text" && m.body?.let { okOkRegex.matches(it.trim()) } == true
 
     private val confirmed = mutableListOf<ChatMsg>()
     private val pendings = mutableListOf<ChatMsg>()
@@ -171,6 +176,7 @@ class ChatViewModel : ViewModel() {
                         else if (System.currentTimeMillis() - openedAt > 4000) Sounds.receive()
                         if (_state.value.typing) _state.update { it.copy(typing = false) }
                         if (isLove(m)) onLove?.invoke()
+                        if (isOkOk(m)) onOkOk?.invoke()
                         if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }
                     }
                 }
@@ -438,6 +444,7 @@ class ChatViewModel : ViewModel() {
             return
         }
         if (loveRegex.containsMatchIn(text)) onLove?.invoke()
+        if (okOkRegex.matches(text)) onOkOk?.invoke()
         viewModelScope.launch { deliver(addPending(blank("text", body = text)), null) }
     }
 

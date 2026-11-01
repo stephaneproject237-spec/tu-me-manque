@@ -27,6 +27,7 @@ def wr(p, t):
 def prefixes(t):
     t = re.sub(r"([\"'`])tmm_", r"\1casque_", t)
     t = t.replace('"stickers/', '"../stickers/').replace("`stickers/", "`../stickers/").replace('"questions.json', '"../questions.json')
+    t = t.replace('"sounds/', '"../sounds/').replace("`sounds/", "`../sounds/")
     return t
 
 

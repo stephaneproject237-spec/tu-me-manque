@@ -414,6 +414,7 @@
           if (m.sender_id !== me) {
             incoming = true; setTyping(false); if (m.kind !== "game") bubbleSound(false);
             if (isLove(m)) love();
+            if (isOkOk(m)) playOkOk();
             if (m.kind === "sticker") burst(m.body);
           }
           else dropMatchingPending(m);
@@ -1281,6 +1282,18 @@
   const isLove = (m) => m.kind === "text" && m.body && LOVE_RE.test(m.body);
   function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
 
+  // Message exact « ok ok » : joue un petit son, pour tout le monde dans la conversation.
+  const OKOK_RE = /^ok\s*ok$/i;
+  const isOkOk = (m) => m.kind === "text" && m.body && OKOK_RE.test(m.body.trim());
+  let okokAudioEl = null;
+  function playOkOk() {
+    try {
+      if (!okokAudioEl) okokAudioEl = new Audio("sounds/ok-ok.m4a");
+      okokAudioEl.currentTime = 0;
+      okokAudioEl.play().catch(() => {});
+    } catch (e) { /* ignoré */ }
+  }
+
   async function sendText(o) {
     if (editingId !== null) { submitEdit(); return; }
     const inp = $("ch-input");
@@ -1308,6 +1321,7 @@
       return;
     }
     if (LOVE_RE.test(text)) love();
+    if (OKOK_RE.test(text)) playOkOk();
     const p = addPending({ kind: "text", body: text });
     const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
     if (!ok && !inp.value) { inp.value = text; onInput(); }
