@@ -438,7 +438,7 @@
   // ---------- parrainage et cagnotte ----------
   async function sponsorLoad() { try { const r = await A.rpc("sponsor_get", {}); AU.sp = { name: (r && r.name) || null, msg: "" }; } catch (e) { /* hors ligne */ } if (tab === "me") drawMe(); }
   async function walletLoad() { try { const r = await A.rpc("ref_get", {}); if (r && r.status === "ok") AU.wl = Object.assign({ form: false, msg: "" }, AU.wl && { form: AU.wl.form, msg: AU.wl.msg }, r); } catch (e) { /* hors ligne */ } if (tab === "me" && !(AU.wl && AU.wl.form)) drawMe(); }
-  const shareText = () => "Je t'invite sur Free tune 🎧 Musique et vidéos à télécharger, sur iPhone, Android, Mac et PC. Télécharge l'application ici :\nhttps://stephaneproject237-spec.github.io/tu-me-manque/casque/telecharger/?p=" + encodeURIComponent(A.id()) + "\nÀ l'inscription, indique mon identifiant comme parrain : " + A.id();
+  const shareText = () => "Je t'invite sur Free tune 🎧 Musique et vidéos à télécharger, sur iPhone, Android, Mac et PC. Télécharge l'application ici :\nhttps://cozy-starship-c9212f.netlify.app/casque/telecharger/?p=" + encodeURIComponent(A.id()) + "\nÀ l'inscription, indique mon identifiant comme parrain : " + A.id();
 
   // ---------- page « Mon compte » ----------
   function drawMe() {
