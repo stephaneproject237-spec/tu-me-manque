@@ -15,7 +15,10 @@ object Sponsor {
     var loaded by mutableStateOf(false)
     private val tag = Regex("freetune-parrain:([A-Za-z0-9_]{2,30})")
 
-    fun link(username: String): String = Config.WEB_URL + "telecharger/?p=" + username
+    // Lien de parrainage uniquement : page d'accueil sur Netlify (l'appli elle-même reste sur son adresse habituelle,
+    // ce lien n'est vu qu'une fois par l'invité avant de télécharger).
+    private const val INVITE_URL = "https://cozy-starship-c9212f.netlify.app/casque/"
+    fun link(username: String): String = INVITE_URL + "telecharger/?p=" + username
 
     /** Ouvre le partage d'Android (WhatsApp, SMS…) avec le lien de téléchargement. */
     fun share(ctx: Context, username: String) {

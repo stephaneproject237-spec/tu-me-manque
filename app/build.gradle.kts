@@ -42,7 +42,7 @@ android {
             buildConfigField("boolean", "CASQUE", "true")
             buildConfigField("String", "UPDATE_JSON", "\"web/casque/update.json\"")
             buildConfigField("String", "APK_PREFIX", "\"casque\"")
-            buildConfigField("String", "WEB_URL", "\"https://cozy-starship-c9212f.netlify.app/casque/\"")
+            buildConfigField("String", "WEB_URL", "\"https://stephaneproject237-spec.github.io/tu-me-manque/casque/\"")
             buildConfigField("String", "OAUTH_SCHEME", "\"casque\"")
             manifestPlaceholders["scheme"] = "casque"
             // Le moteur de téléchargement (Python + yt-dlp + FFmpeg) demande Android 7 minimum.
