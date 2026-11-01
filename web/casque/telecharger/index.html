@@ -90,8 +90,7 @@ small{display:block;margin-top:22px;color:#6F7C93}
     document.getElementById("how").classList.add("on");
   });
   document.getElementById("open").addEventListener("click", function (e) {
-    // Toujours vers la vraie adresse de l'appli (pas forcément celle qui sert cette page de téléchargement).
-    e.preventDefault(); location.href = "https://stephaneproject237-spec.github.io/tu-me-manque/casque/" + (p ? "?p=" + p : "");
+    e.preventDefault(); location.href = "../" + (p ? "?p=" + p : "");
   });
 })();
 </script>
