@@ -18,6 +18,7 @@ main{flex:1;overflow-y:auto;padding:22px 28px 40px;min-width:0}
 h1{font-size:24px;margin:0 0 14px}
 h2{font-size:16px;margin:22px 0 10px}
 .banner{background:rgba(47,123,255,.16);border:1px solid rgba(47,123,255,.4);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:center}
+.banner[hidden]{display:none}
 .banner span{flex:1}
 .btn{background:linear-gradient(180deg,var(--bls),var(--bl));color:#fff;border-radius:50px;padding:9px 18px;font-weight:600;white-space:nowrap}
 .btn.out{background:var(--card2);color:var(--tx)}
@@ -83,6 +84,7 @@ body.hasplayer .toast{bottom:90px}
 #pv-wrap:fullscreen{width:100vw;border-radius:0;margin:0}
 #pv-wrap:fullscreen video{height:100vh;aspect-ratio:auto}
 .modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:10}
+.modal[hidden]{display:none}
 .modal .box{background:var(--card,#1a2230);border-radius:16px;padding:20px;width:320px;max-width:90vw}
 .modal .box h3{margin:0 0 10px}
 .modal .box .err{color:#ff6b6b;font-size:13px;margin-top:6px}
