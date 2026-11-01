@@ -89,3 +89,34 @@ jobs:
           name: Casque ${{ github.run_number }}
           files: Free-tune*.apk
           make_latest: false
+
+      # Annonce automatique : sans ça, l'appli ne propose la mise à jour que si quelqu'un pense à mettre à jour
+      # tools/casque-android.json à la main après chaque compilation (oubli déjà arrivé plusieurs fois).
+      - name: Annoncer automatiquement cette version (mise à jour proposée dans l'appli)
+        if: github.ref == 'refs/heads/main'
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          run = os.environ["RUN_NUMBER"]
+          ann = {
+            "versionCode": int(run), "versionName": "1." + run, "notes": "Mise à jour importante",
+            "apk": "https://github.com/" + os.environ["REPO"] + "/releases/download/casque-" + run + "/Free-tune.apk",
+          }
+          with open("tools/casque-android.json", "w", encoding="utf-8") as f:
+              json.dump(ann, f, ensure_ascii=False, indent=1); f.write("\n")
+          with open("web/casque/update.json", encoding="utf-8") as f:
+              upd = json.load(f)
+          upd.update(ann)
+          with open("web/casque/update.json", "w", encoding="utf-8") as f:
+              json.dump(upd, f, ensure_ascii=False, indent=1); f.write("\n")
+          PY
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add tools/casque-android.json web/casque/update.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Annonce Free tune ${{ github.run_number }} (automatique)"
+            git push origin HEAD:main HEAD:brouillon-gros
+          fi
