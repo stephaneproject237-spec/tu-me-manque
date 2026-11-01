@@ -66,7 +66,7 @@ begin
         and not exists (select 1 from public.c_friends f where f.user_id = me.id and f.friend_id = o.id)
       limit 50
     loop
-      perform public.c__befriend(me.id, r.id);
+      perform public.c__befriend(me.id, r.id, true);
       n := n + 1;
     end loop;
   end if;

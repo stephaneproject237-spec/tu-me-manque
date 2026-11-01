@@ -38,7 +38,7 @@ begin
       and not exists (select 1 from public.c_friends f where f.user_id = a.id and f.friend_id = b.id)
     limit 500
   loop
-    perform public.c__befriend(r.aid, r.bid);
+    perform public.c__befriend(r.aid, r.bid, true);
     n := n + 1;
   end loop;
   return n;
@@ -63,7 +63,7 @@ begin
         and not exists (select 1 from public.c_friends f where f.user_id = me.id and f.friend_id = o.id)
       limit 50
     loop
-      perform public.c__befriend(me.id, r.id);
+      perform public.c__befriend(me.id, r.id, true);
       n := n + 1;
     end loop;
   end if;
@@ -169,7 +169,7 @@ begin
   foreach x in array coalesce(p_a, '{}') loop
     foreach y in array coalesce(p_b, '{}') loop
       if x <> y and exists (select 1 from public.c_profiles where id = x) and exists (select 1 from public.c_profiles where id = y) then
-        perform public.c__befriend(x, y); n := n + 1;
+        perform public.c__befriend(x, y, true); n := n + 1;
       end if;
     end loop;
   end loop;

@@ -1725,19 +1725,22 @@ create table if not exists public.c_friends (
   user_id uuid not null references public.c_profiles(id) on delete cascade,
   friend_id uuid not null references public.c_profiles(id) on delete cascade,
   since timestamptz not null default now(),
+  server boolean not null default false, -- true = amitié automatique (relais) ; jamais montrée dans « Mes amis » (voir amis-vs-serveur.sql)
   primary key (user_id, friend_id)
 );
 alter table public.c_friends enable row level security;
 revoke all on public.c_friends from anon, authenticated;
 
 -- Devenir amis (usage interne) : on garde la conversation ouverte actuelle, sauf si on n'en avait aucune.
-create or replace function public.c__befriend(a uuid, b uuid)
+-- p_server = true pour une amitié créée automatiquement par le système (relais) ; false (défaut) pour une vraie amitié.
+create or replace function public.c__befriend(a uuid, b uuid, p_server boolean default false)
 returns void language plpgsql security definer set search_path = public as $$
 declare na text; nb text; pa text; pb text;
 begin
   select username, phone into na, pa from public.c_profiles where id = a;
   select username, phone into nb, pb from public.c_profiles where id = b;
-  insert into public.c_friends (user_id, friend_id) values (a, b), (b, a) on conflict do nothing;
+  insert into public.c_friends (user_id, friend_id, server) values (a, b, p_server), (b, a, p_server)
+    on conflict (user_id, friend_id) do update set server = public.c_friends.server and excluded.server;
   update public.c_profiles set partner_id = b, partner_name = nb, partner_phone = pb where id = a and partner_id is null;
   update public.c_profiles set partner_id = a, partner_name = na, partner_phone = pa where id = b and partner_id is null;
   delete from public.c_requests where (from_id = a and to_id = b) or (from_id = b and to_id = a);
@@ -1869,11 +1872,11 @@ begin
                or (m.sender_id = p.id and m.recipient_id = me and not m.del_recipient))
              and m.deleted_at is null
            order by m.id desc limit 1) lm on true
-       where f.user_id = me
+       where f.user_id = me and not f.server
     ) x), '[]'::json);
 end $$;
 
-revoke all on function public.c__befriend(uuid, uuid), public.c_send_request(text), public.c_respond_request(bigint, boolean),
+revoke all on function public.c__befriend(uuid, uuid, boolean), public.c_send_request(text), public.c_respond_request(bigint, boolean),
   public.c_select_peer(uuid), public.c_close_peer(), public.c_remove_friend(uuid), public.c_remove_partner(),
   public.c_friends_list() from public, anon, authenticated;
 grant execute on function public.c_send_request(text), public.c_respond_request(bigint, boolean),
