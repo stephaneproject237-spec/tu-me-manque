@@ -84,6 +84,9 @@ def main():
     os.makedirs(os.path.join(OUT, "telecharger"), exist_ok=True)
     shutil.move(os.path.join(OUT, "telecharger.html"), os.path.join(OUT, "telecharger", "index.html"))
 
+    # Règles de confidentialité propres à Free tune (pas celles de « Tu me manques »)
+    shutil.copy(os.path.join(ROOT, "tools", "confidentialite-casque.html"), os.path.join(OUT, "confidentialite.html"))
+
     mf = rd(os.path.join(W, "manifest.webmanifest"))
     mf = skin.words(mf).replace("Un bouton pour dire « Casque » à ton ami(e).", "Lecteur audio et messagerie entre amis.").replace("#160a12", "#0A0D13")
     mf = re.sub(r'"description": "[^"]*"', '"description": "Lecteur audio et messagerie entre amis."', mf)
