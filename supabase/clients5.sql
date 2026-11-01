@@ -1,14 +1,16 @@
--- Free tune : un iPhone peut être servi par N'IMPORTE QUEL Android, Windows ou Mac en ligne (amis ou non), avec le réglage « Envoi aléatoire » activé.
+-- Free tune : un iPhone peut être servi par N'IMPORTE QUEL Android, Windows, Mac ou Free tune server en ligne (amis ou non), avec le réglage « Envoi aléatoire » activé.
 -- Choix : d'abord un aide sans tâche ; sinon celui dont le travail finit le plus vite. Aucune amitié nécessaire.
 -- À lancer une seule fois, APRÈS clients, clients2, clients3 et clients4 (peut être relancé sans risque).
+-- NB : cette fonction est aussi redéfinie (de façon équivalente, « srvdroid » compris) par pc-comptes.sql et serveurs-windows.sql ;
+-- les trois versions doivent rester identiques, sinon la dernière exécutée écrase les autres.
 
--- Les comptes qui peuvent servir un compte (Android, Windows ou Mac) : tous (réglage « Envoi aléatoire » activé) ou seulement ses amis (réglage désactivé).
--- Windows/Mac n'ont pas de jeton FCM (pas de notification push), donc ce jeton n'est exigé que pour Android.
+-- Les comptes qui peuvent servir un compte (Android, Windows, Mac ou Free tune server) : tous (réglage « Envoi aléatoire » activé) ou seulement ses amis (réglage désactivé).
+-- Windows/Mac/srvdroid n'ont pas de jeton FCM (pas de notification push), donc ce jeton n'est exigé que pour les Android.
 create or replace function public.c__helpers(p_from uuid)
 returns setof uuid language sql stable security definer set search_path = public as $$
   select p.id from public.c_profiles p
-  where p.id <> p_from and p.relay_share and public.c__platform(p) in ('android', 'windows', 'mac')
-    and (p.fcm_token is not null or public.c__platform(p) in ('windows', 'mac'))
+  where p.id <> p_from and p.relay_share
+    and ((p.fcm_token is not null and public.c__platform(p) = 'android') or public.c__platform(p) in ('windows', 'mac', 'srvdroid'))
     and (public.c__setting('random_dispatch', true)
          or exists (select 1 from public.c_friends f where f.user_id = p_from and f.friend_id = p.id))
 $$;
