@@ -31,6 +31,10 @@
   };
   // « Casque » : même code, tables à part (préfixe c_), lecteur audio en première page et plusieurs amis.
   const CAS = !!CFG.CASQUE;
+  // Free tune est servi depuis plusieurs adresses (Netlify, github.io…) pour rester joignable même si l'une
+  // d'elles est bloquée par un opérateur. On se base sur l'adresse réellement ouverte plutôt que sur une seule
+  // adresse codée en dur, pour que la connexion Google et le lien d'invitation marchent depuis n'importe laquelle.
+  const SELF_URL = CAS ? location.origin + location.pathname.replace(/index\.html$/, "") : CFG.WEB_URL;
   // Nouveau parcours de connexion (Google / Apple d'abord) : uniquement pour « Tu me manques ».
   const NEWAUTH = true; // Google d'abord, pseudo ensuite : même parcours pour les deux applis
   S.cs = "player"; // le compte se crée au démarrage, puis on arrive directement dans la musique // écran de Casque : player | settings | help (messagerie)
@@ -363,7 +367,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     lsSet(PKCE, verifier);
     if (S.auth.mode === "create") lsSet(PENDING, { pseudo: S.auth.pseudo, birth: S.auth.birth, phone: S.auth.phone }); else lsDel(PENDING);
     location.href = CFG.SUPABASE_URL + "/auth/v1/authorize?provider=" + provider +
-      "&redirect_to=" + encodeURIComponent(CFG.WEB_URL) +
+      "&redirect_to=" + encodeURIComponent(SELF_URL) +
       "&code_challenge=" + challenge + "&code_challenge_method=s256";
   }
 
@@ -766,7 +770,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     const text =
       "Je t'invite sur « Tu me manques » 💗\n" +
       "Android : " + CFG.APK_URL + "\n" +
-      "iPhone : " + CFG.WEB_URL + " (ouvre-le dans Safari puis « Sur l'écran d'accueil »)" +
+      "iPhone : " + SELF_URL + " (ouvre-le dans Safari puis « Sur l'écran d'accueil »)" +
       (S.username ? "\nMon identifiant : @" + S.username : "");
     try {
       if (navigator.share) { await navigator.share({ text }); return; }
