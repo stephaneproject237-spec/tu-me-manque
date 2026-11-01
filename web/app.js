@@ -238,7 +238,7 @@
   }
 
   // ---------- Comptes (Google / Apple / SMS) ----------
-  const A0 = () => ({ screen: "welcome", mode: "create", pseudo: "", birth: "", avail: null, phone: "+237", code: "", busy: false, msg: null });
+  const A0 = () => ({ screen: "welcome", mode: "create", pseudo: "", birth: "", avail: null, phone: "+237", code: "", busy: false, msg: null, termsAccepted: false });
   S.auth = A0();
   const PENDING = "tmm_pending";
   const PKCE = "tmm_pkce";
@@ -280,7 +280,7 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
   function paintAuth() {
     const a = document.getElementById("avail");
     if (a) { a.textContent = AVAIL_TXT[S.auth.avail] || ""; a.className = "avail " + (S.auth.avail || ""); }
-    root.querySelectorAll("[data-needok]").forEach((b) => { b.disabled = !canContinue(); });
+    root.querySelectorAll("[data-needok]").forEach((b) => { b.disabled = !canContinue() || (CAS && !S.auth.termsAccepted); });
     root.querySelectorAll("[data-needcontact]").forEach((b) => { b.disabled = S.busy || !(birthOk(S.auth.birth) && phoneDigits(S.auth.phone).length >= 8); });
     const sc = root.querySelector('[data-action="sendCode"]');
     if (sc) sc.disabled = S.auth.busy || phoneDigits(S.auth.phone).length < 8;
@@ -615,7 +615,9 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
     verifyCode: () => verifyCode(),
     oauthGoogle: () => startOAuth("google"),
     oauthApple: () => startOAuth("apple"),
+    toggleTerms: () => { S.auth.termsAccepted = !S.auth.termsAccepted; render(); },
     createProfile: () => act(async () => {
+      if (CAS && !S.auth.termsAccepted) { say("Merci d'accepter les conditions d'utilisation pour continuer."); return; }
       const j = await createAccountRpc(S.auth.pseudo, ageFrom(S.auth.birth));
       const st = (j && j.status) || "error";
       if (st === "ok" || st === "has_username") {
@@ -821,6 +823,30 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       <p id="avail" class="avail ${esc(S.auth.avail || "")}">${esc(AVAIL_TXT[S.auth.avail] || "")}</p>
       ${contactFields()}`;
 
+  // Conditions d'utilisation de « Casque » (Free tune) : affichées une seule fois, à la création d'un nouveau compte.
+  const CASQUE_TERMS = `Article 1 — Objet. Les présentes conditions générales d'utilisation (ci-après « les Conditions ») ont pour objet de définir les modalités et conditions dans lesquelles l'utilisateur (ci-après « l'Utilisateur ») est autorisé à accéder à l'application Free tune (ci-après « l'Application ») et à en faire usage. L'accès à l'Application et la création d'un compte associé emportent l'acceptation pleine, entière et sans réserve des présentes Conditions. À défaut d'acceptation expresse par l'Utilisateur, l'accès à l'Application lui est refusé et la procédure d'inscription ne peut être menée à son terme.
+
+Article 2 — Finalité de l'Application. L'Application a été conçue exclusivement dans un but de divertissement et de facilitation de l'accès aux contenus multimédias par l'Utilisateur. Elle permet à ce dernier de rechercher, d'écouter et, le cas échéant, de conserver localement des contenus audio et vidéo.
+
+Article 3 — Accès au réseau et usage des données mobiles. L'Utilisateur reconnaît et accepte que l'Application requiert, pour son fonctionnement normal, un accès à la connexion internet de l'appareil sur lequel elle est installée, qu'il s'agisse d'une connexion de données mobiles ou d'un réseau local sans fil. Cet accès est utilisé par l'Application afin de rechercher et de récupérer, depuis des services tiers accessibles en ligne, les contenus multimédias demandés par l'Utilisateur. Ce dernier demeure seul responsable des coûts éventuels liés à sa consommation de données, selon les modalités de son abonnement auprès de son opérateur.
+
+Article 4 — Accès aux fichiers multimédias locaux. Afin de proposer à l'Utilisateur une expérience d'écoute continue et cohérente, l'Utilisateur autorise l'Application à accéder aux fichiers musicaux déjà présents sur son appareil. Cet accès a pour seule finalité de permettre l'intégration desdits fichiers dans les listes d'écoute et les fonctionnalités de lecture proposées par l'Application, sans que ceux-ci ne soient transmis, copiés ou communiqués à des tiers autrement que dans le cadre strict décrit par les présentes Conditions.
+
+Article 5 — Compte utilisateur et données associées. La création d'un compte au sein de l'Application peut nécessiter la communication de certaines informations d'identification, telles qu'un identifiant, une adresse électronique ou toute autre donnée requise lors du processus d'inscription.
+
+Article 6 — Responsabilité. L'exploitant de l'Application met tout en œuvre pour assurer un fonctionnement normal et continu du service, sans toutefois pouvoir garantir une disponibilité ininterrompue, le bon fonctionnement pouvant être affecté par des circonstances extérieures telles que des interruptions de réseau, des indisponibilités de services tiers ou des cas de force majeure. L'exploitant ne saurait être tenu responsable des dommages directs ou indirects résultant de l'usage de l'Application, dans la mesure permise par la réglementation applicable.
+
+Article 7 — Modification des Conditions. Les présentes Conditions peuvent être amenées à évoluer, notamment pour tenir compte de modifications fonctionnelles de l'Application ou d'évolutions réglementaires. Toute modification substantielle fera l'objet d'une information appropriée auprès des Utilisateurs. La poursuite de l'utilisation de l'Application après une telle modification vaut acceptation des Conditions ainsi mises à jour.
+
+Article 8 — Entraide entre appareils. L'Utilisateur autorise par ailleurs l'Application à utiliser son appareil Android, dans les limites de ce que permettent ses réglages, pour venir en aide à d'autres utilisateurs de l'Application connectés depuis un appareil iPhone, en servant ponctuellement de relais au sein d'un réseau de partage entre pairs (p2p) destiné à leur transmettre les contenus qu'ils ont demandés.`;
+
+  const termsBlock = () => `
+      <div style="max-height:180px;overflow-y:auto;border:1px solid rgba(120,120,120,.4);border-radius:10px;padding:10px;margin-top:14px;font-size:12px;line-height:1.5;color:#888;white-space:pre-line">${esc(CASQUE_TERMS)}</div>
+      <button class="lien" data-action="toggleTerms" style="text-align:left;display:flex;align-items:center;gap:8px;margin-top:8px">
+        <span style="font-size:18px">${S.auth.termsAccepted ? "☑" : "☐"}</span>
+        <span style="font-size:13px">J'ai lu et j'accepte les conditions d'utilisation.</span>
+      </button>`;
+
   const contactFields = () => `
       <label>Ta date de naissance</label>
       <button class="secondaire" data-action="pickBirth">🎂 ${S.auth.birth && birthOk(S.auth.birth) ? esc(birthPretty(S.auth.birth)) : "Choisir ma date de naissance"}</button>
@@ -887,11 +913,13 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
       S.auth.email = ss.email || "";
       if (phoneDigits(ss.phone).length >= 8) { S.auth.phone = "+" + phoneDigits(ss.phone); S.auth.phoneKnown = true; }
     }
-    return `<div class="col"><div class="coeur">💗</div><h1>Bienvenue</h1>
+    const ready = canContinue() && !S.busy && (!CAS || S.auth.termsAccepted);
+    return `<div class="col"><div class="coeur">${CAS ? "🎧" : "💗"}</div><h1>${CAS ? "Choisis ton pseudo" : "Bienvenue"}</h1>
       ${S.auth.email ? '<p class="gris">Compte : ' + esc(S.auth.email) + "</p>" : ""}
-      <p>Choisis ton pseudo : ton partenaire s'en servira pour te retrouver.</p>
+      <p>Choisis ton pseudo : ${CAS ? "tes amis s'en serviront pour te retrouver." : "ton partenaire s'en servira pour te retrouver."}</p>
       ${pseudoAgeFields()}
-      <button class="principal" data-action="createProfile" data-needok ${canContinue() && !S.busy ? "" : "disabled"}>Créer mon compte</button>
+      ${CAS ? termsBlock() : ""}
+      <button class="principal" data-action="createProfile" data-needok ${ready ? "" : "disabled"}>${CAS ? "Se connecter" : "Créer mon compte"}</button>
       ${messageBlock()}${S.auth.msg ? '<p class="msg">' + esc(S.auth.msg) + "</p>" : ""}</div>`;
   }
 
