@@ -109,7 +109,7 @@
       h.push('<div class="hero"><img src="' + esc(art(a.artworkUrl100, 400)) + '" alt=""><div class="grow"><h1 style="margin:0">' + esc(a.collectionName) + "</h1><div class='sub'>" + esc(a.artistName) + " · " + esc((a.releaseDate || "").slice(0, 4)) + " · " + (a.trackCount || "") + " titres</div>" +
         '<div style="margin-top:12px"><button class="btn" id="aall"' + (R.albumTracks ? "" : " disabled") + ">⬇ Tout télécharger (audio)</button></div></div></div>");
       if (!R.albumTracks) h.push('<div class="spin"></div>');
-      else h.push(R.albumTracks.map((t, i) => '<div class="trk"><span class="n">' + (t.trackNumber || i + 1) + '</span><div class="grow"><b>' + esc(t.trackName) + '</b><span class="sub small">' + esc(t.artistName) + " · " + mmss(Math.round((t.trackTimeMillis || 0) / 1000)) + '</span></div><button class="btn sm out" data-tp="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm" data-trk="' + i + '">⬇ Audio</button><button class="btn sm out" data-trv="' + i + '">⬇ Vidéo</button></div>').join(""));
+      else h.push(R.albumTracks.map((t, i) => '<div class="trk"><span class="n">' + (t.trackNumber || i + 1) + '</span><div class="grow"><b>' + esc(t.trackName) + '</b><span class="sub small">' + esc(t.artistName) + " · " + mmss(Math.round((t.trackTimeMillis || 0) / 1000)) + '</span></div><button class="btn sm out" data-tp="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm out" data-tv="' + i + '" title="Visionner sans télécharger">👁 Visionner</button><button class="btn sm" data-trk="' + i + '">⬇ Audio</button><button class="btn sm out" data-trv="' + i + '">⬇ Vidéo</button></div>').join(""));
     } else if (R.busy) h.push('<div class="spin"></div>');
     else if (!R.done) h.push('<div class="empty">Cherche un artiste pour voir ses albums, ou un titre.<br>Les résultats viennent de YouTube et d\'iTunes ; les fichiers sont enregistrés dans <b>' + esc(S ? S.settings.dlDirShown : "") + "</b>.</div>");
     else {
@@ -129,8 +129,9 @@
     const ytItem = (v, video) => ({ yid: v.id, title: v.title, sub: v.channel, video: !!video, thumb: v.thumb });
     el.querySelectorAll("[data-pa]").forEach((b) => (b.onclick = () => playList(R.yt.map((v) => ytItem(v, false)), +b.dataset.pa)));
     el.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => playList([ytItem(R.yt[+b.dataset.pv], true)], 0)));
-    const trkItem = (t) => ({ yid: "", title: t.trackName, artist: t.artistName, sub: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), video: false });
-    el.querySelectorAll("[data-tp]").forEach((b) => (b.onclick = () => playList(R.albumTracks.map(trkItem), +b.dataset.tp)));
+    const trkItem = (t, video) => ({ yid: "", title: t.trackName, artist: t.artistName, sub: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), video: !!video });
+    el.querySelectorAll("[data-tp]").forEach((b) => (b.onclick = () => playList(R.albumTracks.map((t) => trkItem(t, false)), +b.dataset.tp)));
+    el.querySelectorAll("[data-tv]").forEach((b) => (b.onclick = () => playList([trkItem(R.albumTracks[+b.dataset.tv], true)], 0)));
     el.querySelectorAll("[data-trv]").forEach((b) => (b.onclick = () => { const t = R.albumTracks[+b.dataset.trv]; dl({ title: t.trackName, artist: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), kind: "video", height: 720 }); }));
     const trkDl = (t, quiet) => dl({ title: t.trackName, artist: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), kind: "audio" }, quiet);
     el.querySelectorAll("[data-trk]").forEach((b) => (b.onclick = () => trkDl(R.albumTracks[+b.dataset.trk])));
