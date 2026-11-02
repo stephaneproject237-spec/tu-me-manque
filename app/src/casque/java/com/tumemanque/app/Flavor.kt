@@ -147,6 +147,10 @@ fun CasqueSettings(upd: UpdateViewModel, username: String?, onHelp: () -> Unit, 
                         Spacer(Modifier.height(6.dp))
                         Text(info.notes, color = P.sub, fontSize = 14.sp)
                     }
+                    if (s.error && s.errorDetail.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(s.errorDetail, color = P.danger, fontSize = 13.sp)
+                    }
                     Spacer(Modifier.height(12.dp))
                     BlueButton("Mettre à jour maintenant", Modifier.fillMaxWidth(), Ic.Update) { upd.update(ctx) }
                 }

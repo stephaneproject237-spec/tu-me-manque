@@ -57,7 +57,7 @@ class UpdateViewModel : ViewModel() {
         _state.update { it.copy(checking = true, error = false) }
         viewModelScope.launch {
             try {
-                val info = withContext(Dispatchers.IO) { fetch() }
+                val info = fetch()
                 val newer = if (info != null && info.code > BuildConfig.VERSION_CODE) info else null
                 _state.update { it.copy(checking = false, checked = true, available = newer, error = false, errorDetail = "", ready = if (newer == null) false else it.ready) }
                 if (newer != null && context != null) {
@@ -100,12 +100,13 @@ class UpdateViewModel : ViewModel() {
         viewModelScope.launch {
             val dm = app.getSystemService(DownloadManager::class.java)
             while (true) {
-                var st = -1; var done = 0L; var total = 0L
+                var st = -1; var done = 0L; var total = 0L; var reason = 0
                 dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
                     if (c.moveToFirst()) {
                         st = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                         done = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
                         total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                        reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
                     }
                 }
                 when (st) {
@@ -115,7 +116,7 @@ class UpdateViewModel : ViewModel() {
                         return@launch
                     }
                     DownloadManager.STATUS_FAILED, -1 -> {
-                        _state.update { it.copy(downloading = false, error = true, errorDetail = "Téléchargement interrompu. Réessaie.") }
+                        _state.update { it.copy(downloading = false, error = true, errorDetail = "Téléchargement interrompu" + (if (reason != 0) " (code $reason)" else "") + ". Réessaie.") }
                         return@launch
                     }
                     else -> if (total > 0) _state.update { it.copy(progress = (done.toFloat() / total).coerceIn(0f, 1f)) }
