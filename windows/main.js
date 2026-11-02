@@ -184,7 +184,9 @@ app.whenReady().then(() => {
     try {
       const r = await Upd.install(upd, {
         mac: MAC, execPath: process.execPath, portablePath: process.env.PORTABLE_EXECUTABLE_FILE, tmpDir: path.join(app.getPath("temp"), "freetune-update"),
-        onProgress: (p) => { updPct = p; updMsg = "Téléchargement de la mise à jour… (" + Math.round(p * 100) + " %)"; push(); },
+        // Une fois le téléchargement à 100 %, le message passe à « Installation… » : c'est à cette étape
+        // (remplacement du programme) qu'une fenêtre peut demander le mot de passe administrateur du Mac.
+        onProgress: (p) => { updPct = p; updMsg = p < 1 ? "Téléchargement de la mise à jour… (" + Math.round(p * 100) + " %)" : "Installation…"; push(); },
       });
       if (!r.ok) { updMsg = "Installation automatique impossible (" + r.msg + "). Télécharge la nouvelle version depuis le bouton."; installing = false; updPct = 0; push(); return false; }
       updMsg = "Redémarrage…"; updPct = 1; push();

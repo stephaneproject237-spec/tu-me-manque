@@ -32,8 +32,14 @@
     if (S.update) {
       u.hidden = false;
       const auto = S.settings.autoUpdate && S.platform !== "srv";
-      u.innerHTML = "<span>🎉 " + esc(S.updMsg || (auto ? "Une nouvelle version de Free tune est disponible : elle s'installe automatiquement dès que plus rien n'est en cours." : "Une nouvelle version de Free tune est disponible.")) + "</span><button class='btn sm' id='upd-go'>" + (S.platform === "srv" ? "Télécharger" : "Installer maintenant") + "</button>";
-      $("upd-go").onclick = () => (S.platform === "srv" ? window.ft.invoke("open:url", S.update.url) : window.ft.invoke("upd:install"));
+      // Pendant le téléchargement puis l'installation, on n'affiche plus de bouton : juste l'avancement
+      // (sinon « Installer maintenant » reste cliquable et donne l'impression de redemander l'installation).
+      if (S.updInstalling) {
+        u.innerHTML = "<span>🎉 " + esc(S.updMsg || "Mise à jour en cours…") + "</span>";
+      } else {
+        u.innerHTML = "<span>🎉 " + esc(S.updMsg || (auto ? "Une nouvelle version de Free tune est disponible : elle s'installe automatiquement dès que plus rien n'est en cours." : "Une nouvelle version de Free tune est disponible.")) + "</span><button class='btn sm' id='upd-go'>" + (S.platform === "srv" ? "Télécharger" : "Télécharger la mise à jour") + "</button>";
+        $("upd-go").onclick = () => (S.platform === "srv" ? window.ft.invoke("open:url", S.update.url) : window.ft.invoke("upd:install"));
+      }
     } else u.hidden = true;
     if (!AU.ready) return;
     if (tab === "search") drawSearch(); else if (tab === "acc") drawAcc(); else if (tab === "dl") drawDl(); else if (tab === "me") drawMe(); else drawSet();
