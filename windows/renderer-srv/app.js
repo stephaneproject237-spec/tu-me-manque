@@ -117,7 +117,7 @@
         h.push("<h2>" + (R.artist ? "Albums de " + esc(R.artist) : "Albums") + "</h2><div class='albums'>" + R.albums.map((a) => '<button class="alb" data-alb="' + a.collectionId + '"><img loading="lazy" src="' + esc(art(a.artworkUrl100, 300)) + '" alt=""><b>' + esc(a.collectionName) + "</b><small>" + esc(a.artistName) + " · " + esc((a.releaseDate || "").slice(0, 4)) + "</small></button>").join("") + "</div>");
       }
       if (R.yt.length) {
-        h.push("<h2>Titres et vidéos</h2>" + R.yt.map((v, i) => '<div class="trk"><img loading="lazy" src="' + esc(v.thumb) + '" alt=""><div class="grow"><b>' + esc(v.title) + '</b><span class="sub small">' + esc(v.channel) + (v.duration ? " · " + mmss(v.duration) : "") + (v.views ? " · " + num(v.views) + " vues" : "") + '</span></div><button class="btn sm out" data-pa="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm out" data-pv="' + i + '" title="Regarder sans télécharger">📺 Regarder</button><button class="btn sm" data-ya="' + i + '">⬇ Audio</button><button class="btn sm out" data-yv="' + i + '">⬇ Vidéo</button></div>').join(""));
+        h.push("<h2>Titres et vidéos</h2>" + R.yt.map((v, i) => '<div class="trk"><img loading="lazy" src="' + esc(v.thumb) + '" alt=""><div class="grow"><b>' + esc(v.title) + '</b><span class="sub small">' + esc(v.channel) + (v.duration ? " · " + mmss(v.duration) : "") + (v.views ? " · " + num(v.views) + " vues" : "") + '</span></div><button class="btn sm out" data-pa="' + i + '" title="Écouter sans télécharger">▶ Écouter</button><button class="btn sm" data-ya="' + i + '">⬇ Audio</button><button class="btn sm out" data-yv="' + i + '">⬇ Vidéo</button></div>').join(""));
       }
       if (!R.albums.length && !R.yt.length) h.push('<div class="empty">' + (R.msg ? "Recherche impossible : " + esc(R.msg) : "Aucun résultat.") + "</div>");
     }
@@ -128,7 +128,6 @@
     el.querySelectorAll("[data-yv]").forEach((b) => (b.onclick = () => { const v = R.yt[+b.dataset.yv]; dl({ yid: v.id, title: v.title, artist: "", kind: "video", height: 720 }); }));
     const ytItem = (v, video) => ({ yid: v.id, title: v.title, sub: v.channel, video: !!video, thumb: v.thumb });
     el.querySelectorAll("[data-pa]").forEach((b) => (b.onclick = () => playList(R.yt.map((v) => ytItem(v, false)), +b.dataset.pa)));
-    el.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => playList([ytItem(R.yt[+b.dataset.pv], true)], 0)));
     const trkItem = (t, video) => ({ yid: "", title: t.trackName, artist: t.artistName, sub: t.artistName, dur: Math.round((t.trackTimeMillis || 0) / 1000), video: !!video });
     el.querySelectorAll("[data-tp]").forEach((b) => (b.onclick = () => playList(R.albumTracks.map((t) => trkItem(t, false)), +b.dataset.tp)));
     el.querySelectorAll("[data-tv]").forEach((b) => (b.onclick = () => playList([trkItem(R.albumTracks[+b.dataset.tv], true)], 0)));
