@@ -63,6 +63,13 @@ function winScript(neu, cur) {
 function macScript(neu, cur) {
   return ["#!/bin/bash", "sleep 3", "rm -rf " + q(cur), "mv " + q(neu) + " " + q(cur), "xattr -cr " + q(cur) + " 2>/dev/null", "open " + q(cur), 'rm -- "$0"'].join("\n") + "\n";
 }
+// Remplace l'appli tout de suite, avec une autorisation ponctuelle (mot de passe du Mac), pour les comptes
+// non-administrateurs ou quand macOS protège le dossier Applications. Comme tout autre installateur Mac.
+function elevatedMacInstall(neu, cur) {
+  const sh = ["rm -rf " + q(cur), "mv " + q(neu) + " " + q(cur), "xattr -cr " + q(cur) + " 2>/dev/null"].join(" && ");
+  const asQuoted = sh.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  execFileSync("/usr/bin/osascript", ["-e", 'do shell script "' + asQuoted + '" with administrator privileges']);
+}
 
 // Supprime un fichier ou un dossier, même si un ancien essai de mise à jour y a laissé un reliquat du
 // mauvais type (fs.rmSync recursive+force ne rattrape pas une erreur ENOTDIR quand la cible n'est pas
@@ -86,7 +93,16 @@ async function install(info, o) {
     execFileSync("/usr/bin/ditto", ["-x", "-k", zip, out]);
     const app = fs.readdirSync(out).find((x) => x.endsWith(".app"));
     if (!app) return { ok: false, msg: "archive invalide" };
-    try { fs.accessSync(path.dirname(cur), fs.constants.W_OK); } catch (e) { return { ok: false, msg: "dossier protégé" }; }
+    let writable = true;
+    try { fs.accessSync(path.dirname(cur), fs.constants.W_OK); } catch (e) { writable = false; }
+    if (!writable) {
+      // Compte non-administrateur, ou dossier Applications protégé par macOS : demande une autorisation
+      // ponctuelle (mot de passe du Mac) et remplace tout de suite, au lieu d'abandonner.
+      try { elevatedMacInstall(path.join(out, app), cur); }
+      catch (e) { return { ok: false, msg: "installation refusée : il faut le mot de passe administrateur de ce Mac" }; }
+      spawn("open", [cur], { detached: true, stdio: "ignore" }).unref();
+      return { ok: true };
+    }
     const sh = path.join(tmp, "update.sh");
     fs.writeFileSync(sh, macScript(path.join(out, app), cur), { mode: 0o755 });
     spawn("/bin/bash", [sh], { detached: true, stdio: "ignore" }).unref();
