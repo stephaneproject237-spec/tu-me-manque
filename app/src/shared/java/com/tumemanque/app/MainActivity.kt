@@ -144,6 +144,13 @@ private fun shareApp(context: Context, username: String?) {
         append("Je t'invite sur « Tu me manques » 💗")
         if (link.isNotEmpty()) append("\nAndroid : $link")
         append("\niPhone : ${Config.WEB_URL} (à ouvrir dans Safari, puis « Sur l'écran d'accueil »)")
+        // Lien de secours : même contenu, servi par un autre réseau (jsDelivr, pas Netlify/GitHub Pages).
+        // Utile si le lien du dessus ne s'ouvre pas chez certains opérateurs. Aucune inscription nécessaire :
+        // ce service recopie automatiquement le dépôt public du projet.
+        if (BuildConfig.CASQUE) {
+            val dossier = BuildConfig.UPDATE_JSON.removeSuffix("update.json")
+            append("\nSi ça ne s'ouvre pas : https://cdn.jsdelivr.net/gh/stephaneproject237-spec/tu-me-manque@main/$dossier")
+        }
         if (!username.isNullOrEmpty()) append("\nMon identifiant : @$username")
     }
     val send = Intent(Intent.ACTION_SEND).apply {
