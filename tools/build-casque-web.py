@@ -39,7 +39,7 @@ def main():
     shutil.rmtree(OUT, ignore_errors=True)
     os.makedirs(os.path.join(OUT, "dist"))
     cfg = rd(os.path.join(W, "config.js"))
-    cfg = re.sub(r'WEB_URL: "[^"]*"', 'WEB_URL: "https://stephaneproject237-spec.github.io/tu-me-manque/casque/"', cfg)
+    cfg = re.sub(r'WEB_URL: "[^"]*"', 'WEB_URL: "https://cozy-starship-c9212f.netlify.app/casque/"', cfg)
     cfg = re.sub(r'APK_URL: "[^"]*"', 'APK_URL: "https://github.com/stephaneproject237-spec/tu-me-manque/releases/download/casque-5/casque.apk"', cfg)
     cfg = re.sub(r'VERSION: "[^"]*"', 'VERSION: "%s",\n  CASQUE: true' % VERSION, cfg)
     big = [cfg]
