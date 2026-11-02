@@ -64,15 +64,24 @@ function macScript(neu, cur) {
   return ["#!/bin/bash", "sleep 3", "rm -rf " + q(cur), "mv " + q(neu) + " " + q(cur), "xattr -cr " + q(cur) + " 2>/dev/null", "open " + q(cur), 'rm -- "$0"'].join("\n") + "\n";
 }
 
+// Supprime un fichier ou un dossier, même si un ancien essai de mise à jour y a laissé un reliquat du
+// mauvais type (fs.rmSync recursive+force ne rattrape pas une erreur ENOTDIR quand la cible n'est pas
+// un dossier : c'est exactement ce qui bloquait la mise à jour avec « ENOTDIR: not a directory, rmdir »).
+function nuke(p) {
+  try { fs.rmSync(p, { recursive: true, force: true }); return; } catch (e) { /* on retente autrement ci-dessous */ }
+  try { fs.unlinkSync(p); } catch (e) { /* déjà absent, ou dossier non vide malgré tout : tant pis, on continue */ }
+}
+
 /** Installe la mise à jour. Renvoie { ok } ; en cas de succès l'appelant doit quitter l'application. */
 async function install(info, o) {
   const tmp = o.tmpDir;
+  nuke(tmp);
   fs.mkdirSync(tmp, { recursive: true });
   if (o.mac) {
     const cur = path.resolve(o.execPath, "../../..");
     if (!/\.app$/.test(cur)) return { ok: false, msg: "application introuvable" };
     const zip = path.join(tmp, "update.zip"), out = path.join(tmp, "update-app");
-    fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
+    nuke(out); fs.mkdirSync(out, { recursive: true });
     await download(info.url, zip, o.fetch, o.onProgress);
     execFileSync("/usr/bin/ditto", ["-x", "-k", zip, out]);
     const app = fs.readdirSync(out).find((x) => x.endsWith(".app"));
