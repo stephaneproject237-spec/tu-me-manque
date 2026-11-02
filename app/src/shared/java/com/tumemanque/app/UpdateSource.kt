@@ -1,9 +1,9 @@
 package com.tumemanque.app
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -28,27 +28,25 @@ object UpdateSource {
         }
     }
 
-    /** Interroge plusieurs adresses en même temps (au cas où l'une serait bloquée sur ce réseau) : la première qui répond gagne. */
+    /**
+     * Interroge plusieurs adresses en même temps (au cas où l'une serait bloquée sur ce réseau) et garde la version
+     * la plus récente : une adresse en retard ne doit jamais masquer une mise à jour annoncée par une autre.
+     */
     suspend fun fetch(): UpdateInfo? = coroutineScope {
         val t = System.currentTimeMillis()
         val sources = listOf(
             Config.WEB_URL + "update.json?t=$t",
             "https://raw.githubusercontent.com/stephaneproject237-spec/tu-me-manque/main/${BuildConfig.UPDATE_JSON}?t=$t",
         )
-        val result = CompletableDeferred<UpdateInfo?>()
-        val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
-        val jobs = sources.map { url ->
-            launch(Dispatchers.IO) {
-                try {
-                    result.complete(fetchOne(url))
-                } catch (e: Exception) {
-                    val host = url.substringAfter("://").substringBefore("/")
-                    errors.add("$host : ${e.javaClass.simpleName}${e.message?.let { m -> " ($m)".take(60) } ?: ""}")
-                    if (errors.size == sources.size) result.completeExceptionally(IOException(errors.joinToString("\n")))
-                }
-            }
+        val answers = sources.map { url -> async(Dispatchers.IO) { url to runCatching { fetchOne(url) } } }.awaitAll()
+        if (answers.all { it.second.isFailure }) {
+            throw IOException(answers.joinToString("\n") { (url, r) ->
+                val e = r.exceptionOrNull()
+                val host = url.substringAfter("://").substringBefore("/")
+                "$host : ${e?.javaClass?.simpleName}${e?.message?.let { m -> " ($m)".take(60) } ?: ""}"
+            })
         }
-        try { result.await() } finally { jobs.forEach { it.cancel() } }
+        answers.mapNotNull { it.second.getOrNull() }.maxByOrNull { it.code }
     }
 
 }

@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -97,8 +98,15 @@ jobs:
         env:
           RUN_NUMBER: ${{ github.run_number }}
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python3 - <<'PY'
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          # main a pu avancer pendant la compilation : on repart de la dernière version et on réessaie si besoin.
+          for essai in 1 2 3 4 5; do
+            git fetch -q --depth=1 origin main
+            git reset -q --hard FETCH_HEAD
+            python3 - <<'PY'
           import json, os
           run = os.environ["RUN_NUMBER"]
           ann = {
@@ -113,10 +121,14 @@ jobs:
           with open("web/casque/update.json", "w", encoding="utf-8") as f:
               json.dump(upd, f, ensure_ascii=False, indent=1); f.write("\n")
           PY
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add tools/casque-android.json web/casque/update.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Annonce Free tune ${{ github.run_number }} (automatique)"
-            git push origin HEAD:main HEAD:brouillon-gros
-          fi
+            git add tools/casque-android.json web/casque/update.json
+            git diff --cached --quiet && break
+            git commit -q -m "Annonce Free tune ${{ github.run_number }} (automatique)"
+            git push origin HEAD:main && break
+            if [ "$essai" = 5 ]; then echo "::error::Annonce impossible : main refuse la publication."; exit 1; fi
+            sleep $((essai * 5))
+          done
+          git push origin HEAD:brouillon-gros || echo "::warning::brouillon-gros non mise à jour."
+          # Un push fait avec le jeton du workflow ne déclenche pas web.yml : sans cet appel,
+          # github.io garde l'ancien update.json et l'appli ne voit pas la nouvelle version.
+          gh workflow run web.yml --ref main -R "$REPO"
