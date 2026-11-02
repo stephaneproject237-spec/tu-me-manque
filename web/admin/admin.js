@@ -393,7 +393,8 @@
       <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${ver}</div>
       ${lights}
       <div class="row" style="margin-top:6px"><span class="k grow">${esc(u.email || "—")} · ${esc(where)}</span>
-        <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button></div>
+        <button class="s" data-a="ftfr" data-id="${esc(u.id)}" style="padding:6px 12px">👥 ${nf} ami${nf > 1 ? "s" : ""}</button>
+        <button class="d" data-a="ftdel" data-id="${esc(u.id)}" style="padding:6px 12px" aria-label="Supprimer @${esc(u.username)}">🗑</button></div>
       ${srvList}</div>`;
   }
   function ftHtml() {
@@ -445,6 +446,24 @@
     S.busy = true; renderContent();
     try { const n = await call(fn, { p_a: a, p_b: b }); S.busy = false; await loadFt(); return n; }
     catch (e) { S.busy = false; renderContent(); alert("Impossible : " + (e.message || e)); }
+  }
+  async function ftDelete() {
+    const u = S.modal && S.modal.user;
+    if (!u || S.busy) return;
+    S.busy = true; renderModal();
+    try {
+      const r = await call("admin_ft_delete", { p_id: u.id });
+      if (r && r.status === "protected") throw new Error("le compte administrateur ne peut pas être supprimé.");
+      if (r && r.status === "not_found") throw new Error("ce compte n'existe plus.");
+      if (!r || r.status !== "ok") throw new Error(r && r.status);
+      delete S.sel[u.id]; delete S.exp[u.id];
+      S.modal = null; S.busy = false; renderModal();
+      await loadFt();
+    } catch (e) {
+      S.busy = false; renderModal();
+      const msg = String(e.message || e);
+      await ask("Suppression impossible : " + msg + (msg.includes("admin_ft_delete") ? "\nColle d'abord supabase/admin-suppression.sql dans Supabase." : ""), "OK");
+    }
   }
   const ftIds = (plat) => (S.ft ? S.ft.users : []).filter((u) => S.sel[u.id] && (plat === "android" ? isHelper(u) : isIos(u))).map((u) => u.id);
 
@@ -692,6 +711,19 @@
             <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="p" data-a="updsend">${S.busy ? "Envoi…" : "Envoyer"}</button></div></div></div>`;
       return;
     }
+    if (m.type === "ftdel") {
+      const word = u.username;
+      const servers = m.servers || 0;
+      el.innerHTML = `<div class="fond"><div class="box">
+        <h2 style="margin:0">Supprimer ${esc(name)} ?</h2>
+        <p class="v">${servers ? `Le compte et ses <b>${servers} serveur${servers > 1 ? "s" : ""} automatique${servers > 1 ? "s" : ""}</b> seront supprimés` : "Le compte sera supprimé"}, avec ses amis, ses messages, son abonnement et ses paiements enregistrés. C'est définitif.</p>
+        <p class="k">Pour confirmer, écris <b>${esc(word)}</b> :</p>
+        <input class="mi" id="m-in" autocomplete="off" autocapitalize="none" placeholder="${esc(word)}">
+        <div class="row" style="justify-content:flex-end"><button class="s" data-a="mclose">Annuler</button><button class="d" id="m-ok" data-a="mftdel" disabled>${S.busy ? "Suppression…" : "Supprimer"}</button></div></div></div>`;
+      const inp = document.getElementById("m-in");
+      inp.addEventListener("input", () => { document.getElementById("m-ok").disabled = S.busy || inp.value.trim().toLowerCase() !== word.toLowerCase(); });
+      return;
+    }
     if (m.type === "delete") {
       const word = u.username || "SUPPRIMER";
       el.innerHTML = `<div class="fond"><div class="box">
@@ -762,6 +794,15 @@
       case "ftsel": if (ev.target.closest("[data-a=ftfr]")) break; if (S.sel[id]) delete S.sel[id]; else S.sel[id] = 1; renderContent(); break;
       case "ftexp": if (ev.target.closest("[data-a=ftfr]")) break; if (S.exp[id]) delete S.exp[id]; else S.exp[id] = 1; renderContent(); break;
       case "ftfr": S.modal = { type: "ftfriends", id }; renderModal(); break;
+      case "ftdel": {
+        const u = S.ft && S.ft.users.find((x) => x.id === id);
+        if (!u) break;
+        const servers = isHelper(u) && u.platform !== "android" ? 0 : S.ft.users.filter((x) => x.owner === u.username && ["windows", "mac", "srvdroid"].includes(x.platform)).length;
+        S.modal = { type: "ftdel", user: u, servers }; renderModal();
+        const i = document.getElementById("m-in"); if (i) i.focus();
+        break;
+      }
+      case "mftdel": ftDelete(); break;
       case "ftshare": {
         const on = t.dataset.on === "1";
         try { await call("admin_ft_share", { p_id: id, p_on: on }); await loadFt(); }
