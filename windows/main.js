@@ -166,14 +166,17 @@ app.whenReady().then(() => {
   }
 
   // Nouvelle version ? (on regarde les publications GitHub « win-<numéro> » / « mac-<numéro> »), et on l'installe toute seule.
+  // En cas d'échec (connexion, GitHub bloqué par l'opérateur…) on le distingue d'un « pas de mise à jour »
+  // confirmé, pour ne jamais annoncer à tort « à jour » alors qu'on n'a simplement pas pu vérifier.
   const check = async () => {
+    let err = null;
     try {
       const cur = +String(app.getVersion()).split(".")[1] || 0;
       upd = await Upd.findUpdate(cfg.REPO, MAC, cur, process.arch);
       push();
       if (upd) autoInstall();
-    } catch (e) { /* hors ligne */ }
-    return upd;
+    } catch (e) { err = e; }
+    return { upd, err };
   };
   async function doInstall() {
     if (!upd || installing) return false;
@@ -195,7 +198,12 @@ app.whenReady().then(() => {
     if (!upd || store.settings.autoUpdate === false || installing) return;
     if (idle()) doInstall(); else setTimeout(autoInstall, 60000);
   }
-  ipcMain.handle("upd:check", async () => { updMsg = ""; const u = await check(); if (!u) { updMsg = "Free tune est à jour."; push(); } return !!u; });
+  ipcMain.handle("upd:check", async () => {
+    updMsg = "";
+    const { upd: u, err } = await check();
+    if (!u) { updMsg = err ? "Vérification impossible (connexion) : " + String(err.message || err).slice(0, 100) : "Free tune est à jour."; push(); }
+    return !!u;
+  });
   ipcMain.handle("upd:install", () => doInstall());
   check(); setInterval(check, 2 * 3600 * 1000);
 });
