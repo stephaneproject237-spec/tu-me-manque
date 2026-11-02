@@ -31,9 +31,8 @@
   };
   // « Casque » : même code, tables à part (préfixe c_), lecteur audio en première page et plusieurs amis.
   const CAS = !!CFG.CASQUE;
-  // Free tune est servi depuis plusieurs adresses (Netlify, github.io…) pour rester joignable même si l'une
-  // d'elles est bloquée par un opérateur. On se base sur l'adresse réellement ouverte plutôt que sur une seule
-  // adresse codée en dur, pour que la connexion Google et le lien d'invitation marchent depuis n'importe laquelle.
+  // On se base sur l'adresse réellement ouverte plutôt que sur une seule adresse codée en dur, pour que la
+  // connexion Google et le lien d'invitation marchent quelle que soit l'adresse utilisée pour ouvrir la page.
   const SELF_URL = CAS ? location.origin + location.pathname.replace(/index\.html$/, "") : CFG.WEB_URL;
   // Nouveau parcours de connexion (Google / Apple d'abord) : uniquement pour « Tu me manques ».
   const NEWAUTH = true; // Google d'abord, pseudo ensuite : même parcours pour les deux applis
