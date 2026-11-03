@@ -25,9 +25,11 @@ def wr(p, t):
 
 
 def prefixes(t):
+    # On copie stickers/sounds/questions.json DANS web/casque/ (voir main()) plutôt que de pointer vers
+    # « ../ » (le dossier parent) : certains hébergeurs (Vercel avec dossier de sortie = web/casque) ne
+    # publient que ce sous-dossier, donc « ../sounds/... » n'existe pas chez eux (le son « ok ok » restait
+    # muet, par exemple). Chemins relatifs inchangés = ça marche quel que soit l'hébergeur.
     t = re.sub(r"([\"'`])tmm_", r"\1casque_", t)
-    t = t.replace('"stickers/', '"../stickers/').replace("`stickers/", "`../stickers/").replace('"questions.json', '"../questions.json')
-    t = t.replace('"sounds/', '"../sounds/').replace("`sounds/", "`../sounds/")
     return t
 
 
@@ -87,6 +89,12 @@ def main():
 
     # Règles de confidentialité propres à Free tune (pas celles de « Tu me manques »)
     shutil.copy(os.path.join(ROOT, "tools", "confidentialite-casque.html"), os.path.join(OUT, "confidentialite.html"))
+
+    # Sons, stickers et questions : copiés ici (pas seulement référencés via « ../ ») pour marcher même quand
+    # l'hébergeur ne publie que web/casque/ (Vercel) et pas tout web/ (Netlify).
+    shutil.copytree(os.path.join(W, "sounds"), os.path.join(OUT, "sounds"))
+    shutil.copytree(os.path.join(W, "stickers"), os.path.join(OUT, "stickers"))
+    shutil.copy(os.path.join(W, "questions.json"), os.path.join(OUT, "questions.json"))
 
     mf = rd(os.path.join(W, "manifest.webmanifest"))
     mf = skin.words(mf).replace("Un bouton pour dire « Casque » à ton ami(e).", "Lecteur audio et messagerie entre amis.").replace("#160a12", "#0A0D13")
