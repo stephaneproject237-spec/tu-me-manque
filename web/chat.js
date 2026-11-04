@@ -415,6 +415,7 @@
             incoming = true; setTyping(false); if (m.kind !== "game") bubbleSound(false);
             if (isLove(m)) love();
             if (isOkOk(m)) playOkOk();
+            if (isOmg(m)) playOmg();
             if (m.kind === "sticker") burst(m.body);
           }
           else dropMatchingPending(m);
@@ -1294,6 +1295,18 @@
     } catch (e) { /* ignoré */ }
   }
 
+  // Message exact « oh my god » : même principe, pour tout le monde dans la conversation.
+  const OMG_RE = /^oh\s*my\s*god$/i;
+  const isOmg = (m) => m.kind === "text" && m.body && OMG_RE.test(m.body.trim());
+  let omgAudioEl = null;
+  function playOmg() {
+    try {
+      if (!omgAudioEl) omgAudioEl = new Audio("sounds/oh-my-god.m4a");
+      omgAudioEl.currentTime = 0;
+      omgAudioEl.play().catch(() => {});
+    } catch (e) { /* ignoré */ }
+  }
+
   async function sendText(o) {
     if (editingId !== null) { submitEdit(); return; }
     const inp = $("ch-input");
@@ -1322,6 +1335,7 @@
     }
     if (LOVE_RE.test(text)) love();
     if (OKOK_RE.test(text)) playOkOk();
+    if (OMG_RE.test(text)) playOmg();
     const p = addPending({ kind: "text", body: text });
     const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
     if (!ok && !inp.value) { inp.value = text; onInput(); }

@@ -208,6 +208,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     var loveTrigger by remember { mutableIntStateOf(0) }
     LaunchedEffect(chatVm) { chatVm.onLove = { loveTrigger++ } }
     LaunchedEffect(chatVm) { chatVm.onOkOk = { playOkOk(context) } }
+    LaunchedEffect(chatVm) { chatVm.onOmg = { playOmg(context) } }
     LaunchedEffect(state.lastMiss?.at) {
         val at = state.lastMiss?.at
         if (!at.isNullOrEmpty()) {
@@ -482,6 +483,15 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, 
 private fun playOkOk(context: Context) {
     try {
         val mp = MediaPlayer.create(context, R.raw.ok_ok) ?: return
+        mp.setOnCompletionListener { it.release() }
+        mp.start()
+    } catch (e: Exception) { /* pas de son : tant pis */ }
+}
+
+/** Message « oh my god » dans le tchat : joue le petit son (fichier res/raw/oh_my_god.m4a). */
+private fun playOmg(context: Context) {
+    try {
+        val mp = MediaPlayer.create(context, R.raw.oh_my_god) ?: return
         mp.setOnCompletionListener { it.release() }
         mp.start()
     } catch (e: Exception) { /* pas de son : tant pis */ }
