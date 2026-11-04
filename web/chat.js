@@ -215,6 +215,7 @@
         <button class="ch-icon" data-c="replyCancel" aria-label="Annuler la réponse">${ic("close", 20)}</button>
       </div>
       <div class="ch-panel" id="ch-panel" hidden></div>
+      <div class="ch-sndmenu" id="ch-sndmenu" hidden></div>
       <div class="ch-bar" id="ch-bar">
         <button class="ch-plus" data-c="emoji" id="ch-emojibtn" aria-label="Stickers et GIF">${ic("add", 28)}</button>
         <div class="ch-pill">
@@ -414,8 +415,7 @@
           if (m.sender_id !== me) {
             incoming = true; setTyping(false); if (m.kind !== "game") bubbleSound(false);
             if (isLove(m)) love();
-            if (isOkOk(m)) playOkOk();
-            if (isOmg(m)) playOmg();
+            playIfSound(m);
             if (m.kind === "sticker") burst(m.body);
           }
           else dropMatchingPending(m);
@@ -1283,29 +1283,33 @@
   const isLove = (m) => m.kind === "text" && m.body && LOVE_RE.test(m.body);
   function love() { try { window.TMM_API && window.TMM_API.love && window.TMM_API.love(); } catch (e) { /* ignoré */ } }
 
-  // Message exact « ok ok » : joue un petit son, pour tout le monde dans la conversation.
-  const OKOK_RE = /^ok\s*ok$/i;
-  const isOkOk = (m) => m.kind === "text" && m.body && OKOK_RE.test(m.body.trim());
-  let okokAudioEl = null;
-  function playOkOk() {
+  // Sons déclenchés par un message exact (texte naturel OU « @tag »), pour tout le monde dans la conversation.
+  // Taper « @ » dans le champ de message propose la liste (voir openSoundMenu / closeSoundMenu plus bas).
+  const SOUNDS = [
+    { tag: "okok", label: "OK OK", file: "ok-ok.m4a", re: /^ok\s*ok$/i },
+    { tag: "ohmygod", label: "Oh my god", file: "oh-my-god.m4a", re: /^oh\s*my\s*g(o|aw)d$/i },
+    { tag: "nobejuju", label: "No be juju be that", file: "no-be-juju.m4a", re: /^no\s*be\s*juju\s*be\s*(that|dat)$/i },
+    { tag: "chaii", label: "Chaii", file: "chaii.m4a", re: /^chaii?$/i },
+    { tag: "idontwantpeace", label: "I don't want peace", file: "i-dont-want-peace.m4a", re: /^i\s*don'?t\s*want\s*peace$/i },
+    { tag: "waouh", label: "Waouh", file: "waouh.m4a", re: /^wa+ouh?$/i },
+  ];
+  const soundAudioEls = {};
+  function playSound(s) {
     try {
-      if (!okokAudioEl) okokAudioEl = new Audio("sounds/ok-ok.m4a");
-      okokAudioEl.currentTime = 0;
-      okokAudioEl.play().catch(() => {});
+      if (!soundAudioEls[s.tag]) soundAudioEls[s.tag] = new Audio("sounds/" + s.file);
+      const el = soundAudioEls[s.tag];
+      el.currentTime = 0;
+      el.play().catch(() => {});
     } catch (e) { /* ignoré */ }
   }
-
-  // Message exact « oh my god » : même principe, pour tout le monde dans la conversation.
-  const OMG_RE = /^oh\s*my\s*god$/i;
-  const isOmg = (m) => m.kind === "text" && m.body && OMG_RE.test(m.body.trim());
-  let omgAudioEl = null;
-  function playOmg() {
-    try {
-      if (!omgAudioEl) omgAudioEl = new Audio("sounds/oh-my-god.m4a");
-      omgAudioEl.currentTime = 0;
-      omgAudioEl.play().catch(() => {});
-    } catch (e) { /* ignoré */ }
+  function matchSound(text) {
+    const t = (text || "").trim();
+    const atTag = /^@(\w+)$/.exec(t);
+    if (atTag) return SOUNDS.find((s) => s.tag === atTag[1].toLowerCase()) || null;
+    return SOUNDS.find((s) => s.re.test(t)) || null;
   }
+  const isSoundMsg = (m) => { const s = m.kind === "text" && m.body && matchSound(m.body); return s || false; };
+  function playIfSound(m) { const s = isSoundMsg(m); if (s) playSound(s); }
 
   async function sendText(o) {
     if (editingId !== null) { submitEdit(); return; }
@@ -1334,8 +1338,8 @@
       return;
     }
     if (LOVE_RE.test(text)) love();
-    if (OKOK_RE.test(text)) playOkOk();
-    if (OMG_RE.test(text)) playOmg();
+    const sMatch = matchSound(text);
+    if (sMatch) playSound(sMatch);
     const p = addPending({ kind: "text", body: text });
     const ok = await deliver(p, { p_kind: "text", p_body: text, p_media: null, p_meta: null });
     if (!ok && !inp.value) { inp.value = text; onInput(); }
@@ -1449,6 +1453,26 @@
     btn.classList.toggle("on", has);
     btn.dataset.c = has ? "send" : "mic";
     if (has) sendTyping();
+    updateSoundMenu();
+  }
+
+  // Tape « @ » (seul, en fin de message) : propose la liste des sons ; filtre en tapant la suite.
+  function updateSoundMenu() {
+    const inp = $("ch-input"), menu = $("ch-sndmenu");
+    if (!inp || !menu) return;
+    const m = /(?:^|\s)@(\w*)$/.exec(inp.value);
+    if (!m) { menu.hidden = true; menu.innerHTML = ""; return; }
+    const q = m[1].toLowerCase();
+    const list = SOUNDS.filter((s) => s.tag.startsWith(q));
+    if (!list.length) { menu.hidden = true; menu.innerHTML = ""; return; }
+    menu.innerHTML = list.map((s) => '<button type="button" class="ch-snditem" data-tag="' + s.tag + '">🔊 @' + s.tag + ' <small>' + esc(s.label) + '</small></button>').join("");
+    menu.hidden = false;
+  }
+  function pickSound(tag) {
+    const inp = $("ch-input"), menu = $("ch-sndmenu");
+    inp.value = inp.value.replace(/(?:^|\s)@\w*$/, (mt) => (mt[0] === " " ? " " : "") + "@" + tag + " ");
+    menu.hidden = true; menu.innerHTML = "";
+    inp.focus(); onInput();
   }
 
   // ---------- Photos ----------
@@ -1674,6 +1698,8 @@
 
   function onClick(ev) {
     unlockAudio();
+    const sndi = ev.target.closest(".ch-snditem");
+    if (sndi) { pickSound(sndi.dataset.tag); return; }
     if (sel.size) {
       const r = ev.target.closest(".ch-row[data-id]");
       if (r && !ev.target.closest('.ch-selbar, .ch-wp')) {

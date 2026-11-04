@@ -17,6 +17,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Petit son joué quand un message exact est envoyé/reçu : texte naturel, ou « @tag » (liste proposée en tapant « @ »). */
+data class SoundDef(val tag: String, val label: String, val re: Regex)
+object SoundDefs {
+    val AT_RE = Regex("^@(\\w+)$")
+    val all = listOf(
+        SoundDef("okok", "OK OK", Regex("^ok\\s*ok$", RegexOption.IGNORE_CASE)),
+        SoundDef("ohmygod", "Oh my god", Regex("^oh\\s*my\\s*g(o|aw)d$", RegexOption.IGNORE_CASE)),
+        SoundDef("nobejuju", "No be juju be that", Regex("^no\\s*be\\s*juju\\s*be\\s*(that|dat)$", RegexOption.IGNORE_CASE)),
+        SoundDef("chaii", "Chaii", Regex("^chaii?$", RegexOption.IGNORE_CASE)),
+        SoundDef("idontwantpeace", "I don't want peace", Regex("^i\\s*don'?t\\s*want\\s*peace$", RegexOption.IGNORE_CASE)),
+        SoundDef("waouh", "Waouh", Regex("^wa+ouh?$", RegexOption.IGNORE_CASE)),
+    )
+}
+
 /** Vrai tant que l'écran de chat est ouvert : les notifications reçues sont alors masquées. */
 object ChatVisibility {
     @Volatile
@@ -50,11 +64,8 @@ class ChatViewModel : ViewModel() {
     var onSticker: ((String) -> Unit)? = null
     var onGame: ((ChatMsg) -> Unit)? = null
 
-    /** Message exact « ok ok » (envoyé ou reçu) : joue un petit son. */
-    var onOkOk: (() -> Unit)? = null
-
-    /** Message exact « oh my god » (envoyé ou reçu) : joue un petit son. */
-    var onOmg: (() -> Unit)? = null
+    /** Message-son exact (envoyé ou reçu, voir SoundDefs) : joue le petit son correspondant (tag). */
+    var onSound: ((String) -> Unit)? = null
 
     fun pollSoon() { viewModelScope.launch { poll() } }
     private var lastTyping = 0L
@@ -97,10 +108,14 @@ class ChatViewModel : ViewModel() {
     }
     private val loveRegex = Regex("\\bje\\s*t['’ ]?\\s*aime\\b|\\bjtm\\b", RegexOption.IGNORE_CASE)
     private fun isLove(m: ChatMsg) = m.kind == "text" && m.body?.let { loveRegex.containsMatchIn(it) } == true
-    private val okOkRegex = Regex("^ok\\s*ok$", RegexOption.IGNORE_CASE)
-    private fun isOkOk(m: ChatMsg) = m.kind == "text" && m.body?.let { okOkRegex.matches(it.trim()) } == true
-    private val omgRegex = Regex("^oh\\s*my\\s*god$", RegexOption.IGNORE_CASE)
-    private fun isOmg(m: ChatMsg) = m.kind == "text" && m.body?.let { omgRegex.matches(it.trim()) } == true
+
+    /** Message exact (texte naturel OU « @tag ») : joue un petit son, pour tout le monde dans la conversation. */
+    private fun matchSound(text: String?): String? {
+        val t = text?.trim() ?: return null
+        val atTag = SoundDefs.AT_RE.matchEntire(t)?.groupValues?.get(1)?.lowercase()
+        if (atTag != null) return SoundDefs.all.firstOrNull { it.tag == atTag }?.tag
+        return SoundDefs.all.firstOrNull { it.re.matches(t) }?.tag
+    }
 
     private val confirmed = mutableListOf<ChatMsg>()
     private val pendings = mutableListOf<ChatMsg>()
@@ -181,8 +196,7 @@ class ChatViewModel : ViewModel() {
                         else if (System.currentTimeMillis() - openedAt > 4000) Sounds.receive()
                         if (_state.value.typing) _state.update { it.copy(typing = false) }
                         if (isLove(m)) onLove?.invoke()
-                        if (isOkOk(m)) onOkOk?.invoke()
-                        if (isOmg(m)) onOmg?.invoke()
+                        matchSound(m.body)?.let { onSound?.invoke(it) }
                         if (m.kind == "sticker") m.body?.let { onSticker?.invoke(it) }
                     }
                 }
@@ -450,8 +464,7 @@ class ChatViewModel : ViewModel() {
             return
         }
         if (loveRegex.containsMatchIn(text)) onLove?.invoke()
-        if (okOkRegex.matches(text)) onOkOk?.invoke()
-        if (omgRegex.matches(text)) onOmg?.invoke()
+        matchSound(text)?.let { onSound?.invoke(it) }
         viewModelScope.launch { deliver(addPending(blank("text", body = text)), null) }
     }
 

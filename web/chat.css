@@ -41,6 +41,11 @@ body.chat-open { overflow: hidden; }
 @keyframes pulse { 50% { opacity: .25; } }
 .ch-down { position: absolute; right: 14px; bottom: 76px; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: var(--rose); box-shadow: 0 2px 6px #0003; padding: 0; font-size: 22px; z-index: 2; }
 .ch-toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: #000b; color: #fff; padding: 8px 14px; border-radius: 16px; font-size: 14px; z-index: 5; max-width: 90%; text-align: center; }
+.ch-sndmenu { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; background: #fff; border-top: 1px solid #eee; padding: 6px; flex: none; }
+.ch-sndmenu[hidden] { display: none; }
+.ch-snditem { display: flex; align-items: baseline; gap: 8px; text-align: left; padding: 10px 12px; border-radius: 12px; background: transparent; font-size: 15px; font-weight: 600; }
+.ch-snditem:active { background: #F3F3F3; }
+.ch-snditem small { font-weight: 400; color: var(--gris); font-size: 13px; }
 .ch-panel { height: 290px; background: #fff; border-top: 1px solid #eee; display: flex; flex-direction: column; flex: none; }
 .ch-panel[hidden] { display: none; }
 .ch-pbody { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
@@ -125,6 +130,7 @@ body.chat-open { overflow: hidden; }
 .ch-pill .ch-send { width: 34px; height: 34px; font-size: 17px; background: none; flex: none; }
 .ch-pill .ch-send.on { background: linear-gradient(135deg, #FF6A9C, #E91E63); color: #fff; }
 .ch-panel { background: rgba(255,255,255,.78); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); border-top: 1px solid rgba(255,255,255,.7); position: relative; z-index: 3; }
+.ch-sndmenu { background: rgba(255,255,255,.78); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); border-top: 1px solid rgba(255,255,255,.7); position: relative; z-index: 3; }
 .ch-down { bottom: 84px; background: rgba(255,255,255,.75); }
 
 /* ===== Écriture en cours, réponses ===== */

@@ -12,6 +12,8 @@ import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.heightIn
@@ -955,6 +957,10 @@ private fun InputBar(
             RoundButton(R.drawable.ic_send, true) { onStopRec() }
         }
     } else {
+      Column(Modifier.fillMaxWidth()) {
+        SoundSuggestions(text) { tag ->
+            onText(Regex("(?:^|\\s)@\\w*$").replace(text) { mr -> (if (mr.value.startsWith(" ")) " " else "") + "@$tag " })
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.Bottom,
@@ -997,6 +1003,30 @@ private fun InputBar(
                         contentAlignment = Alignment.Center,
                     ) { Ico(R.drawable.ic_send, Color.White, 18.dp) }
                 }
+            }
+        }
+      }
+    }
+}
+
+/** Tape « @ » (seul, en fin de message) : propose la liste des sons (voir SoundDefs) ; filtre en tapant la suite. */
+@Composable
+private fun SoundSuggestions(text: String, onPick: (String) -> Unit) {
+    val m = remember(text) { Regex("(?:^|\\s)@(\\w*)$").find(text) }
+    if (m == null) return
+    val q = m.groupValues[1].lowercase()
+    val list = SoundDefs.all.filter { it.tag.startsWith(q) }
+    if (list.isEmpty()) return
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        list.forEach { s ->
+            Box(
+                Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC2A1B24)).border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp))
+                    .clickable { onPick(s.tag) }.padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text("🔊 @${s.tag}  ${s.label}", color = Color(0xFFF5EEF2), fontSize = 13.sp)
             }
         }
     }

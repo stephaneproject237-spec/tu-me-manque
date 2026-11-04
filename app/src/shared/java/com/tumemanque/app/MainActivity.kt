@@ -207,8 +207,7 @@ private fun Root(vm: AppViewModel, authVm: AuthViewModel) {
     var fxTrigger by remember { mutableIntStateOf(0) }
     var loveTrigger by remember { mutableIntStateOf(0) }
     LaunchedEffect(chatVm) { chatVm.onLove = { loveTrigger++ } }
-    LaunchedEffect(chatVm) { chatVm.onOkOk = { playOkOk(context) } }
-    LaunchedEffect(chatVm) { chatVm.onOmg = { playOmg(context) } }
+    LaunchedEffect(chatVm) { chatVm.onSound = { tag -> playSound(context, tag) } }
     LaunchedEffect(state.lastMiss?.at) {
         val at = state.lastMiss?.at
         if (!at.isNullOrEmpty()) {
@@ -479,19 +478,19 @@ private fun HomeScreen(state: UiState, vm: AppViewModel, onSupport: () -> Unit, 
     }
 }
 
-/** Message « ok ok » dans le tchat : joue le petit son (fichier res/raw/ok_ok.m4a). */
-private fun playOkOk(context: Context) {
+/** Message-son dans le tchat (voir SoundDefs) : joue le petit son correspondant. */
+private fun playSound(context: Context, tag: String) {
+    val res = when (tag) {
+        "okok" -> R.raw.ok_ok
+        "ohmygod" -> R.raw.oh_my_god
+        "nobejuju" -> R.raw.no_be_juju
+        "chaii" -> R.raw.chaii
+        "idontwantpeace" -> R.raw.i_dont_want_peace
+        "waouh" -> R.raw.waouh
+        else -> return
+    }
     try {
-        val mp = MediaPlayer.create(context, R.raw.ok_ok) ?: return
-        mp.setOnCompletionListener { it.release() }
-        mp.start()
-    } catch (e: Exception) { /* pas de son : tant pis */ }
-}
-
-/** Message « oh my god » dans le tchat : joue le petit son (fichier res/raw/oh_my_god.m4a). */
-private fun playOmg(context: Context) {
-    try {
-        val mp = MediaPlayer.create(context, R.raw.oh_my_god) ?: return
+        val mp = MediaPlayer.create(context, res) ?: return
         mp.setOnCompletionListener { it.release() }
         mp.start()
     } catch (e: Exception) { /* pas de son : tant pis */ }
