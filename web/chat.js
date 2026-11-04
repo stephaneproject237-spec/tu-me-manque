@@ -1470,9 +1470,9 @@
   }
   function pickSound(tag) {
     const inp = $("ch-input"), menu = $("ch-sndmenu");
-    inp.value = inp.value.replace(/(?:^|\s)@\w*$/, (mt) => (mt[0] === " " ? " " : "") + "@" + tag + " ");
+    inp.value = inp.value.replace(/(?:^|\s)@\w*$/, (mt) => (mt[0] === " " ? " " : "") + "@" + tag);
     menu.hidden = true; menu.innerHTML = "";
-    inp.focus(); onInput();
+    sendText();
   }
 
   // ---------- Photos ----------

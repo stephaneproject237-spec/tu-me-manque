@@ -959,7 +959,8 @@ private fun InputBar(
     } else {
       Column(Modifier.fillMaxWidth()) {
         SoundSuggestions(text) { tag ->
-            onText(Regex("(?:^|\\s)@\\w*$").replace(text) { mr -> (if (mr.value.startsWith(" ")) " " else "") + "@$tag " })
+            onText(Regex("(?:^|\\s)@\\w*$").replace(text) { mr -> (if (mr.value.startsWith(" ")) " " else "") + "@$tag" })
+            onSend()
         }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
