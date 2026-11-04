@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -138,11 +139,21 @@ fun CallScreen(req: CallReq, label: String, onClose: () -> Unit) {
     }
 
     var web by remember { mutableStateOf<WebView?>(null) }
-    BackHandler { web?.evaluateJavascript("TMM_CALL.hangup()", null) ?: onClose() }
+    // Réduire l'écran d'appel pendant qu'on continue à écrire dans le tchat : l'appel (WebView) continue de tourner,
+    // seule sa taille/position change — pas besoin de le recréer, donc rien n'est coupé.
+    var minimized by remember { mutableStateOf(false) }
+    BackHandler(enabled = !minimized) { web?.evaluateJavascript("TMM_CALL.hangup()", null) ?: onClose() }
 
-    Box(Modifier.fillMaxSize().zIndex(50f).background(Color(0xFF160A12))) {
+    Box(Modifier.fillMaxSize().zIndex(50f)) {
         if (decided) {
-            Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Box(
+                if (minimized) {
+                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(14.dp).size(118.dp, 168.dp)
+                        .clip(RoundedCornerShape(18.dp)).background(Color(0xFF160A12))
+                } else {
+                    Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().background(Color(0xFF160A12))
+                },
+            ) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
@@ -179,11 +190,29 @@ fun CallScreen(req: CallReq, label: String, onClose: () -> Unit) {
                     },
                     onRelease = { try { it.evaluateJavascript("TMM_CALL.hangup()", null); it.destroy() } catch (e: Exception) { } },
                 )
-                Box(
-                    Modifier.align(Alignment.TopStart).padding(12.dp).size(42.dp).clip(CircleShape).background(Color(0x66000000))
-                        .clickable { speaker = !speaker },
-                    contentAlignment = Alignment.Center,
-                ) { Text(if (speaker) "🔊" else "👂", fontSize = 18.sp) }
+                if (minimized) {
+                    // Petite bulle réduite : on tape dessus pour revenir à l'écran d'appel en plein écran.
+                    Box(
+                        Modifier.fillMaxSize().clickable { minimized = false },
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        Box(
+                            Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x99000000))
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) { Text("Agrandir", color = Color.White, fontSize = 11.sp) }
+                    }
+                } else {
+                    Box(
+                        Modifier.align(Alignment.TopStart).padding(12.dp).size(42.dp).clip(CircleShape).background(Color(0x66000000))
+                            .clickable { speaker = !speaker },
+                        contentAlignment = Alignment.Center,
+                    ) { Text(if (speaker) "🔊" else "👂", fontSize = 18.sp) }
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(12.dp).size(42.dp).clip(CircleShape).background(Color(0x66000000))
+                            .clickable { minimized = true },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("—", color = Color.White, fontSize = 20.sp) }
+                }
             }
         }
     }
