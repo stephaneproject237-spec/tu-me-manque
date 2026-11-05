@@ -1,0 +1,23 @@
+/* ---------- Appels audio et vidéo ---------- */
+.cl { position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 30%, #3A1F32, #160A12 70%); color: #fff; display: flex; flex-direction: column; align-items: center; overflow: hidden; font-family: inherit; }
+.cl[hidden] { display: none; }
+.cl-remote { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: transparent; }
+.cl.audio .cl-remote { opacity: 0; }
+.cl-top { position: relative; z-index: 2; margin-top: calc(env(safe-area-inset-top, 0px) + 70px); display: flex; flex-direction: column; align-items: center; gap: 6px; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.cl-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(255,255,255,.1); display: grid; place-items: center; font-size: 46px; box-shadow: 0 0 0 0 rgba(255,95,135,.5); animation: clPulse 2s infinite; }
+.cl.live .cl-avatar { display: none; }
+.cl-top b { font-size: 24px; } .cl-top small { font-size: 16px; opacity: .85; }
+@keyframes clPulse { 0% { box-shadow: 0 0 0 0 rgba(255,95,135,.45); } 70% { box-shadow: 0 0 0 26px rgba(255,95,135,0); } 100% { box-shadow: 0 0 0 0 rgba(255,95,135,0); } }
+.cl-local { position: absolute; z-index: 3; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); width: 104px; height: 148px; object-fit: cover; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: #000; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.cl-local[hidden] { display: none; }
+.cl-bar { position: absolute; z-index: 4; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); display: flex; justify-content: center; gap: 26px; }
+.cl-btn { border: 0; background: none; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.cl-btn svg { box-sizing: content-box; padding: 19px; border-radius: 50%; background: rgba(255,255,255,.18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.cl-btn.on svg { background: #fff; color: #333; }
+.cl-btn.red svg { background: #E5384F; } .cl-btn.green svg { background: #2EB872; }
+.cl-btn.red svg { transform: rotate(135deg); } .cl-btn.green svg { animation: clShake 1.1s infinite; }
+@keyframes clShake { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-14deg); } 30% { transform: rotate(12deg); } 45% { transform: rotate(-8deg); } 60% { transform: rotate(0); } }
+.cl.ended .cl-avatar { animation: none; opacity: .7; }
+.cl-toast { position: fixed; z-index: 100000; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(30,20,26,.95); color: #fff; padding: 10px 16px; border-radius: 14px; font-size: 14px; max-width: 86%; text-align: center; }
+.cl-toast[hidden] { display: none; }
+.ch-call { margin-left: auto; }

@@ -1,0 +1,85 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL médias Free tune</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : sauvegarde des médias dans le compte (pour les restaurer sur un autre téléphone).
+-- À lancer une seule fois dans Supabase (SQL Editor).
+
+create table if not exists public.c_media (
+  user_id uuid not null references public.c_profiles(id) on delete cascade,
+  mkey text not null,                       -- identifiant YouTube + format, ex. « abc123XYZ00:MP3_HQ »
+  yid text not null, ti text, ch text, d int default 0, kind text not null, size bigint default 0,
+  added_at timestamptz not null default now(),
+  primary key (user_id, mkey)
+);
+create table if not exists public.c_media_pl (
+  user_id uuid not null references public.c_profiles(id) on delete cascade,
+  name text not null,
+  items jsonb not null default &#x27;[]&#x27;::jsonb,  -- liste de mkey
+  updated_at timestamptz not null default now(),
+  primary key (user_id, name)
+);
+alter table public.c_media enable row level security;
+alter table public.c_media_pl enable row level security;
+revoke all on public.c_media, public.c_media_pl from anon, authenticated;
+
+-- J&#x27;enregistre une série de médias téléchargés (un tableau JSON).
+create or replace function public.c_media_add(p_items jsonb)
+returns json language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); n int := 0; o jsonb;
+begin
+  if me is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  for o in select * from jsonb_array_elements(coalesce(p_items, &#x27;[]&#x27;::jsonb)) loop
+    if coalesce(o-&gt;&gt;&#x27;yid&#x27;, &#x27;&#x27;) = &#x27;&#x27; or coalesce(o-&gt;&gt;&#x27;kind&#x27;, &#x27;&#x27;) = &#x27;&#x27; then continue; end if;
+    insert into public.c_media (user_id, mkey, yid, ti, ch, d, kind, size)
+      values (me, (o-&gt;&gt;&#x27;yid&#x27;) || &#x27;:&#x27; || (o-&gt;&gt;&#x27;kind&#x27;), left(o-&gt;&gt;&#x27;yid&#x27;, 20), left(o-&gt;&gt;&#x27;ti&#x27;, 200), left(o-&gt;&gt;&#x27;ch&#x27;, 120),
+              coalesce((o-&gt;&gt;&#x27;d&#x27;)::int, 0), left(o-&gt;&gt;&#x27;kind&#x27;, 12), coalesce((o-&gt;&gt;&#x27;size&#x27;)::bigint, 0))
+      on conflict (user_id, mkey) do update set size = greatest(public.c_media.size, excluded.size), ti = excluded.ti, ch = excluded.ch;
+    n := n + 1;
+  end loop;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;, &#x27;n&#x27;, n);
+end $$;
+
+-- Combien de médias et combien ça pèse.
+create or replace function public.c_media_summary()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object(&#x27;count&#x27;, 0, &#x27;bytes&#x27;, 0, &#x27;audio&#x27;, 0, &#x27;video&#x27;, 0); end if;
+  return (select json_build_object(&#x27;count&#x27;, count(*), &#x27;bytes&#x27;, coalesce(sum(size), 0),
+                 &#x27;audio&#x27;, count(*) filter (where kind not like &#x27;MP4%&#x27;), &#x27;video&#x27;, count(*) filter (where kind like &#x27;MP4%&#x27;))
+          from public.c_media where user_id = auth.uid());
+end $$;
+
+-- La liste complète (du plus ancien au plus récent).
+create or replace function public.c_media_list()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  return coalesce((select json_agg(json_build_object(&#x27;yid&#x27;, yid, &#x27;ti&#x27;, ti, &#x27;ch&#x27;, ch, &#x27;d&#x27;, d, &#x27;kind&#x27;, kind, &#x27;size&#x27;, size) order by added_at)
+                   from public.c_media where user_id = auth.uid()), &#x27;[]&#x27;::json);
+end $$;
+
+-- Mes playlists (nom + liste de médias).
+create or replace function public.c_media_pl_set(p_name text, p_items jsonb)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  if coalesce(trim(p_name), &#x27;&#x27;) = &#x27;&#x27; then return json_build_object(&#x27;status&#x27;, &#x27;error&#x27;); end if;
+  insert into public.c_media_pl (user_id, name, items) values (auth.uid(), left(trim(p_name), 80), coalesce(p_items, &#x27;[]&#x27;::jsonb))
+    on conflict (user_id, name) do update set items = excluded.items, updated_at = now();
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+create or replace function public.c_media_pl_list()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  return coalesce((select json_agg(json_build_object(&#x27;name&#x27;, name, &#x27;items&#x27;, items) order by updated_at)
+                   from public.c_media_pl where user_id = auth.uid()), &#x27;[]&#x27;::json);
+end $$;
+
+revoke all on function public.c_media_add(jsonb), public.c_media_summary(), public.c_media_list(), public.c_media_pl_set(text, jsonb), public.c_media_pl_list() from public, anon;
+grant execute on function public.c_media_add(jsonb), public.c_media_summary(), public.c_media_list(), public.c_media_pl_set(text, jsonb), public.c_media_pl_list() to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

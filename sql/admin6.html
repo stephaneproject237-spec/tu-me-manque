@@ -1,0 +1,46 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Admin : prévenir tous les utilisateurs d&#x27;une application (Android ou iPhone) qu&#x27;une mise à jour est disponible.
+-- À copier dans Supabase &gt; SQL Editor &gt; Run (une seule fois).
+
+-- Combien de personnes seront prévenues, pour chaque application et chaque appareil
+create or replace function public.admin_update_targets()
+returns json language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  return json_build_object(
+    &#x27;tmm_android&#x27;,    (select count(*) from public.profiles   where fcm_token is not null),
+    &#x27;tmm_ios&#x27;,        (select count(*) from public.profiles   where web_push is not null and fcm_token is null),
+    &#x27;casque_android&#x27;, (select count(*) from public.c_profiles where fcm_token is not null),
+    &#x27;casque_ios&#x27;,     (select count(*) from public.c_profiles where web_push is not null and fcm_token is null)
+  );
+end $$;
+
+-- Envoie la notification (p_app : &#x27;tmm&#x27; ou &#x27;casque&#x27; ; p_platform : &#x27;android&#x27; ou &#x27;ios&#x27;) et renvoie le nombre de personnes prévenues
+create or replace function public.admin_notify_update(p_app text, p_platform text, p_title text, p_body text)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  if p_app not in (&#x27;tmm&#x27;, &#x27;casque&#x27;) or p_platform not in (&#x27;android&#x27;, &#x27;ios&#x27;) then raise exception &#x27;invalid&#x27;; end if;
+  if coalesce(trim(p_title), &#x27;&#x27;) = &#x27;&#x27; or coalesce(trim(p_body), &#x27;&#x27;) = &#x27;&#x27; then raise exception &#x27;empty&#x27;; end if;
+  if p_app = &#x27;tmm&#x27; then
+    insert into public.notifications (to_id, title, body)
+      select id, left(p_title, 80), left(p_body, 600) from public.profiles
+      where case when p_platform = &#x27;android&#x27; then fcm_token is not null else (web_push is not null and fcm_token is null) end;
+  else
+    insert into public.c_notifications (to_id, title, body)
+      select id, left(p_title, 80), left(p_body, 600) from public.c_profiles
+      where case when p_platform = &#x27;android&#x27; then fcm_token is not null else (web_push is not null and fcm_token is null) end;
+  end if;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+revoke all on function public.admin_update_targets(), public.admin_notify_update(text, text, text, text) from public, anon;
+grant execute on function public.admin_update_targets(), public.admin_notify_update(text, text, text, text) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

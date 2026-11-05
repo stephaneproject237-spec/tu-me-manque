@@ -1,0 +1,229 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Code notify Free tune</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le code</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">// Fonction « notify » : envoie une notification à un téléphone.
+//  - Android : via Firebase Cloud Messaging (FCM)
+//  - iPhone / navigateur : via Web Push (chiffrement standard RFC 8291, signature VAPID)
+// Secrets à définir dans Supabase :
+//   WEBHOOK_SECRET      mot de passe partagé avec la base de données
+//   FCM_SERVICE_ACCOUNT contenu du fichier JSON de clé privée Firebase
+//   VAPID_PRIVATE_JWK   clé privée Web Push (JSON)
+const WEBHOOK_SECRET = Deno.env.get(&quot;WEBHOOK_SECRET&quot;) ?? &quot;&quot;;
+const SA = JSON.parse(Deno.env.get(&quot;FCM_SERVICE_ACCOUNT&quot;) ?? &quot;{}&quot;);
+const VAPID_PRIVATE = JSON.parse(Deno.env.get(&quot;VAPID_PRIVATE_JWK&quot;) ?? &quot;{}&quot;);
+const VAPID_SUBJECT = Deno.env.get(&quot;VAPID_SUBJECT&quot;) ?? &quot;https://stephaneproject237-spec.github.io/tu-me-manque/&quot;;
+
+const te = new TextEncoder();
+
+function b64url(input: ArrayBuffer | Uint8Array | string): string {
+  const bytes = typeof input === &quot;string&quot; ? te.encode(input) : new Uint8Array(input);
+  let s = &quot;&quot;;
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, &quot;-&quot;).replace(/\//g, &quot;_&quot;).replace(/=+$/, &quot;&quot;);
+}
+
+function b64urlDecode(text: string): Uint8Array {
+  const pad = &quot;=&quot;.repeat((4 - (text.length % 4)) % 4);
+  const bin = atob((text + pad).replace(/-/g, &quot;+&quot;).replace(/_/g, &quot;/&quot;));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i &lt; bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) =&gt; n + p.length, 0));
+  let offset = 0;
+  for (const p of parts) {
+    out.set(p, offset);
+    offset += p.length;
+  }
+  return out;
+}
+
+const bs = (u: Uint8Array) =&gt; u as unknown as BufferSource;
+
+// ====================== Android (FCM) ======================
+
+function pemToDer(pem: string): ArrayBuffer {
+  const b64 = pem.replace(/-----[^-]+-----/g, &quot;&quot;).replace(/\s+/g, &quot;&quot;);
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i &lt; bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+let cached: { token: string; exp: number } | null = null;
+
+async function accessToken(): Promise&lt;string&gt; {
+  const now = Math.floor(Date.now() / 1000);
+  if (cached &amp;&amp; cached.exp &gt; now + 60) return cached.token;
+  const header = b64url(JSON.stringify({ alg: &quot;RS256&quot;, typ: &quot;JWT&quot; }));
+  const claim = b64url(JSON.stringify({
+    iss: SA.client_email,
+    scope: &quot;https://www.googleapis.com/auth/firebase.messaging&quot;,
+    aud: &quot;https://oauth2.googleapis.com/token&quot;,
+    iat: now,
+    exp: now + 3600,
+  }));
+  const key = await crypto.subtle.importKey(
+    &quot;pkcs8&quot;,
+    pemToDer(SA.private_key),
+    { name: &quot;RSASSA-PKCS1-v1_5&quot;, hash: &quot;SHA-256&quot; },
+    false,
+    [&quot;sign&quot;],
+  );
+  const signature = await crypto.subtle.sign(&quot;RSASSA-PKCS1-v1_5&quot;, key, te.encode(`${header}.${claim}`));
+  const jwt = `${header}.${claim}.${b64url(signature)}`;
+  const res = await fetch(&quot;https://oauth2.googleapis.com/token&quot;, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/x-www-form-urlencoded&quot; },
+    body: new URLSearchParams({ grant_type: &quot;urn:ietf:params:oauth:grant-type:jwt-bearer&quot;, assertion: jwt }),
+  });
+  const data = await res.json();
+  if (!data.access_token) throw new Error(&quot;Jeton Google refusé : &quot; + JSON.stringify(data));
+  cached = { token: data.access_token, exp: now + (data.expires_in ?? 3600) };
+  return cached.token;
+}
+
+/** Notification silencieuse (sans texte) : réveille l&#x27;appli Android, qui fait son travail en arrière-plan. */
+async function sendFcmData(token: string, data: Record&lt;string, string&gt;): Promise&lt;number&gt; {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${SA.project_id}/messages:send`, {
+    method: &quot;POST&quot;,
+    headers: { Authorization: `Bearer ${await accessToken()}`, &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: JSON.stringify({ message: { token, data, android: { priority: &quot;HIGH&quot; } } }),
+  });
+  return res.status;
+}
+
+async function sendFcm(token: string, title: string, body: string): Promise&lt;number&gt; {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${SA.project_id}/messages:send`, {
+    method: &quot;POST&quot;,
+    headers: { Authorization: `Bearer ${await accessToken()}`, &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: { title, body },
+        android: {
+          priority: &quot;HIGH&quot;,
+          notification: {
+            channel_id: &quot;miss_v2&quot;,
+            sound: &quot;tu_me_manques&quot;,
+            default_sound: false,
+            vibrate_timings: [&quot;0s&quot;, &quot;0.3s&quot;, &quot;0.12s&quot;, &quot;0.3s&quot;, &quot;0.12s&quot;, &quot;0.6s&quot;],
+            default_vibrate_timings: false,
+          },
+        },
+      },
+    }),
+  });
+  return res.status;
+}
+
+// ====================== iPhone / navigateur (Web Push) ======================
+
+async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise&lt;Uint8Array&gt; {
+  const key = await crypto.subtle.importKey(&quot;raw&quot;, bs(ikm), &quot;HKDF&quot;, false, [&quot;deriveBits&quot;]);
+  const bits = await crypto.subtle.deriveBits({ name: &quot;HKDF&quot;, hash: &quot;SHA-256&quot;, salt: bs(salt), info: bs(info) }, key, length * 8);
+  return new Uint8Array(bits);
+}
+
+/** Chiffrement « aes128gcm » des messages Web Push (RFC 8291 et RFC 8188). */
+export async function encryptWebPush(
+  keys: { p256dh: string; auth: string },
+  plaintext: Uint8Array,
+  options?: { salt?: Uint8Array; ephemeral?: CryptoKeyPair },
+): Promise&lt;Uint8Array&gt; {
+  const uaPublic = b64urlDecode(keys.p256dh);
+  const authSecret = b64urlDecode(keys.auth);
+  const ephemeral = options?.ephemeral ??
+    (await crypto.subtle.generateKey({ name: &quot;ECDH&quot;, namedCurve: &quot;P-256&quot; }, true, [&quot;deriveBits&quot;]));
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey(&quot;raw&quot;, ephemeral.publicKey));
+  const uaKey = await crypto.subtle.importKey(&quot;raw&quot;, bs(uaPublic), { name: &quot;ECDH&quot;, namedCurve: &quot;P-256&quot; }, false, []);
+  const shared = new Uint8Array(
+    await crypto.subtle.deriveBits({ name: &quot;ECDH&quot;, public: uaKey }, ephemeral.privateKey, 256),
+  );
+  const salt = options?.salt ?? crypto.getRandomValues(new Uint8Array(16));
+
+  const ikm = await hkdf(authSecret, shared, concat(te.encode(&quot;WebPush: info\0&quot;), uaPublic, asPublic), 32);
+  const cek = await hkdf(salt, ikm, te.encode(&quot;Content-Encoding: aes128gcm\0&quot;), 16);
+  const nonce = await hkdf(salt, ikm, te.encode(&quot;Content-Encoding: nonce\0&quot;), 12);
+
+  const aesKey = await crypto.subtle.importKey(&quot;raw&quot;, bs(cek), &quot;AES-GCM&quot;, false, [&quot;encrypt&quot;]);
+  const record = concat(plaintext, new Uint8Array([2])); // 0x02 = dernier (et seul) bloc
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: &quot;AES-GCM&quot;, iv: bs(nonce) }, aesKey, bs(record)));
+
+  const header = new Uint8Array(16 + 4 + 1 + asPublic.length);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096, false);
+  header[20] = asPublic.length;
+  header.set(asPublic, 21);
+  return concat(header, ciphertext);
+}
+
+function vapidPublicKey(): string {
+  return b64url(concat(new Uint8Array([4]), b64urlDecode(VAPID_PRIVATE.x), b64urlDecode(VAPID_PRIVATE.y)));
+}
+
+/** En-tête d&#x27;autorisation VAPID (RFC 8292) : prouve au service de notifications d&#x27;où vient l&#x27;envoi. */
+export async function vapidAuthorization(endpoint: string): Promise&lt;string&gt; {
+  const header = b64url(JSON.stringify({ typ: &quot;JWT&quot;, alg: &quot;ES256&quot; }));
+  const payload = b64url(JSON.stringify({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+    sub: VAPID_SUBJECT,
+  }));
+  const key = await crypto.subtle.importKey(&quot;jwk&quot;, VAPID_PRIVATE, { name: &quot;ECDSA&quot;, namedCurve: &quot;P-256&quot; }, false, [&quot;sign&quot;]);
+  const signature = await crypto.subtle.sign({ name: &quot;ECDSA&quot;, hash: &quot;SHA-256&quot; }, key, bs(te.encode(`${header}.${payload}`)));
+  return `vapid t=${header}.${payload}.${b64url(signature)}, k=${vapidPublicKey()}`;
+}
+
+async function sendWebPush(
+  sub: { endpoint: string; keys: { p256dh: string; auth: string } },
+  title: string,
+  body: string,
+): Promise&lt;number&gt; {
+  const message = await encryptWebPush(sub.keys, te.encode(JSON.stringify({ title, body })));
+  const res = await fetch(sub.endpoint, {
+    method: &quot;POST&quot;,
+    headers: {
+      &quot;Content-Encoding&quot;: &quot;aes128gcm&quot;,
+      &quot;Content-Type&quot;: &quot;application/octet-stream&quot;,
+      TTL: &quot;86400&quot;,
+      Urgency: &quot;high&quot;,
+      Authorization: await vapidAuthorization(sub.endpoint),
+    },
+    body: bs(message),
+  });
+  return res.status;
+}
+
+// ====================== Point d&#x27;entrée ======================
+
+async function handler(req: Request): Promise&lt;Response&gt; {
+  if (!WEBHOOK_SECRET || req.headers.get(&quot;x-webhook-secret&quot;) !== WEBHOOK_SECRET) {
+    return new Response(&quot;forbidden&quot;, { status: 403 });
+  }
+  const { token, web_push, title, body, silent, data } = await req.json();
+  const results: Record&lt;string, unknown&gt; = {};
+  if (token) {
+    try {
+      results.fcm = silent ? await sendFcmData(token, data ?? {}) : await sendFcm(token, title, body);
+    } catch (err) {
+      results.fcm = String(err);
+    }
+  }
+  if (web_push) {
+    try {
+      results.web = await sendWebPush(web_push, title, body);
+    } catch (err) {
+      results.web = String(err);
+    }
+  }
+  return new Response(JSON.stringify(results), { status: 200, headers: { &quot;Content-Type&quot;: &quot;application/json&quot; } });
+}
+
+Deno.serve(handler);
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans la fonction notify.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

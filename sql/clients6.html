@@ -1,0 +1,98 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL clients Free tune 6</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Free tune : un Android qui perd internet puis revient REPREND sa tâche si personne d&#x27;autre ne l&#x27;a prise entre-temps
+-- (avant : la demande restait bloquée, la barre de l&#x27;iPhone ne bougeait plus).
+-- À lancer une seule fois, APRÈS clients, clients2, clients3, clients4 et clients5 (peut être relancé sans risque).
+
+alter table public.c_relay add column if not exists held_by uuid;
+
+create or replace function public.c_relay_status(p_ids bigint[])
+returns json language plpgsql security definer set search_path = public as $$
+declare w record; nt uuid; wake uuid[];
+begin
+  if auth.uid() is null then return &#x27;[]&#x27;::json; end if;
+  for w in
+    select * from public.c_relay
+    where id = any(p_ids) and from_id = auth.uid()
+      and ((status = &#x27;taken&#x27; and beat_at is not null and beat_at &lt; now() - interval &#x27;6 seconds&#x27;)
+        or (status = &#x27;open&#x27; and target_id is not null and assigned_at &lt; now() - interval &#x27;15 seconds&#x27;))
+    for update
+  loop
+    if w.tries &gt;= 4 then
+      update public.c_relay set status = &#x27;fail&#x27; where id = w.id;
+      continue;
+    end if;
+    nt := public.c__pick_server(w.from_id, array_append(w.skip, coalesce(w.taker_id, w.target_id)));
+    update public.c_relay set status = &#x27;open&#x27;, taker_id = null, taken_at = null, beat_at = null, prog = 0,
+        skip = array_append(skip, coalesce(w.taker_id, w.target_id)), target_id = nt, assigned_at = now(),
+        held_by = case when w.status = &#x27;taken&#x27; then w.taker_id else held_by end,
+        lost_at = case when w.status = &#x27;taken&#x27; then now() else lost_at end
+      where id = w.id;
+    if nt is not null then
+      wake := array[nt];
+    else
+      select array_agg(h) into wake from public.c__helpers(w.from_id) h
+        where h &lt;&gt; all (array_append(w.skip, coalesce(w.taker_id, w.target_id)));
+    end if;
+    perform public.c__fcm(wake, &#x27;relay&#x27;);
+  end loop;
+  return coalesce((
+    select json_agg(json_build_object(&#x27;id&#x27;, r.id, &#x27;status&#x27;, r.status, &#x27;media&#x27;, r.media, &#x27;size&#x27;, r.size, &#x27;prog&#x27;, r.prog, &#x27;tries&#x27;, r.tries,
+        &#x27;lost&#x27;, (r.status = &#x27;open&#x27; and r.lost_at is not null),
+        &#x27;quiet&#x27;, case when r.status = &#x27;taken&#x27; and r.beat_at is not null then floor(extract(epoch from now() - r.beat_at))::int else 0 end,
+        &#x27;by&#x27;, (select username from public.c_profiles where id = r.taker_id)))
+    from public.c_relay r where r.id = any(p_ids) and r.from_id = auth.uid()), &#x27;[]&#x27;::json);
+end $$;
+
+-- Signe de vie : l&#x27;Android qui détenait la tâche la reprend s&#x27;il revient avant qu&#x27;un autre l&#x27;ait prise.
+create or replace function public.c_relay_beat(p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set beat_at = now() where id = p_id and taker_id = auth.uid() and status = &#x27;taken&#x27;;
+  get diagnostics k = row_count;
+  if k = 0 then
+    update public.c_relay set status = &#x27;taken&#x27;, taker_id = auth.uid(), taken_at = now(), beat_at = now(), lost_at = null,
+        skip = array_remove(skip, auth.uid())
+      where id = p_id and status = &#x27;open&#x27; and taker_id is null and held_by = auth.uid();
+    get diagnostics k = row_count;
+  end if;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+
+create or replace function public.c_relay_progress(p_id bigint, p_prog int)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set prog = greatest(prog, least(greatest(coalesce(p_prog, 0), 0), 100)),
+      beat_at = case when beat_at is not null then now() else beat_at end
+    where id = p_id and taker_id = auth.uid() and status = &#x27;taken&#x27;;
+  get diagnostics k = row_count;
+  if k = 0 then
+    update public.c_relay set status = &#x27;taken&#x27;, taker_id = auth.uid(), taken_at = now(), beat_at = now(), lost_at = null,
+        skip = array_remove(skip, auth.uid()), prog = least(greatest(coalesce(p_prog, 0), 0), 100)
+      where id = p_id and status = &#x27;open&#x27; and taker_id is null and held_by = auth.uid();
+    get diagnostics k = row_count;
+  end if;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+
+create or replace function public.c_relay_done(p_id bigint, p_media text, p_size bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  update public.c_relay set status = &#x27;done&#x27;, media = p_media, size = p_size, prog = 100
+    where id = p_id and status in (&#x27;taken&#x27;, &#x27;open&#x27;) and (taker_id = auth.uid() or (taker_id is null and held_by = auth.uid()));
+  get diagnostics k = row_count;
+  return json_build_object(&#x27;status&#x27;, case when k = 1 then &#x27;ok&#x27; else &#x27;gone&#x27; end);
+end $$;
+
+grant execute on function public.c_relay_status(bigint[]), public.c_relay_beat(bigint), public.c_relay_progress(bigint, int), public.c_relay_done(bigint, text, bigint) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>

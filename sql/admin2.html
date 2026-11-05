@@ -1,0 +1,40 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>SQL admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#FFF5F8}button{font:inherit;font-weight:700;border:0;border-radius:22px;padding:14px 22px;background:#E91E63;color:#fff;width:100%;position:sticky;top:8px}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:#fff;border-radius:12px;padding:12px;border:1px solid #eee}</style></head><body>
+<button id="b">Copier le SQL</button><p id="m" style="text-align:center;color:#2E7D32;min-height:1.2em"></p>
+<pre id="t">-- Tu me manques : la messagerie @admin n&#x27;apparaît que si l&#x27;admin écrit en premier,
+-- et l&#x27;admin peut supprimer une conversation (elle disparaît aussi chez la personne).
+-- À exécuter une fois dans Supabase → SQL Editor, APRÈS admin.sql. Peut être relancé sans danger.
+
+-- Une personne ne peut répondre que s&#x27;il existe déjà un message de l&#x27;admin.
+create or replace function public.support_send(p_body text)
+returns json language plpgsql security definer set search_path = public as $$
+declare b text := left(trim(coalesce(p_body, &#x27;&#x27;)), 2000);
+begin
+  if auth.uid() is null then return json_build_object(&#x27;status&#x27;, &#x27;unauthenticated&#x27;); end if;
+  if b = &#x27;&#x27; then return json_build_object(&#x27;status&#x27;, &#x27;empty&#x27;); end if;
+  if not exists (select 1 from public.support_messages where user_id = auth.uid() and from_admin) then
+    return json_build_object(&#x27;status&#x27;, &#x27;no_thread&#x27;);
+  end if;
+  if (select count(*) from public.support_messages
+        where user_id = auth.uid() and not from_admin and created_at &gt; now() - interval &#x27;1 minute&#x27;) &gt;= 15 then
+    return json_build_object(&#x27;status&#x27;, &#x27;too_fast&#x27;);
+  end if;
+  insert into public.support_messages (user_id, from_admin, body) values (auth.uid(), false, b);
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+-- Supprime toute la conversation avec une personne (chez l&#x27;admin et chez elle).
+create or replace function public.admin_delete_thread(p_user uuid)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception &#x27;forbidden&#x27;; end if;
+  delete from public.support_messages where user_id = p_user;
+  return json_build_object(&#x27;status&#x27;, &#x27;ok&#x27;);
+end $$;
+
+revoke all on function public.support_send(text), public.admin_delete_thread(uuid) from public, anon, authenticated;
+grant execute on function public.support_send(text), public.admin_delete_thread(uuid) to authenticated;
+</pre>
+<script>document.getElementById("b").onclick=async()=>{const t=document.getElementById("t").textContent;try{await navigator.clipboard.writeText(t);document.getElementById("m").textContent="Copié ! Colle-le dans Supabase.";}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById("t"));const x=getSelection();x.removeAllRanges();x.addRange(r);document.getElementById("m").textContent="Texte sélectionné : appuie sur Copier dans le menu.";}};</script>
+</body></html>
