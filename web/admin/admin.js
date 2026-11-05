@@ -40,7 +40,15 @@
   async function authed(method, path, body) {
     let s = await session(false);
     let r = await http(method, path, body, s.access);
-    if (r.code === 401) { s = await session(true); r = await http(method, path, body, s.access); }
+    if (r.code === 401) {
+      try { s = await session(true); r = await http(method, path, body, s.access); } catch (e) { /* session morte, voir ci-dessous */ }
+    }
+    if (r.code === 401) {
+      // Le rafraîchissement a échoué (ou a redonné un jeton déjà expiré) : la session est morte, on renvoie
+      // proprement vers l'écran de connexion plutôt que d'afficher le message technique "JWT expired".
+      store.clear(); S.stage = "login"; S.err = "Ta session a expiré. Reconnecte-toi."; render();
+      throw new Error("Ta session a expiré, reconnecte-toi.");
+    }
     if (r.code < 200 || r.code >= 300) { let m = r.text; try { m = JSON.parse(r.text).message || m; } catch (e) { /* ignoré */ } throw new Error(m); }
     return r.text ? JSON.parse(r.text) : null;
   }
