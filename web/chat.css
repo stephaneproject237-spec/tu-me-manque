@@ -43,8 +43,8 @@ body.chat-open { overflow: hidden; }
 .ch-toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: #000b; color: #fff; padding: 8px 14px; border-radius: 16px; font-size: 14px; z-index: 5; max-width: 90%; text-align: center; }
 .ch-sndmenu { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; background: #fff; border-top: 1px solid #eee; padding: 6px; flex: none; }
 .ch-sndmenu[hidden] { display: none; }
-.ch-snditem { display: flex; align-items: baseline; gap: 8px; text-align: left; padding: 10px 12px; border-radius: 12px; background: transparent; font-size: 15px; font-weight: 600; }
-.ch-snditem:active { background: #F3F3F3; }
+.ch-snditem { display: flex; align-items: baseline; gap: 8px; text-align: left; padding: 10px 12px; border-radius: 12px; background: rgba(90,200,250,.3); font-size: 15px; font-weight: 600; }
+.ch-snditem:active { background: rgba(90,200,250,.5); }
 .ch-snditem small { font-weight: 400; color: var(--gris); font-size: 13px; }
 .ch-panel { height: 290px; background: #fff; border-top: 1px solid #eee; display: flex; flex-direction: column; flex: none; }
 .ch-panel[hidden] { display: none; }

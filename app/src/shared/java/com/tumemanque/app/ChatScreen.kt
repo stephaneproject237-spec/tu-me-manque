@@ -1024,7 +1024,7 @@ private fun SoundSuggestions(text: String, onPick: (String) -> Unit) {
     ) {
         list.forEach { s ->
             Box(
-                Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xCC2A1B24)).border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp))
+                Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x4D5AC8FA)).border(1.dp, Color(0x805AC8FA), RoundedCornerShape(16.dp))
                     .clickable { onPick(s.tag) }.padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text("🔊 @${s.tag}  ${s.label}", color = Color(0xFFF5EEF2), fontSize = 13.sp)
