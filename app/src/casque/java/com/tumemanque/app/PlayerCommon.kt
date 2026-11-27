@@ -180,6 +180,7 @@ fun TrackMenu(
             item("Ajouter à la file d'attente") { Hub.enqueue(listOf(t)) }
             item("Ajouter à une playlist…") { onAddToPlaylist() }
             item("Envoyer hors de Free tune…") { Share.tracks(ctx, listOf(t.id)) }
+            item("Définir comme sonnerie") { RingtoneSetter.set(ctx, t) }
             item(if (fav) "Retirer des favoris" else "Ajouter aux favoris") { Lib.toggleFav(t.id) }
             extra.forEach { (l, f) -> item(l, f) }
             item("Informations") { onInfo() }

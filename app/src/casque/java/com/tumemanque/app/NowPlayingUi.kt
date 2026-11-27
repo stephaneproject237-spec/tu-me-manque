@@ -187,6 +187,7 @@ fun NowPlaying(t: Track, favs: Set<String>, onClose: () -> Unit, onAddToPlaylist
                     DropdownMenu(menu, { menu = false }, containerColor = P.card2) {
                         DropdownMenuItem(text = { Text("Envoyer hors de Free tune…", color = P.text) }, onClick = { menu = false; Share.tracks(ctx, listOf(t.id)) })
                         DropdownMenuItem(text = { Text("Ajouter à une playlist…", color = P.text) }, onClick = { menu = false; onAddToPlaylist(t) })
+                        DropdownMenuItem(text = { Text("Définir comme sonnerie", color = P.text) }, onClick = { menu = false; RingtoneSetter.set(ctx, t) })
                         DropdownMenuItem(text = { Text("Informations", color = P.text) }, onClick = { menu = false; onInfo(t) })
                     }
                 }
