@@ -146,6 +146,7 @@ class AppViewModel : ViewModel() {
             "already_has_partner" -> say("Tu as déjà un partenaire.")
             "partner_busy" -> say("@$name a déjà un partenaire.")
             "already_sent" -> say("Tu as déjà envoyé une demande à @$name.")
+            "already_friends" -> say("@${found ?: name} est déjà ton ami(e).")
             "invalid" -> say("Pseudo ou numéro invalide.")
             else -> say("Impossible d'envoyer la demande.")
         }
